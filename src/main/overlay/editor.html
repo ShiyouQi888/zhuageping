@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline'; style-src 'self';" />
+    <title>抓个屏截图编辑器</title>
+    <link rel="stylesheet" href="./editor.css" />
+  </head>
+  <body>
+    <canvas id="annotationCanvas"></canvas>
+    <div id="shade"></div>
+    <div id="selection">
+      <i class="handle h1" data-handle="nw"></i>
+      <i class="handle h2" data-handle="n"></i>
+      <i class="handle h3" data-handle="ne"></i>
+      <i class="handle h4" data-handle="e"></i>
+      <i class="handle h5" data-handle="se"></i>
+      <i class="handle h6" data-handle="s"></i>
+      <i class="handle h7" data-handle="sw"></i>
+      <i class="handle h8" data-handle="w"></i>
+    </div>
+    <div id="objectBox">
+      <i class="handle h1" data-handle="nw"></i>
+      <i class="handle h2" data-handle="n"></i>
+      <i class="handle h3" data-handle="ne"></i>
+      <i class="handle h4" data-handle="e"></i>
+      <i class="handle h5" data-handle="se"></i>
+      <i class="handle h6" data-handle="s"></i>
+      <i class="handle h7" data-handle="sw"></i>
+      <i class="handle h8" data-handle="w"></i>
+    </div>
+
+    <div id="toolbar" role="toolbar" aria-label="截图编辑工具">
+      <button data-tool="select" title="选择/移动"><svg viewBox="0 0 24 24"><path d="M4 4l7 16 2-7 7-2z"/></svg></button>
+      <button data-tool="rect" title="矩形"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1"/></svg></button>
+      <button data-tool="ellipse" title="圆形"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/></svg></button>
+      <button data-tool="line" title="直线"><svg viewBox="0 0 24 24"><path d="M5 19L19 5"/></svg></button>
+      <button data-tool="arrow" title="箭头"><svg viewBox="0 0 24 24"><path d="M5 19L19 5"/><path d="M10 5h9v9"/></svg></button>
+      <button data-tool="brush" title="画笔"><svg viewBox="0 0 24 24"><path d="M4 20c4 0 4-3 6-5"/><path d="M14 4l6 6-8 8-6-6z"/></svg></button>
+      <button data-tool="text" title="文字"><svg viewBox="0 0 24 24"><path d="M5 6h14"/><path d="M12 6v12"/><path d="M9 18h6"/></svg></button>
+      <button data-tool="mosaic" title="马赛克"><svg viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg></button>
+      <button data-tool="blur" title="模糊块"><svg viewBox="0 0 24 24"><path d="M12 3c2 3 5 6 5 10a5 5 0 0 1-10 0c0-4 3-7 5-10z"/><path d="M8 18c2 1 6 1 8 0"/></svg></button>
+      <button data-tool="eraser" title="橡皮擦"><svg viewBox="0 0 24 24"><path d="M3 17l8-8 7 7-5 5H7z"/><path d="M14 4l6 6"/></svg></button>
+      <span class="sep"></span>
+      <input id="color" type="color" value="#ef4444" title="颜色" />
+      <div id="swatches" aria-label="颜色预设">
+        <button class="swatch swatch-red active" data-color="#ef4444" title="红色"></button>
+        <button class="swatch swatch-blue" data-color="#2563eb" title="蓝色"></button>
+        <button class="swatch swatch-green" data-color="#16a34a" title="绿色"></button>
+        <button class="swatch swatch-amber" data-color="#f59e0b" title="黄色"></button>
+        <button class="swatch swatch-black" data-color="#111827" title="黑色"></button>
+        <button class="swatch swatch-white" data-color="#ffffff" title="白色"></button>
+      </div>
+      <select id="strokeSize" title="线宽">
+        <option value="3">细</option>
+        <option value="5" selected>中</option>
+        <option value="9">粗</option>
+        <option value="15">特粗</option>
+      </select>
+      <span class="sep"></span>
+      <button id="undo" title="撤销 Ctrl+Z"><svg viewBox="0 0 24 24"><path d="M9 7H4v5"/><path d="M4 12a8 8 0 1 0 3-6"/></svg></button>
+      <button id="copy" title="复制 Ctrl+C"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg></button>
+      <button id="pin" title="贴图 F3"><svg viewBox="0 0 24 24"><path d="M9 4h6"/><path d="M12 4v7"/><path d="M7 11h10l-2 5H9z"/><path d="M12 16v5"/></svg></button>
+      <button id="save" title="保存 Ctrl+S"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></button>
+      <button id="cancel" class="danger" title="取消 Esc"><svg viewBox="0 0 24 24"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg></button>
+      <button id="ok" class="success" title="完成 Enter"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></button>
+    </div>
+
+    <div id="bootFlash"></div>
+    <div id="status">拖动选择截图区域</div>
+    <div id="help">V 选择 · R 矩形 · T 文字 · M 马赛克 · U 模糊 · F3 贴图 · Esc 取消 · Ctrl+C 复制 · Enter 完成</div>
+    <script src="./editor.js"></script>
+  </body>
+</html>

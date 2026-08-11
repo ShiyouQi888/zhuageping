@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' file: data:; script-src 'self'; style-src 'self';"
+    />
+    <title>抓个屏贴图</title>
+    <link rel="stylesheet" href="./pin.css" />
+  </head>
+  <body>
+    <main id="pinSurface">
+      <img id="pinImage" alt="贴图截图" draggable="false" />
+      <div id="toolbar" aria-label="贴图工具栏">
+        <button id="zoomOut" title="缩小">-</button>
+        <button id="zoomReset" title="原始比例">1:1</button>
+        <button id="zoomIn" title="放大">+</button>
+        <label title="透明度">
+          <span>透明</span>
+          <input id="opacity" type="range" min="35" max="100" value="100" />
+        </label>
+        <button id="copy" title="复制图片">复制</button>
+        <button id="open" title="打开文件">打开</button>
+        <button id="close" class="danger" title="关闭 Esc">×</button>
+      </div>
+    </main>
+    <script src="./pin.js"></script>
+  </body>
+</html>

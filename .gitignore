@@ -1,0 +1,8 @@
+node_modules
+dist
+data
+screenshots
+.runtime
+release
+work
+*.log

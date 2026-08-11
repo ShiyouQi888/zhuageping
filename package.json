@@ -1,0 +1,99 @@
+{
+  "name": "zhua-ge-ping",
+  "productName": "抓个屏",
+  "version": "0.1.0",
+  "private": true,
+  "description": "抓个屏：Windows 本地截图、贴图与水印工具。",
+  "homepage": "https://local.zhuageping.app",
+  "author": {
+    "name": "齐世有",
+    "email": "blacklaw@foxmail.com"
+  },
+  "copyright": "Copyright © 2026 齐世有. All rights reserved.",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "tsc --noEmit && electron-vite build && node scripts/copy-overlay-assets.js",
+    "build:icons": "node scripts/generate-icons.js",
+    "dist": "npm run build:icons && npm run build && electron-builder --win",
+    "dist:dir": "npm run build:icons && npm run build && electron-builder --dir",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/main/overlay/*.test.js",
+    "lint": "eslint .",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.17",
+    "@types/react-dom": "^18.3.5",
+    "@typescript-eslint/eslint-plugin": "^8.18.2",
+    "@typescript-eslint/parser": "^8.18.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.2.1",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^2.3.0",
+    "eslint": "^9.17.0",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11"
+  },
+  "build": {
+    "appId": "com.qishiyou.zhuageping",
+    "productName": "抓个屏",
+    "copyright": "Copyright © 2026 齐世有. All rights reserved.",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "artifactName": "${productName}-Setup-${version}-${arch}.${ext}",
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/sharp/**/*",
+      "node_modules/@img/**/*"
+    ],
+    "protocols": [
+      {
+        "name": "抓个屏 URL Protocol",
+        "schemes": [
+          "zhuageping"
+        ]
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico",
+      "legalTrademarks": "抓个屏",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "抓个屏",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "license": "build/license.txt",
+      "deleteAppDataOnUninstall": false
+    },
+    "extraMetadata": {
+      "name": "zhua-ge-ping",
+      "productName": "抓个屏",
+      "author": {
+        "name": "齐世有",
+        "email": "blacklaw@foxmail.com"
+      }
+    }
+  }
+}
