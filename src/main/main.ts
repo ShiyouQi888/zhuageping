@@ -558,6 +558,38 @@ function formatTimestamp(date: Date) {
   ].join("");
 }
 
+function formatScreenshotDateParts(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return {
+    datePart: [date.getFullYear(), pad(date.getMonth() + 1), pad(date.getDate())].join(""),
+    timePart: [pad(date.getHours()), pad(date.getMinutes()), pad(date.getSeconds())].join("")
+  };
+}
+
+async function nextScreenshotSequence(datePart: string, extension: string) {
+  await fs.mkdir(appSettings.screenshotDir, { recursive: true });
+  const files = await fs.readdir(appSettings.screenshotDir).catch(() => []);
+  const pattern = new RegExp(`^Zhuageping-${datePart}-\\d{6}-(\\d{3})\\.${extension}$`, "i");
+  const maxSequence = files.reduce((max, fileName) => {
+    const match = fileName.match(pattern);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+  return String(maxSequence + 1).padStart(3, "0");
+}
+
+async function buildScreenshotFilePath(date: Date, extension: string) {
+  const { datePart, timePart } = formatScreenshotDateParts(date);
+  let sequence = await nextScreenshotSequence(datePart, extension);
+  let filePath = path.join(appSettings.screenshotDir, `Zhuageping-${datePart}-${timePart}-${sequence}.${extension}`);
+
+  while (fsSync.existsSync(filePath)) {
+    sequence = String(Number(sequence) + 1).padStart(3, "0");
+    filePath = path.join(appSettings.screenshotDir, `Zhuageping-${datePart}-${timePart}-${sequence}.${extension}`);
+  }
+
+  return filePath;
+}
+
 function escapeXml(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -1027,7 +1059,6 @@ async function saveCapturedBuffer(
   capturedBuffer: Buffer,
   options: CaptureOptions,
   copyAfterCapture = false,
-  suffix = "",
   forcePin = false
 ): Promise<ScreenshotRecord> {
   const metadata = await sharp(capturedBuffer).metadata();
@@ -1036,11 +1067,7 @@ async function saveCapturedBuffer(
   const now = new Date();
   const timestamp = formatTimestamp(now);
   const extension = appSettings.outputFormat === "jpg" ? "jpg" : "png";
-  const fileBaseName = `${timestamp.replace(/[-: ]/g, "")}${suffix}_${options.location.trim() || "local"}`
-    .replace(/[\\/:*?"<>|]/g, "_")
-    .slice(0, 120);
-  const fileName = `${fileBaseName}.${extension}`;
-  const filePath = path.join(appSettings.screenshotDir, fileName);
+  const filePath = await buildScreenshotFilePath(now, extension);
   const imagePipeline = options.watermarkEnabled === false
     ? sharp(capturedBuffer)
     : sharp(capturedBuffer).composite([buildWatermarkSvg(options, timestamp, imageWidth, imageHeight)]);
@@ -1089,7 +1116,6 @@ async function capturePrimaryScreen(options: CaptureOptions, copyAfterCapture = 
       captureResult.buffer,
       options,
       copyAfterCapture || captureResult.action === "copy",
-      "_area",
       captureResult.action === "pin"
     );
   } finally {
@@ -1115,7 +1141,6 @@ async function captureSelectedRegion(options: CaptureOptions, copyAfterCapture =
       captureResult.buffer,
       options,
       copyAfterCapture || captureResult.action === "copy",
-      "_area",
       captureResult.action === "pin"
     );
   } finally {
