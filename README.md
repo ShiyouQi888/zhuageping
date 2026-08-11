@@ -15,7 +15,7 @@
 
 - 版本：`0.1.0`
 - 平台：Windows x64
-- 安装包：`抓个屏-Setup-0.1.0-x64.exe`
+- 安装包：`zhuageping-Setup-0.1.0-x64.exe`
 - SHA256：`6C2857069D50FE4B98755F3421428269CD0BBE27A0C614B004358A8590BE19D9`
 
 说明：当前安装包暂未购买代码签名证书。安装时 Windows 可能提示未知发布者，这是未签名安装包的正常现象，不代表软件连接云端或上传数据。
@@ -279,8 +279,8 @@ npm run dist
 生成文件示例：
 
 ```text
-release/抓个屏-Setup-0.1.0-x64.exe
-release/抓个屏-Setup-0.1.0-x64.exe.blockmap
+release/zhuageping-Setup-0.1.0-x64.exe
+release/zhuageping-Setup-0.1.0-x64.exe.blockmap
 release/win-unpacked/
 ```
 
