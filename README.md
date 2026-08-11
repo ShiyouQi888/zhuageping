@@ -13,10 +13,10 @@
 
 当前版本：
 
-- 版本：`0.1.0`
+- 版本：`0.1.1`
 - 平台：Windows x64
-- 安装包：`zhuageping-Setup-0.1.0-x64.exe`
-- SHA256：`6C2857069D50FE4B98755F3421428269CD0BBE27A0C614B004358A8590BE19D9`
+- 安装包：`zhuageping-Setup-0.1.1-x64.exe`
+- SHA256：`1CE2009E1D72E283F423A5C4E3530D048BCFB3F84F64907DC1B93ED0CEA3D21B`
 
 说明：当前安装包暂未购买代码签名证书。安装时 Windows 可能提示未知发布者，这是未签名安装包的正常现象，不代表软件连接云端或上传数据。
 
@@ -280,8 +280,8 @@ npm run dist
 生成文件示例：
 
 ```text
-release/zhuageping-Setup-0.1.0-x64.exe
-release/zhuageping-Setup-0.1.0-x64.exe.blockmap
+release/zhuageping-Setup-0.1.1-x64.exe
+release/zhuageping-Setup-0.1.1-x64.exe.blockmap
 release/win-unpacked/
 ```
 
