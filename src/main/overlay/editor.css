@@ -69,6 +69,10 @@ body {
   border-color: #fff7ed;
 }
 
+#objectBox.is-group .handle {
+  display: none;
+}
+
 .handle {
   position: absolute;
   width: 10px;
@@ -136,8 +140,10 @@ body {
   z-index: 10;
   display: none;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   min-height: 50px;
+  max-width: min(1040px, calc(100vw - 24px));
   padding: 6px 8px;
   background: rgba(248, 250, 252, 0.96);
   border: 1px solid rgba(148, 163, 184, 0.62);
@@ -172,7 +178,8 @@ button:hover {
   border-color: #94a3b8;
 }
 
-button.active {
+button.active,
+button.toggle.active {
   color: #fff;
   background: #2563eb;
   border-color: #2563eb;
@@ -214,6 +221,29 @@ input[type="color"] {
 select {
   width: 62px;
   padding: 0 6px;
+}
+
+#fontSize,
+#alignMenu {
+  width: 72px;
+}
+
+.compact-control {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  font: 700 12px "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+.compact-control input[type="range"] {
+  width: 72px;
+  accent-color: #2563eb;
 }
 
 .sep {

@@ -19,6 +19,12 @@ const statusEl = document.getElementById("status");
 const helpEl = document.getElementById("help");
 const colorInput = document.getElementById("color");
 const strokeSize = document.getElementById("strokeSize");
+const fontSizeInput = document.getElementById("fontSize");
+const privacyStrengthInput = document.getElementById("privacyStrength");
+const boldTextButton = document.getElementById("boldText");
+const textBgButton = document.getElementById("textBg");
+const textStrokeButton = document.getElementById("textStroke");
+const alignMenu = document.getElementById("alignMenu");
 const toolButtons = [...document.querySelectorAll("[data-tool]")];
 const swatchButtons = [...document.querySelectorAll(".swatch")];
 const toolHotkeys = {
@@ -60,10 +66,14 @@ let resizeState = null;
 let moveOrigin = null;
 let activeTextEditor = null;
 let selectedObjectId = null;
+let selectedObjectIds = [];
 let serial = 0;
 let objects = [];
 let backgroundImage = null;
 let backgroundMode = "selection";
+let textBold = false;
+let textBackground = false;
+let textOutline = false;
 const history = [];
 
 function nextId() {
@@ -97,7 +107,8 @@ function cloneObjects(items = objects) {
 function pushHistory() {
   history.push({
     objects: cloneObjects(objects),
-    selectedObjectId
+    selectedObjectId,
+    selectedObjectIds: [...selectedObjectIds]
   });
   if (history.length > 80) history.shift();
 }
@@ -105,12 +116,49 @@ function pushHistory() {
 function restore(state) {
   objects = cloneObjects(state.objects);
   selectedObjectId = state.selectedObjectId;
+  selectedObjectIds = state.selectedObjectIds || (state.selectedObjectId ? [state.selectedObjectId] : []);
   renderObjects();
   renderObjectBox();
 }
 
 function selectedObject() {
   return objects.find((object) => object.id === selectedObjectId) || null;
+}
+
+function selectedObjects() {
+  return selectedObjectIds.map((id) => objects.find((object) => object.id === id)).filter(Boolean);
+}
+
+function setSelectedObjects(ids) {
+  selectedObjectIds = [...new Set(ids)].filter((id) => objects.some((object) => object.id === id));
+  selectedObjectId = selectedObjectIds[selectedObjectIds.length - 1] || null;
+}
+
+function selectObject(objectId, additive = false) {
+  if (!additive) {
+    setSelectedObjects([objectId]);
+    return;
+  }
+  if (selectedObjectIds.includes(objectId)) {
+    setSelectedObjects(selectedObjectIds.filter((id) => id !== objectId));
+    return;
+  }
+  setSelectedObjects([...selectedObjectIds, objectId]);
+}
+
+function clearSelection() {
+  selectedObjectId = null;
+  selectedObjectIds = [];
+}
+
+function groupBounds(items = selectedObjects()) {
+  if (!items.length) return null;
+  const bounds = items.map(objectBounds);
+  const left = Math.min(...bounds.map((item) => item.x));
+  const top = Math.min(...bounds.map((item) => item.y));
+  const right = Math.max(...bounds.map((item) => item.x + item.width));
+  const bottom = Math.max(...bounds.map((item) => item.y + item.height));
+  return { x: left, y: top, width: right - left, height: bottom - top };
 }
 
 function objectToScreenBounds(bounds) {
@@ -205,17 +253,29 @@ function positionHelpNearToolbar() {
 }
 
 function renderObjectBox() {
-  const object = selectedObject();
-  if (!object || phase !== "editing" || !canvasRect) {
+  const items = selectedObjects();
+  if (!items.length || phase !== "editing" || !canvasRect) {
     objectBox.style.display = "none";
     return;
   }
-  const bounds = objectToScreenBounds(objectBounds(object));
+  const bounds = objectToScreenBounds(groupBounds(items));
   objectBox.style.display = "block";
   objectBox.style.left = `${bounds.x}px`;
   objectBox.style.top = `${bounds.y}px`;
   objectBox.style.width = `${Math.max(1, bounds.width)}px`;
   objectBox.style.height = `${Math.max(1, bounds.height)}px`;
+  objectBox.classList.toggle("is-group", items.length > 1);
+  if (items.length === 1 && items[0].type === "text") {
+    const object = items[0];
+    textBold = Boolean(object.bold);
+    textBackground = Boolean(object.background);
+    textOutline = Boolean(object.outline);
+    fontSizeInput.value = String(object.fontSize || 24);
+    syncTextButtons();
+  }
+  if (items.length === 1 && (items[0].type === "mosaic" || items[0].type === "blur")) {
+    privacyStrengthInput.value = String(items[0].strength || 5);
+  }
 }
 
 function configureCanvas(rect) {
@@ -302,7 +362,8 @@ function drawPrivacyObject(targetCtx, object, options = { includeOutline: true }
   }
 
   if (object.type === "mosaic") {
-    const block = Math.max(10, object.size * 3);
+    const strength = object.strength || Number(privacyStrengthInput.value) || 5;
+    const block = Math.max(8, 6 + strength * 4);
     const sampleWidth = Math.max(1, Math.ceil(object.width / block));
     const sampleHeight = Math.max(1, Math.ceil(object.height / block));
     const pixelCanvas = document.createElement("canvas");
@@ -328,7 +389,8 @@ function drawPrivacyObject(targetCtx, object, options = { includeOutline: true }
     targetCtx.beginPath();
     targetCtx.rect(object.x, object.y, object.width, object.height);
     targetCtx.clip();
-    targetCtx.filter = `blur(${Math.max(12, object.size * 3)}px)`;
+    const strength = object.strength || Number(privacyStrengthInput.value) || 5;
+    targetCtx.filter = `blur(${Math.max(8, 6 + strength * 4)}px)`;
     drawBackgroundPreview(targetCtx);
     targetCtx.filter = "none";
     if (options.includeOutline) {
@@ -338,6 +400,27 @@ function drawPrivacyObject(targetCtx, object, options = { includeOutline: true }
     }
     targetCtx.restore();
   }
+}
+
+function wrappedTextLines(targetCtx, object) {
+  const maxWidth = Math.max(24, object.width || canvas.width);
+  const lines = [];
+  String(object.text || "")
+    .split("\n")
+    .forEach((rawLine) => {
+      let current = "";
+      [...rawLine].forEach((char) => {
+        const next = current + char;
+        if (current && targetCtx.measureText(next).width > maxWidth) {
+          lines.push(current);
+          current = char;
+        } else {
+          current = next;
+        }
+      });
+      lines.push(current || "");
+    });
+  return lines;
 }
 
 function drawObject(targetCtx, object, options = { includePrivacyPreview: true }) {
@@ -382,10 +465,32 @@ function drawObject(targetCtx, object, options = { includePrivacyPreview: true }
     targetCtx.stroke();
   }
   if (object.type === "text") {
-    targetCtx.font = `${object.fontSize}px Microsoft YaHei, Segoe UI`;
+    targetCtx.font = `${object.bold ? 800 : 500} ${object.fontSize}px Microsoft YaHei, Segoe UI`;
     targetCtx.fillStyle = object.color;
-    object.text.split("\n").forEach((line, index) => {
-      targetCtx.fillText(line, object.x, object.y + index * object.lineHeight);
+    const lines = wrappedTextLines(targetCtx, object);
+    const boxHeight = Math.max(object.lineHeight, lines.length * object.lineHeight);
+    if (object.background) {
+      targetCtx.save();
+      targetCtx.fillStyle = "rgba(255,255,255,.78)";
+      targetCtx.strokeStyle = "rgba(15,23,42,.12)";
+      targetCtx.lineWidth = 1;
+      targetCtx.beginPath();
+      targetCtx.roundRect(object.x - 6, object.y - object.fontSize - 5, object.width + 12, boxHeight + 10, 6);
+      targetCtx.fill();
+      targetCtx.stroke();
+      targetCtx.restore();
+      targetCtx.fillStyle = object.color;
+    }
+    lines.forEach((line, index) => {
+      const y = object.y + index * object.lineHeight;
+      if (object.outline) {
+        targetCtx.save();
+        targetCtx.lineWidth = Math.max(3, object.fontSize * 0.12);
+        targetCtx.strokeStyle = "rgba(255,255,255,.92)";
+        targetCtx.strokeText(line, object.x, y);
+        targetCtx.restore();
+      }
+      targetCtx.fillText(line, object.x, y);
     });
   }
   if ((object.type === "mosaic" || object.type === "blur") && options.includePrivacyPreview) {
@@ -413,7 +518,11 @@ function buildObject(toolName, from, to) {
   const color = colorInput.value;
   const size = Number(strokeSize.value);
   if (toolName === "rect" || toolName === "ellipse" || toolName === "mosaic" || toolName === "blur") {
-    return { id: nextId(), type: toolName, ...normalizeRect(from, to), color, size };
+    const object = { id: nextId(), type: toolName, ...normalizeRect(from, to), color, size };
+    if (toolName === "mosaic" || toolName === "blur") {
+      object.strength = Number(privacyStrengthInput.value) || 5;
+    }
+    return object;
   }
   if (toolName === "line" || toolName === "arrow") {
     return { id: nextId(), type: toolName, x1: from.x, y1: from.y, x2: to.x, y2: to.y, color, size };
@@ -432,7 +541,7 @@ function objectAt(point) {
 
 function addObject(object) {
   objects.push(object);
-  selectedObjectId = object.id;
+  setSelectedObjects([object.id]);
   renderObjects();
   renderObjectBox();
   pushHistory();
@@ -451,6 +560,135 @@ function translateObjectClamped(object, dx, dy) {
   return translateObject(moved, clampedBounds.x - bounds.x, clampedBounds.y - bounds.y);
 }
 
+function snapDelta(bounds) {
+  const threshold = 8;
+  const canvasBounds = canvasPixelBounds();
+  const candidates = [
+    { x: 0, target: bounds.x },
+    { x: canvasBounds.width, target: bounds.x + bounds.width },
+    { x: canvasBounds.width / 2, target: bounds.x + bounds.width / 2 },
+    { y: 0, target: bounds.y },
+    { y: canvasBounds.height, target: bounds.y + bounds.height },
+    { y: canvasBounds.height / 2, target: bounds.y + bounds.height / 2 }
+  ];
+  let dx = 0;
+  let dy = 0;
+  candidates.forEach((candidate) => {
+    if ("x" in candidate && Math.abs(candidate.x - candidate.target) <= threshold) dx = candidate.x - candidate.target;
+    if ("y" in candidate && Math.abs(candidate.y - candidate.target) <= threshold) dy = candidate.y - candidate.target;
+  });
+  return { dx, dy };
+}
+
+function translateSelectedObjects(originObjects, dx, dy, useSnap = true) {
+  const movedObjects = originObjects.map((object) => translateObject(object, dx, dy));
+  const movedBounds = groupBounds(movedObjects);
+  if (!movedBounds) return;
+  const clampedBounds = clampRect(movedBounds, canvasPixelBounds(), 1);
+  let adjustX = clampedBounds.x - movedBounds.x;
+  let adjustY = clampedBounds.y - movedBounds.y;
+  if (useSnap) {
+    const snap = snapDelta({ ...movedBounds, x: movedBounds.x + adjustX, y: movedBounds.y + adjustY });
+    adjustX += snap.dx;
+    adjustY += snap.dy;
+  }
+  const nextById = new Map(movedObjects.map((object) => [object.id, translateObject(object, adjustX, adjustY)]));
+  objects = objects.map((object) => nextById.get(object.id) || object);
+  renderObjects();
+  renderObjectBox();
+}
+
+function duplicateSelectedObjects() {
+  const items = selectedObjects();
+  if (!items.length) return;
+  const clones = items.map((object) => ({ ...cloneObjects([object])[0], id: nextId() }));
+  const movedClones = clones.map((object) => translateObject(object, 18, 18));
+  objects.push(...movedClones);
+  setSelectedObjects(movedClones.map((object) => object.id));
+  renderObjects();
+  renderObjectBox();
+  pushHistory();
+}
+
+function moveSelectedLayer(direction, toEdge = false) {
+  if (!selectedObjectIds.length) return;
+  const selected = new Set(selectedObjectIds);
+  const remaining = objects.filter((object) => !selected.has(object.id));
+  const picked = objects.filter((object) => selected.has(object.id));
+  if (toEdge) {
+    objects = direction > 0 ? [...remaining, ...picked] : [...picked, ...remaining];
+  } else if (direction > 0) {
+    objects = [...objects];
+    for (let index = objects.length - 2; index >= 0; index -= 1) {
+      if (selected.has(objects[index].id) && !selected.has(objects[index + 1].id)) {
+        [objects[index], objects[index + 1]] = [objects[index + 1], objects[index]];
+      }
+    }
+  } else {
+    objects = [...objects];
+    for (let index = 1; index < objects.length; index += 1) {
+      if (selected.has(objects[index].id) && !selected.has(objects[index - 1].id)) {
+        [objects[index], objects[index - 1]] = [objects[index - 1], objects[index]];
+      }
+    }
+  }
+  renderObjects();
+  renderObjectBox();
+  pushHistory();
+}
+
+function alignSelectedObjects(mode) {
+  const items = selectedObjects();
+  if (!items.length || !mode) return;
+  const target = canvasPixelBounds();
+  const nextById = new Map();
+  items.forEach((object) => {
+    const bounds = objectBounds(object);
+    let dx = 0;
+    let dy = 0;
+    if (mode === "left") dx = target.x - bounds.x;
+    if (mode === "center") dx = target.x + target.width / 2 - (bounds.x + bounds.width / 2);
+    if (mode === "right") dx = target.x + target.width - (bounds.x + bounds.width);
+    if (mode === "top") dy = target.y - bounds.y;
+    if (mode === "middle") dy = target.y + target.height / 2 - (bounds.y + bounds.height / 2);
+    if (mode === "bottom") dy = target.y + target.height - (bounds.y + bounds.height);
+    nextById.set(object.id, translateObject(object, dx, dy));
+  });
+  objects = objects.map((object) => nextById.get(object.id) || object);
+  alignMenu.value = "";
+  renderObjects();
+  renderObjectBox();
+  pushHistory();
+}
+
+function syncTextButtons() {
+  boldTextButton.classList.toggle("active", textBold);
+  textBgButton.classList.toggle("active", textBackground);
+  textStrokeButton.classList.toggle("active", textOutline);
+}
+
+function applyTextStyleToSelected(commit = false) {
+  const selectedTextIds = selectedObjects().filter((object) => object.type === "text").map((object) => object.id);
+  if (!selectedTextIds.length) return;
+  const ids = new Set(selectedTextIds);
+  const fontSize = Number(fontSizeInput.value) || 24;
+  objects = objects.map((object) => {
+    if (!ids.has(object.id)) return object;
+    const lineHeight = Math.max(24, fontSize * 1.25);
+    return {
+      ...object,
+      fontSize,
+      lineHeight,
+      bold: textBold,
+      background: textBackground,
+      outline: textOutline
+    };
+  });
+  renderObjects();
+  renderObjectBox();
+  if (commit) pushHistory();
+}
+
 function beginTextEditor(point, existingObject = null) {
   commitTextEditor();
   const rect = canvas.getBoundingClientRect();
@@ -458,12 +696,20 @@ function beginTextEditor(point, existingObject = null) {
   editor.className = "text-editor";
   editor.placeholder = "输入文字";
   editor.value = existingObject?.text || "";
-  const fontSize = existingObject?.fontSize || Math.max(18, Number(strokeSize.value) * 5);
+  const fontSize = existingObject?.fontSize || Number(fontSizeInput.value) || Math.max(18, Number(strokeSize.value) * 5);
+  if (existingObject) {
+    textBold = Boolean(existingObject.bold);
+    textBackground = Boolean(existingObject.background);
+    textOutline = Boolean(existingObject.outline);
+    fontSizeInput.value = String(existingObject.fontSize || fontSize);
+    syncTextButtons();
+  }
   editor.style.left = `${rect.left + point.x / (canvas.width / rect.width)}px`;
   editor.style.top = `${rect.top + (point.y - fontSize) / (canvas.height / rect.height)}px`;
   editor.style.color = existingObject?.color || colorInput.value;
-  editor.style.font = `${fontSize}px Microsoft YaHei, Segoe UI`;
+  editor.style.font = `${textBold ? 800 : 500} ${fontSize}px Microsoft YaHei, Segoe UI`;
   editor.style.lineHeight = "1.25";
+  editor.style.width = existingObject?.width ? `${Math.max(160, existingObject.width / (canvas.width / rect.width))}px` : "220px";
   document.body.appendChild(editor);
   activeTextEditor = { element: editor, point, objectId: existingObject?.id || null, fontSize };
   requestAnimationFrame(() => {
@@ -507,10 +753,13 @@ function commitTextEditor() {
     color: colorInput.value,
     size: Number(strokeSize.value),
     fontSize,
-    lineHeight
+    lineHeight,
+    bold: textBold,
+    background: textBackground,
+    outline: textOutline
   };
   if (objectId) {
-    selectedObjectId = objectId;
+    setSelectedObjects([objectId]);
     updateSelectedObject(nextObject);
     pushHistory();
   } else {
@@ -544,13 +793,13 @@ function privacyDataUrl() {
 function mosaicPayload() {
   return objects
     .filter((object) => object.type === "mosaic")
-    .map((object) => ({ x: object.x, y: object.y, width: object.width, height: object.height }));
+    .map((object) => ({ x: object.x, y: object.y, width: object.width, height: object.height, strength: object.strength || 5 }));
 }
 
 function blurPayload() {
   return objects
     .filter((object) => object.type === "blur")
-    .map((object) => ({ x: object.x, y: object.y, width: object.width, height: object.height }));
+    .map((object) => ({ x: object.x, y: object.y, width: object.width, height: object.height, strength: object.strength || 5 }));
 }
 
 function complete(channel) {
@@ -580,6 +829,38 @@ document.querySelectorAll(".swatch").forEach((button) => {
   });
 });
 colorInput.addEventListener("input", syncActiveSwatch);
+boldTextButton.addEventListener("click", () => {
+  textBold = !textBold;
+  syncTextButtons();
+  applyTextStyleToSelected(true);
+});
+textBgButton.addEventListener("click", () => {
+  textBackground = !textBackground;
+  syncTextButtons();
+  applyTextStyleToSelected(true);
+});
+textStrokeButton.addEventListener("click", () => {
+  textOutline = !textOutline;
+  syncTextButtons();
+  applyTextStyleToSelected(true);
+});
+fontSizeInput.addEventListener("change", () => applyTextStyleToSelected(true));
+privacyStrengthInput.addEventListener("input", () => {
+  const strength = Number(privacyStrengthInput.value) || 5;
+  const selectedPrivacyObjects = selectedObjects().filter((object) => object.type === "mosaic" || object.type === "blur");
+  if (!selectedPrivacyObjects.length) return;
+  const ids = new Set(selectedPrivacyObjects.map((object) => object.id));
+  objects = objects.map((object) => (ids.has(object.id) ? { ...object, strength } : object));
+  renderObjects();
+});
+privacyStrengthInput.addEventListener("change", () => {
+  if (selectedObjects().some((object) => object.type === "mosaic" || object.type === "blur")) pushHistory();
+});
+document.getElementById("duplicateObject").addEventListener("click", duplicateSelectedObjects);
+document.getElementById("bringForward").addEventListener("click", () => moveSelectedLayer(1));
+document.getElementById("sendBackward").addEventListener("click", () => moveSelectedLayer(-1));
+alignMenu.addEventListener("change", () => alignSelectedObjects(alignMenu.value));
+syncTextButtons();
 
 selectionEl.querySelectorAll(".handle").forEach((handle) => {
   handle.addEventListener("mousedown", (event) => {
@@ -593,7 +874,7 @@ selectionEl.querySelectorAll(".handle").forEach((handle) => {
 objectBox.querySelectorAll(".handle").forEach((handle) => {
   handle.addEventListener("mousedown", (event) => {
     const object = selectedObject();
-    if (!object) return;
+    if (!object || selectedObjects().length !== 1) return;
     event.preventDefault();
     event.stopPropagation();
     resizeState = { mode: "object", handle: handle.dataset.handle, origin: objectBounds(object), object: cloneObjects([object])[0] };
@@ -601,10 +882,10 @@ objectBox.querySelectorAll(".handle").forEach((handle) => {
 });
 
 objectBox.addEventListener("mousedown", (event) => {
-  if (!selectedObject() || event.target.dataset.handle) return;
+  if (!selectedObjects().length || event.target.dataset.handle) return;
   event.preventDefault();
   movingObject = true;
-  moveOrigin = { object: cloneObjects([selectedObject()])[0], pointer: eventPoint(event) };
+  moveOrigin = { objects: cloneObjects(selectedObjects()), pointer: eventPoint(event) };
 });
 
 objectBox.addEventListener("dblclick", (event) => {
@@ -622,13 +903,18 @@ canvas.addEventListener("mousedown", (event) => {
   if (tool === "select") {
     const hit = objectAt(point);
     if (hit) {
-      selectedObjectId = hit.id;
+      if (event.shiftKey) {
+        selectObject(hit.id, true);
+      } else if (!selectedObjectIds.includes(hit.id)) {
+        setSelectedObjects([hit.id]);
+      }
       renderObjectBox();
+      if (!selectedObjectIds.length) return;
       movingObject = true;
-      moveOrigin = { object: cloneObjects([hit])[0], pointer: point };
+      moveOrigin = { objects: cloneObjects(selectedObjects()), pointer: point };
       return;
     }
-    selectedObjectId = null;
+    clearSelection();
     renderObjectBox();
     movingCrop = true;
     moveOrigin = { rect: { ...selection }, pointer: { x: event.clientX, y: event.clientY } };
@@ -656,7 +942,7 @@ canvas.addEventListener("dblclick", (event) => {
   if (tool !== "select") return;
   const hit = objectAt(eventPoint(event));
   if (hit?.type === "text") {
-    selectedObjectId = hit.id;
+    setSelectedObjects([hit.id]);
     renderObjectBox();
     beginTextEditor({ x: hit.x, y: hit.y }, hit);
   }
@@ -690,9 +976,7 @@ window.addEventListener("mousemove", (event) => {
   }
   if (movingObject && moveOrigin) {
     const current = eventPoint(event);
-    updateSelectedObject(
-      translateObjectClamped(moveOrigin.object, current.x - moveOrigin.pointer.x, current.y - moveOrigin.pointer.y)
-    );
+    translateSelectedObjects(moveOrigin.objects, current.x - moveOrigin.pointer.x, current.y - moveOrigin.pointer.y);
     return;
   }
   if (selecting && startPoint) {
@@ -748,7 +1032,7 @@ window.addEventListener("mouseup", () => {
   if (drawingObject) {
     if (objectBounds(drawingObject).width >= 2 || objectBounds(drawingObject).height >= 2) {
       objects.push(drawingObject);
-      selectedObjectId = drawingObject.id;
+      setSelectedObjects([drawingObject.id]);
       pushHistory();
     }
     drawingObject = null;
@@ -779,13 +1063,31 @@ window.addEventListener("keydown", (event) => {
     return;
   }
   if (event.key === "Delete" || event.key === "Backspace") {
-    if (selectedObjectId) {
-      objects = objects.filter((object) => object.id !== selectedObjectId);
-      selectedObjectId = null;
+    if (selectedObjectIds.length) {
+      const selected = new Set(selectedObjectIds);
+      objects = objects.filter((object) => !selected.has(object.id));
+      clearSelection();
       renderObjects();
       renderObjectBox();
       pushHistory();
     }
+  }
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a") {
+    event.preventDefault();
+    setSelectedObjects(objects.map((object) => object.id));
+    renderObjectBox();
+  }
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "d") {
+    event.preventDefault();
+    duplicateSelectedObjects();
+  }
+  if ((event.ctrlKey || event.metaKey) && event.key === "]") {
+    event.preventDefault();
+    moveSelectedLayer(1, event.shiftKey);
+  }
+  if ((event.ctrlKey || event.metaKey) && event.key === "[") {
+    event.preventDefault();
+    moveSelectedLayer(-1, event.shiftKey);
   }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
     event.preventDefault();

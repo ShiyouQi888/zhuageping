@@ -122,12 +122,16 @@ type CaptureRegion = {
   height: number;
 };
 
+type PrivacyRegion = CaptureRegion & {
+  strength?: number;
+};
+
 type InlineCapturePayload = {
   region: CaptureRegion;
   annotationDataUrl: string;
   privacyDataUrl?: string | null;
-  mosaicRegions: CaptureRegion[];
-  blurRegions: CaptureRegion[];
+  mosaicRegions: PrivacyRegion[];
+  blurRegions: PrivacyRegion[];
 };
 
 type InlineCaptureResult = {
@@ -143,6 +147,10 @@ type PinWindowState = {
   naturalHeight: number;
   initialWidth: number;
   initialHeight: number;
+  locked: boolean;
+  clickThrough: boolean;
+  topLevel: "normal" | "floating" | "screen";
+  opacity: number;
 };
 
 const rootDir = app.isPackaged ? path.join(appRuntimeDir, "local") : path.resolve(app.getPath("userData"), "..", "jietu-shiyou-2026-local");
@@ -772,7 +780,26 @@ async function captureScreenBuffer(width: number, height: number, display?: Disp
 async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
   return new Promise((resolve) => {
     const editorPath = overlayEditorHtmlPath();
-    const overlays = screen.getAllDisplays().map((display) => {
+    const displays = screen.getAllDisplays();
+    const captureDisplayDataUrl = async (display: DisplayLike) => {
+      const displayScaleFactor = display.scaleFactor || 1;
+      const width = Math.round(display.size.width * displayScaleFactor);
+      const height = Math.round(display.size.height * displayScaleFactor);
+      const capturedBuffer = await captureScreenBuffer(width, height, display);
+      return `data:image/png;base64,${capturedBuffer.toString("base64")}`;
+    };
+
+    const previewCache = new Map<number, Promise<string | undefined>>(
+      displays.map((display) => [
+        display.id,
+        captureDisplayDataUrl(display).catch((error) => {
+          console.warn("Inline preview prewarm failed.", error);
+          return undefined;
+        })
+      ])
+    );
+
+    const overlays = displays.map((display) => {
       const overlay = new BrowserWindow({
         x: display.bounds.x,
         y: display.bounds.y,
@@ -876,8 +903,9 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
       } else {
         for (const region of payload.mosaicRegions ?? []) {
           const mosaic = clampPrivacyRegion(region);
-          const miniWidth = Math.max(1, Math.round(mosaic.width / 12));
-          const miniHeight = Math.max(1, Math.round(mosaic.height / 12));
+          const blockSize = Math.max(8, 6 + (region.strength || 5) * 4);
+          const miniWidth = Math.max(1, Math.round(mosaic.width / blockSize));
+          const miniHeight = Math.max(1, Math.round(mosaic.height / blockSize));
           const pixelated = await sharp(baseBuffer)
             .extract(mosaic)
             .resize(miniWidth, miniHeight, { kernel: sharp.kernel.nearest })
@@ -894,7 +922,7 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
           const blur = clampPrivacyRegion(region);
           const blurred = await sharp(baseBuffer)
             .extract(blur)
-            .blur(18)
+            .blur(Math.max(8, 6 + (region.strength || 5) * 4))
             .png()
             .toBuffer();
           baseBuffer = await sharp(baseBuffer)
@@ -916,12 +944,7 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
         if (!overlay.isDestroyed()) overlay.hide();
       });
       await delay(32);
-
-      const displayScaleFactor = display.scaleFactor || 1;
-      const width = Math.round(display.size.width * displayScaleFactor);
-      const height = Math.round(display.size.height * displayScaleFactor);
-      const capturedBuffer = await captureScreenBuffer(width, height, display);
-      return `data:image/png;base64,${capturedBuffer.toString("base64")}`;
+      return captureDisplayDataUrl(display);
     };
 
     const showActiveOverlays = () => {
@@ -1023,7 +1046,10 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
       preparingPreview = true;
       let backgroundDataUrl: string | undefined;
       try {
-        backgroundDataUrl = await captureDisplayPreviewDataUrl(display);
+        backgroundDataUrl = await previewCache.get(display.id);
+        if (!backgroundDataUrl) {
+          backgroundDataUrl = await captureDisplayPreviewDataUrl(display);
+        }
       } catch (error) {
         console.warn("Inline preview capture failed.", error);
       } finally {
@@ -1213,7 +1239,11 @@ async function createPinWindow(filePath: string) {
     naturalWidth: imageWidth,
     naturalHeight: imageHeight,
     initialWidth: width,
-    initialHeight: height
+    initialHeight: height,
+    locked: false,
+    clickThrough: false,
+    topLevel: "screen",
+    opacity: 1
   });
   pinWindow.on("closed", () => {
     pinWindows = pinWindows.filter((item) => item !== pinWindow);
@@ -1229,6 +1259,7 @@ async function createPinWindow(filePath: string) {
     fileUrl: pathToFileURL(filePath).toString(),
     title: path.basename(filePath)
   });
+  sendPinState(pinWindow);
   if (!pinsVisible && !pinWindow.isDestroyed()) {
     pinWindow.hide();
   }
@@ -1259,8 +1290,33 @@ function pinFilePathFromEvent(event: Electron.IpcMainEvent, filePath?: string) {
   return filePath || state?.filePath;
 }
 
+function sendPinState(pinWindow: BrowserWindow | null | undefined) {
+  if (!pinWindow || pinWindow.isDestroyed()) return;
+  const state = pinWindowStates.get(pinWindow.webContents.id);
+  if (!state) return;
+  pinWindow.webContents.send("pin:state", {
+    locked: state.locked,
+    clickThrough: state.clickThrough,
+    topLevel: state.topLevel,
+    opacity: state.opacity
+  });
+}
+
+function applyPinTopLevel(pinWindow: BrowserWindow, topLevel: PinWindowState["topLevel"]) {
+  if (topLevel === "normal") {
+    pinWindow.setAlwaysOnTop(false);
+    return;
+  }
+  pinWindow.setAlwaysOnTop(true, topLevel === "screen" ? "screen-saver" : "floating");
+}
+
 function resizePinWindow(pinWindow: BrowserWindow, ratio: number) {
   if (pinWindow.isDestroyed() || !Number.isFinite(ratio)) return;
+  const state = pinWindowStates.get(pinWindow.webContents.id);
+  if (state?.locked) {
+    mainWindow?.webContents.send("app:status", "贴图已锁定，无法缩放");
+    return;
+  }
   const bounds = pinWindow.getBounds();
   const nextWidth = Math.max(120, Math.min(1400, Math.round(bounds.width * ratio)));
   const nextHeight = Math.max(80, Math.min(1000, Math.round(bounds.height * ratio)));
@@ -1322,14 +1378,57 @@ function registerPinWindowIpc() {
     const pinWindow = pinWindowFromEvent(event);
     const state = pinWindowStates.get(event.sender.id);
     if (!pinWindow || pinWindow.isDestroyed() || !state) return;
+    if (state.locked) {
+      mainWindow?.webContents.send("app:status", "贴图已锁定，无法重置大小");
+      return;
+    }
     const bounds = pinWindow.getBounds();
     pinWindow.setBounds({ ...bounds, width: state.initialWidth, height: state.initialHeight });
   });
 
   ipcMain.on("pin:opacity", (event, opacity: number) => {
     const pinWindow = pinWindowFromEvent(event);
-    if (!pinWindow || pinWindow.isDestroyed() || !Number.isFinite(opacity)) return;
-    pinWindow.setOpacity(Math.max(0.35, Math.min(1, opacity)));
+    const state = pinWindow ? pinWindowStates.get(pinWindow.webContents.id) : undefined;
+    if (!pinWindow || pinWindow.isDestroyed() || !state || !Number.isFinite(opacity)) return;
+    state.opacity = Math.max(0.35, Math.min(1, opacity));
+    pinWindow.setOpacity(state.opacity);
+    sendPinState(pinWindow);
+  });
+
+  ipcMain.on("pin:opacity-step", (event, step: number) => {
+    const pinWindow = pinWindowFromEvent(event);
+    const state = pinWindow ? pinWindowStates.get(pinWindow.webContents.id) : undefined;
+    if (!pinWindow || pinWindow.isDestroyed() || !state || !Number.isFinite(step)) return;
+    state.opacity = Math.max(0.35, Math.min(1, state.opacity + step));
+    pinWindow.setOpacity(state.opacity);
+    sendPinState(pinWindow);
+  });
+
+  ipcMain.on("pin:lock", (event, locked: boolean) => {
+    const pinWindow = pinWindowFromEvent(event);
+    const state = pinWindow ? pinWindowStates.get(pinWindow.webContents.id) : undefined;
+    if (!pinWindow || pinWindow.isDestroyed() || !state) return;
+    state.locked = Boolean(locked);
+    pinWindow.setResizable(!state.locked);
+    sendPinState(pinWindow);
+  });
+
+  ipcMain.on("pin:top-level", (event, topLevel: PinWindowState["topLevel"]) => {
+    const pinWindow = pinWindowFromEvent(event);
+    const state = pinWindow ? pinWindowStates.get(pinWindow.webContents.id) : undefined;
+    if (!pinWindow || pinWindow.isDestroyed() || !state) return;
+    state.topLevel = topLevel === "normal" || topLevel === "floating" ? topLevel : "screen";
+    applyPinTopLevel(pinWindow, state.topLevel);
+    sendPinState(pinWindow);
+  });
+
+  ipcMain.on("pin:click-through", (event, enabled: boolean) => {
+    const pinWindow = pinWindowFromEvent(event);
+    const state = pinWindow ? pinWindowStates.get(pinWindow.webContents.id) : undefined;
+    if (!pinWindow || pinWindow.isDestroyed() || !state) return;
+    state.clickThrough = Boolean(enabled);
+    pinWindow.setIgnoreMouseEvents(state.clickThrough, { forward: true });
+    sendPinState(pinWindow);
   });
 
   ipcMain.on("pin:save-as", async (event, filePath?: string) => {
@@ -1349,8 +1448,80 @@ function registerPinWindowIpc() {
   ipcMain.on("pin:context-menu", (event, filePath?: string) => {
     const pinWindow = pinWindowFromEvent(event);
     const targetPath = pinFilePathFromEvent(event, filePath);
+    const state = pinWindow ? pinWindowStates.get(pinWindow.webContents.id) : undefined;
     if (!pinWindow || pinWindow.isDestroyed()) return;
     Menu.buildFromTemplate([
+      {
+        label: state?.locked ? "解除锁定" : "锁定贴图",
+        click: () => {
+          if (!state || pinWindow.isDestroyed()) return;
+          state.locked = !state.locked;
+          pinWindow.setResizable(!state.locked);
+          sendPinState(pinWindow);
+        }
+      },
+      {
+        label: "置顶级别",
+        submenu: [
+          {
+            label: "普通窗口",
+            type: "radio",
+            checked: state?.topLevel === "normal",
+            click: () => {
+              if (!state || pinWindow.isDestroyed()) return;
+              state.topLevel = "normal";
+              applyPinTopLevel(pinWindow, state.topLevel);
+              sendPinState(pinWindow);
+            }
+          },
+          {
+            label: "浮层置顶",
+            type: "radio",
+            checked: state?.topLevel === "floating",
+            click: () => {
+              if (!state || pinWindow.isDestroyed()) return;
+              state.topLevel = "floating";
+              applyPinTopLevel(pinWindow, state.topLevel);
+              sendPinState(pinWindow);
+            }
+          },
+          {
+            label: "最高置顶",
+            type: "radio",
+            checked: !state || state.topLevel === "screen",
+            click: () => {
+              if (!state || pinWindow.isDestroyed()) return;
+              state.topLevel = "screen";
+              applyPinTopLevel(pinWindow, state.topLevel);
+              sendPinState(pinWindow);
+            }
+          }
+        ]
+      },
+      {
+        label: "透明度",
+        submenu: [100, 85, 70, 55, 40].map((value) => ({
+          label: `${value}%`,
+          type: "radio",
+          checked: Math.round((state?.opacity ?? 1) * 100) === value,
+          click: () => {
+            if (!state || pinWindow.isDestroyed()) return;
+            state.opacity = value / 100;
+            pinWindow.setOpacity(state.opacity);
+            sendPinState(pinWindow);
+          }
+        }))
+      },
+      {
+        label: state?.clickThrough ? "关闭鼠标穿透" : "开启鼠标穿透",
+        click: () => {
+          if (!state || pinWindow.isDestroyed()) return;
+          state.clickThrough = !state.clickThrough;
+          pinWindow.setIgnoreMouseEvents(state.clickThrough, { forward: true });
+          sendPinState(pinWindow);
+        }
+      },
+      { type: "separator" },
       {
         label: "保存图片...",
         enabled: Boolean(targetPath),

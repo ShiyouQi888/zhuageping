@@ -136,16 +136,12 @@ function resizeObjectToBounds(object, nextBounds) {
     return { ...object, points: object.points.map(mapPoint) };
   }
   if (object.type === "text") {
-    const lineCount = Math.max(1, String(object.text || "").split("\n").length);
-    const fontSize = Math.max(8, nextBounds.height / (lineCount * 1.25));
     return {
       ...object,
       x: nextBounds.x,
-      y: nextBounds.y + fontSize,
+      y: nextBounds.y + object.fontSize,
       width: nextBounds.width,
-      height: nextBounds.height,
-      fontSize,
-      lineHeight: fontSize * 1.25
+      height: nextBounds.height
     };
   }
   return { ...object, ...nextBounds };

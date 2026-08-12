@@ -2,8 +2,24 @@ const { ipcRenderer } = require("electron");
 
 const image = document.getElementById("pinImage");
 const opacityInput = document.getElementById("opacity");
+const lockButton = document.getElementById("lock");
+const topLevelButton = document.getElementById("topLevel");
+const clickThroughButton = document.getElementById("clickThrough");
 
 let currentFilePath = "";
+let locked = false;
+let clickThrough = false;
+let topLevel = "screen";
+
+function syncState() {
+  document.body.classList.toggle("is-locked", locked);
+  document.body.classList.toggle("is-click-through", clickThrough);
+  lockButton.classList.toggle("active", locked);
+  clickThroughButton.classList.toggle("active", clickThrough);
+  lockButton.textContent = locked ? "已锁" : "锁定";
+  clickThroughButton.textContent = clickThrough ? "已穿透" : "穿透";
+  topLevelButton.textContent = topLevel === "normal" ? "普通" : topLevel === "floating" ? "浮层" : "置顶";
+}
 
 ipcRenderer.on("pin:init", (_event, payload) => {
   currentFilePath = payload.filePath;
@@ -17,6 +33,12 @@ document.getElementById("zoomIn").addEventListener("click", () => ipcRenderer.se
 document.getElementById("copy").addEventListener("click", () => ipcRenderer.send("pin:copy", currentFilePath));
 document.getElementById("open").addEventListener("click", () => ipcRenderer.send("pin:open", currentFilePath));
 document.getElementById("close").addEventListener("click", () => window.close());
+lockButton.addEventListener("click", () => ipcRenderer.send("pin:lock", !locked));
+topLevelButton.addEventListener("click", () => {
+  const next = topLevel === "normal" ? "floating" : topLevel === "floating" ? "screen" : "normal";
+  ipcRenderer.send("pin:top-level", next);
+});
+clickThroughButton.addEventListener("click", () => ipcRenderer.send("pin:click-through", !clickThrough));
 
 opacityInput.addEventListener("input", () => {
   ipcRenderer.send("pin:opacity", Number(opacityInput.value) / 100);
@@ -26,6 +48,7 @@ window.addEventListener(
   "wheel",
   (event) => {
     event.preventDefault();
+    if (locked) return;
     ipcRenderer.send("pin:resize", event.deltaY < 0 ? 1.08 : 0.92);
   },
   { passive: false }
@@ -45,4 +68,21 @@ window.addEventListener("keydown", (event) => {
   if (event.key === "+" || event.key === "=") ipcRenderer.send("pin:resize", 1.16);
   if (event.key === "-") ipcRenderer.send("pin:resize", 0.86);
   if (event.key === "0") ipcRenderer.send("pin:reset-size");
+  if (event.key.toLowerCase() === "l") ipcRenderer.send("pin:lock", !locked);
+  if (event.key.toLowerCase() === "t") ipcRenderer.send("pin:top-level", topLevel === "normal" ? "floating" : topLevel === "floating" ? "screen" : "normal");
+  if (event.key.toLowerCase() === "x") ipcRenderer.send("pin:click-through", !clickThrough);
+  if (event.key === "[" || event.key === "{") ipcRenderer.send("pin:opacity-step", -0.08);
+  if (event.key === "]" || event.key === "}") ipcRenderer.send("pin:opacity-step", 0.08);
 });
+
+ipcRenderer.on("pin:state", (_event, state) => {
+  locked = Boolean(state.locked);
+  clickThrough = Boolean(state.clickThrough);
+  topLevel = state.topLevel || "screen";
+  if (typeof state.opacity === "number") {
+    opacityInput.value = String(Math.round(state.opacity * 100));
+  }
+  syncState();
+});
+
+syncState();

@@ -70,7 +70,7 @@ test("object bounds, move, and resize work for arrows", () => {
   });
 });
 
-test("text object resize adjusts font metrics", () => {
+test("text object resize adjusts text box without stretching font metrics", () => {
   const text = {
     id: "t",
     type: "text",
@@ -87,6 +87,7 @@ test("text object resize adjusts font metrics", () => {
   const resized = resizeObjectToBounds(text, { x: 20, y: 40, width: 200, height: 50 });
   assert.equal(resized.x, 20);
   assert.equal(resized.width, 200);
-  assert.equal(resized.fontSize, 40);
-  assert.equal(resized.lineHeight, 50);
+  assert.equal(resized.fontSize, 24);
+  assert.equal(resized.lineHeight, 30);
+  assert.equal(resized.y, 64);
 });

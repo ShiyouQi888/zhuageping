@@ -57,6 +57,33 @@
         <option value="9">粗</option>
         <option value="15">特粗</option>
       </select>
+      <select id="fontSize" title="文字大小">
+        <option value="18">18</option>
+        <option value="24" selected>24</option>
+        <option value="32">32</option>
+        <option value="44">44</option>
+        <option value="56">56</option>
+      </select>
+      <button id="boldText" class="toggle" title="文字加粗"><svg viewBox="0 0 24 24"><path d="M7 5h6a4 4 0 0 1 0 8H7z"/><path d="M7 13h7a4 4 0 0 1 0 8H7z"/><path d="M7 5v16"/></svg></button>
+      <button id="textBg" class="toggle" title="文字背景"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2"/><path d="M8 10h8"/><path d="M8 14h5"/></svg></button>
+      <button id="textStroke" class="toggle" title="文字描边"><svg viewBox="0 0 24 24"><path d="M5 19l7-14 7 14"/><path d="M8 14h8"/></svg></button>
+      <label class="compact-control" title="马赛克/模糊强度">
+        <span>强度</span>
+        <input id="privacyStrength" type="range" min="1" max="10" value="5" />
+      </label>
+      <span class="sep"></span>
+      <button id="duplicateObject" title="复制对象 Ctrl+D"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg></button>
+      <button id="bringForward" title="上移一层 Ctrl+]"><svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M7 10l5-5 5 5"/><path d="M5 19h14"/></svg></button>
+      <button id="sendBackward" title="下移一层 Ctrl+["><svg viewBox="0 0 24 24"><path d="M12 19V5"/><path d="M7 14l5 5 5-5"/><path d="M5 5h14"/></svg></button>
+      <select id="alignMenu" title="对齐选中对象">
+        <option value="">对齐</option>
+        <option value="left">左对齐</option>
+        <option value="center">水平居中</option>
+        <option value="right">右对齐</option>
+        <option value="top">顶对齐</option>
+        <option value="middle">垂直居中</option>
+        <option value="bottom">底对齐</option>
+      </select>
       <span class="sep"></span>
       <button id="undo" title="撤销 Ctrl+Z"><svg viewBox="0 0 24 24"><path d="M9 7H4v5"/><path d="M4 12a8 8 0 1 0 3-6"/></svg></button>
       <button id="copy" title="复制 Ctrl+C"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg></button>

@@ -80,6 +80,21 @@ button:hover {
   border-color: #94a3b8;
 }
 
+button.active {
+  color: #ffffff;
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+body.is-locked #pinSurface {
+  -webkit-app-region: no-drag;
+  border-color: rgba(37, 99, 235, 0.72);
+}
+
+body.is-click-through #toolbar {
+  outline: 2px solid rgba(245, 158, 11, 0.72);
+}
+
 button.danger {
   min-width: 24px;
   color: #ef4444;
