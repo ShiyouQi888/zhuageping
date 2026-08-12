@@ -140,41 +140,70 @@ body {
   z-index: 10;
   display: none;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-height: 54px;
-  max-width: min(1120px, calc(100vw - 24px));
-  padding: 7px;
-  color: #27364a;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(246, 248, 252, 0.94));
-  border: 1px solid rgba(203, 213, 225, 0.78);
-  border-radius: 12px;
+  flex-wrap: nowrap;
+  gap: 0;
+  min-height: 40px;
+  max-width: min(1040px, calc(100vw - 24px));
+  padding: 5px;
+  color: #1f2937;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(226, 232, 240, 0.78);
+  border-radius: 8px;
   box-shadow:
-    0 22px 52px rgba(15, 23, 42, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(18px) saturate(1.12);
+    0 18px 44px rgba(15, 23, 42, 0.24),
+    0 1px 2px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px) saturate(1.08);
 }
 
 .toolbar-section {
   display: flex;
   align-items: center;
-  gap: 4px;
-  min-height: 40px;
-  padding: 4px;
-  border: 1px solid rgba(226, 232, 240, 0.92);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  gap: 3px;
+  min-height: 30px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .toolbar-section + .toolbar-section {
   position: relative;
+  border-left: 1px solid rgba(203, 213, 225, 0.76);
 }
 
 .contextual {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 14px);
+  z-index: 11;
+  gap: 8px;
+  min-height: 42px;
+  padding: 6px 10px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow:
+    0 16px 34px rgba(15, 23, 42, 0.22),
+    0 1px 1px rgba(15, 23, 42, 0.06);
+  transform: translateX(-50%);
   transition:
     opacity 0.14s ease,
     transform 0.14s ease;
+}
+
+.contextual::before {
+  position: absolute;
+  left: 50%;
+  top: -6px;
+  width: 12px;
+  height: 12px;
+  content: "";
+  background: rgba(255, 255, 255, 0.98);
+  border-left: 1px solid rgba(226, 232, 240, 0.9);
+  border-top: 1px solid rgba(226, 232, 240, 0.9);
+  transform: translateX(-50%) rotate(45deg);
 }
 
 .contextual.is-hidden {
@@ -185,10 +214,10 @@ button,
 input,
 select {
   height: 32px;
-  border: 1px solid rgba(203, 213, 225, 0.9);
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.9);
-  color: #27364a;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #1f2937;
   font: 700 12px "Segoe UI", "Microsoft YaHei", sans-serif;
 }
 
@@ -209,10 +238,10 @@ button {
 }
 
 button:hover {
-  background: #f8fafc;
-  border-color: #94a3b8;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
-  transform: translateY(-1px);
+  background: rgba(241, 245, 249, 0.95);
+  border-color: rgba(203, 213, 225, 0.75);
+  box-shadow: none;
+  transform: none;
 }
 
 button:disabled,
@@ -224,8 +253,8 @@ select:disabled {
 }
 
 button:disabled:hover {
-  background: rgba(255, 255, 255, 0.9);
-  border-color: rgba(203, 213, 225, 0.9);
+  background: transparent;
+  border-color: transparent;
 }
 
 button:focus-visible,
@@ -237,12 +266,12 @@ input:focus-visible {
 
 button.active,
 button.toggle.active {
-  color: #fff;
-  background: linear-gradient(180deg, #3b82f6, #2563eb);
-  border-color: rgba(37, 99, 235, 0.9);
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.12);
+  border-color: rgba(37, 99, 235, 0.2);
   box-shadow:
-    0 8px 18px rgba(37, 99, 235, 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+    inset 0 0 0 1px rgba(37, 99, 235, 0.05),
+    0 1px 2px rgba(37, 99, 235, 0.12);
 }
 
 button svg {
@@ -256,11 +285,11 @@ button svg {
 }
 
 button.success {
-  color: #0f9f6e;
+  color: #16a34a;
 }
 
 button.danger {
-  color: #e24a3b;
+  color: #ef4444;
 }
 
 button.success:hover {
@@ -278,6 +307,7 @@ input[type="color"] {
   min-width: 32px;
   padding: 2px;
   overflow: hidden;
+  border-color: rgba(203, 213, 225, 0.7);
   cursor: pointer;
 }
 
@@ -293,6 +323,8 @@ input[type="color"]::-webkit-color-swatch {
 select {
   width: 58px;
   padding: 0 6px;
+  border-color: rgba(203, 213, 225, 0.72);
+  background: rgba(248, 250, 252, 0.82);
   cursor: pointer;
 }
 
@@ -308,9 +340,9 @@ select {
   gap: 6px;
   padding: 0 8px;
   color: #475569;
-  border: 1px solid rgba(203, 213, 225, 0.9);
+  border: 1px solid transparent;
   border-radius: 7px;
-  background: rgba(255, 255, 255, 0.9);
+  background: transparent;
   font: 700 12px "Segoe UI", "Microsoft YaHei", sans-serif;
 }
 
@@ -383,12 +415,14 @@ select {
 @media (max-width: 760px) {
   #toolbar {
     max-width: calc(100vw - 16px);
-    gap: 6px;
-    padding: 6px;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 5px;
   }
 
   .toolbar-section {
-    min-height: 38px;
+    min-height: 34px;
+    padding: 0 5px;
   }
 
   button {

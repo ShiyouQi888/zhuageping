@@ -113,11 +113,10 @@ function syncToolbarContext() {
   const hasSelected = items.length > 0;
   const textContext = tool === "text" || items.some((object) => object.type === "text");
   const privacyContext = tool === "mosaic" || tool === "blur" || items.some((object) => object.type === "mosaic" || object.type === "blur");
+  const activeContext = privacyContext ? "privacy" : textContext ? "text" : "";
 
   contextualGroups.forEach((group) => {
-    const context = group.dataset.context;
-    const visible = context === "text" ? textContext : context === "privacy" ? privacyContext : true;
-    group.classList.toggle("is-hidden", !visible);
+    group.classList.toggle("is-hidden", group.dataset.context !== activeContext);
   });
   objectActionControls.forEach((control) => {
     if (control) control.disabled = !hasSelected;
@@ -258,7 +257,9 @@ function renderSelection() {
 function positionToolbarNearSelection() {
   if (!selection || toolbar.style.display === "none") return;
   const toolbarWidth = toolbar.offsetWidth || toolbar.scrollWidth;
-  const toolbarHeight = toolbar.offsetHeight || toolbar.scrollHeight || 58;
+  const openContext = contextualGroups.find((group) => !group.classList.contains("is-hidden"));
+  const contextHeight = openContext ? openContext.offsetHeight + 14 : 0;
+  const toolbarHeight = (toolbar.offsetHeight || toolbar.scrollHeight || 48) + contextHeight;
   const selectionCenterX = selection.x + selection.width / 2;
   let left = selectionCenterX - toolbarWidth / 2;
   let top = selection.y + selection.height + 10;
