@@ -10,6 +10,7 @@ let currentFilePath = "";
 let locked = false;
 let clickThrough = false;
 let topLevel = "screen";
+let dragging = false;
 
 function syncState() {
   document.body.classList.toggle("is-locked", locked);
@@ -57,6 +58,31 @@ window.addEventListener(
 window.addEventListener("contextmenu", (event) => {
   event.preventDefault();
   ipcRenderer.send("pin:context-menu", currentFilePath);
+});
+
+window.addEventListener("mousedown", (event) => {
+  if (event.button !== 0 || locked || event.target.closest("#toolbar")) return;
+  dragging = true;
+  event.preventDefault();
+  ipcRenderer.send("pin:drag-start", { x: event.screenX, y: event.screenY });
+});
+
+window.addEventListener("mousemove", (event) => {
+  if (!dragging) return;
+  event.preventDefault();
+  ipcRenderer.send("pin:drag-move", { x: event.screenX, y: event.screenY });
+});
+
+window.addEventListener("mouseup", () => {
+  if (!dragging) return;
+  dragging = false;
+  ipcRenderer.send("pin:drag-end");
+});
+
+window.addEventListener("mouseleave", () => {
+  if (!dragging) return;
+  dragging = false;
+  ipcRenderer.send("pin:drag-end");
 });
 
 window.addEventListener("keydown", (event) => {

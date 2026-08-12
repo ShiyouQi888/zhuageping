@@ -151,6 +151,10 @@ type PinWindowState = {
   clickThrough: boolean;
   topLevel: "normal" | "floating" | "screen";
   opacity: number;
+  dragStart?: {
+    pointer: { x: number; y: number };
+    bounds: Electron.Rectangle;
+  };
 };
 
 const rootDir = app.isPackaged ? path.join(appRuntimeDir, "local") : path.resolve(app.getPath("userData"), "..", "jietu-shiyou-2026-local");
@@ -1372,6 +1376,34 @@ function registerPinWindowIpc() {
     const pinWindow = pinWindowFromEvent(event);
     if (!pinWindow) return;
     resizePinWindow(pinWindow, ratio);
+  });
+
+  ipcMain.on("pin:drag-start", (event, pointer: { x: number; y: number }) => {
+    const pinWindow = pinWindowFromEvent(event);
+    const state = pinWindow ? pinWindowStates.get(pinWindow.webContents.id) : undefined;
+    if (!pinWindow || pinWindow.isDestroyed() || !state || state.locked) return;
+    state.dragStart = {
+      pointer,
+      bounds: pinWindow.getBounds()
+    };
+  });
+
+  ipcMain.on("pin:drag-move", (event, pointer: { x: number; y: number }) => {
+    const pinWindow = pinWindowFromEvent(event);
+    const state = pinWindow ? pinWindowStates.get(pinWindow.webContents.id) : undefined;
+    if (!pinWindow || pinWindow.isDestroyed() || !state?.dragStart || state.locked) return;
+    const dx = Math.round(pointer.x - state.dragStart.pointer.x);
+    const dy = Math.round(pointer.y - state.dragStart.pointer.y);
+    pinWindow.setBounds({
+      ...state.dragStart.bounds,
+      x: state.dragStart.bounds.x + dx,
+      y: state.dragStart.bounds.y + dy
+    });
+  });
+
+  ipcMain.on("pin:drag-end", (event) => {
+    const state = pinWindowStates.get(event.sender.id);
+    if (state) state.dragStart = undefined;
   });
 
   ipcMain.on("pin:reset-size", (event) => {
