@@ -62,10 +62,13 @@ const canvasPixelBounds = () => ({ x: 0, y: 0, width: canvas.width, height: canv
 let phase = "selecting";
 let tool = "rect";
 let selection = null;
+let hoverSelection = null;
 let canvasRect = null;
 let captureRegion = null;
 let startPoint = null;
 let selecting = false;
+let pendingAutoSelection = null;
+let pendingAutoStart = null;
 let drawingObject = null;
 let movingCrop = false;
 let movingObject = false;
@@ -81,6 +84,9 @@ let backgroundMode = "selection";
 let textBold = false;
 let textBackground = false;
 let textOutline = false;
+let windowProbeSeq = 0;
+let lastWindowProbeAt = 0;
+let windowProbeInFlight = false;
 const history = [];
 
 function nextId() {
@@ -266,24 +272,57 @@ function eventPoint(event) {
 }
 
 function renderSelection() {
-  if (!selection || selection.width < 2 || selection.height < 2) {
+  const previewSelection = selection || hoverSelection;
+  if (!previewSelection || previewSelection.width < 2 || previewSelection.height < 2) {
     selectionEl.style.display = "none";
     toolbar.style.display = "none";
     helpEl.style.display = "none";
     return;
   }
   selectionEl.style.display = "block";
-  selectionEl.style.left = `${selection.x}px`;
-  selectionEl.style.top = `${selection.y}px`;
-  selectionEl.style.width = `${selection.width}px`;
-  selectionEl.style.height = `${selection.height}px`;
+  selectionEl.style.left = `${previewSelection.x}px`;
+  selectionEl.style.top = `${previewSelection.y}px`;
+  selectionEl.style.width = `${previewSelection.width}px`;
+  selectionEl.style.height = `${previewSelection.height}px`;
   selectionEl.classList.toggle("is-editing", phase === "editing");
+  selectionEl.classList.toggle("is-hover", !selection && Boolean(hoverSelection));
 
-  toolbar.style.display = phase === "editing" ? "flex" : "none";
+  toolbar.style.display = phase === "editing" && Boolean(selection) ? "flex" : "none";
   if (phase !== "editing") return;
 
   syncToolbarContext();
   positionToolbarNearSelection();
+}
+
+function setHoverSelection(rect) {
+  hoverSelection = rect ? clampRect(rect, viewportBounds(), minSelectionSize) : null;
+  if (phase === "selecting" && !selecting && !pendingAutoSelection) {
+    renderSelection();
+  }
+}
+
+function probeWindowSelection(event) {
+  if (phase !== "selecting" || selecting || pendingAutoSelection || event.buttons || windowProbeInFlight) return;
+  const now = performance.now();
+  if (now - lastWindowProbeAt < 160) return;
+  lastWindowProbeAt = now;
+  const seq = ++windowProbeSeq;
+  windowProbeInFlight = true;
+  ipcRenderer
+    .invoke("overlay:window-at-point", {
+      x: event.clientX + overlayOffset.x,
+      y: event.clientY + overlayOffset.y
+    })
+    .then((rect) => {
+      if (seq !== windowProbeSeq || phase !== "selecting" || selecting || pendingAutoSelection) return;
+      setHoverSelection(rect && rect.width >= minSelectionSize && rect.height >= minSelectionSize ? rect : null);
+    })
+    .catch(() => {
+      if (seq === windowProbeSeq) setHoverSelection(null);
+    })
+    .finally(() => {
+      if (seq === windowProbeSeq) windowProbeInFlight = false;
+    });
 }
 
 function positionToolbarNearSelection() {
@@ -412,6 +451,9 @@ function moveCrop(nextRect) {
 
 function enterEditMode(rect) {
   phase = "editing";
+  hoverSelection = null;
+  pendingAutoSelection = null;
+  pendingAutoStart = null;
   shade.style.display = "none";
   helpEl.style.display = "block";
   setStatus("可移动选区，也可选中对象后二次编辑");
@@ -1025,7 +1067,15 @@ canvas.addEventListener("dblclick", (event) => {
 });
 
 window.addEventListener("mousedown", (event) => {
-  if (phase !== "selecting" || toolbar.contains(event.target)) return;
+  if (phase !== "selecting" || event.button !== 0 || toolbar.contains(event.target)) return;
+  if (hoverSelection) {
+    pendingAutoSelection = { ...hoverSelection };
+    pendingAutoStart = { x: event.clientX, y: event.clientY };
+    hoverSelection = null;
+    selection = { ...pendingAutoSelection };
+    renderSelection();
+    return;
+  }
   selecting = true;
   startPoint = { x: event.clientX, y: event.clientY };
   selection = { x: startPoint.x, y: startPoint.y, width: 1, height: 1 };
@@ -1055,12 +1105,26 @@ window.addEventListener("mousemove", (event) => {
     translateSelectedObjects(moveOrigin.objects, current.x - moveOrigin.pointer.x, current.y - moveOrigin.pointer.y);
     return;
   }
+  if (pendingAutoSelection && pendingAutoStart) {
+    const dragDistance = Math.hypot(event.clientX - pendingAutoStart.x, event.clientY - pendingAutoStart.y);
+    if (dragDistance < 5) return;
+    selecting = true;
+    startPoint = { ...pendingAutoStart };
+    pendingAutoSelection = null;
+    pendingAutoStart = null;
+    selection = normalizeRect(startPoint, { x: event.clientX, y: event.clientY });
+    renderSelection();
+    return;
+  }
   if (selecting && startPoint) {
     selection = normalizeRect(startPoint, { x: event.clientX, y: event.clientY });
     renderSelection();
     return;
   }
-  if (!drawingObject || !startPoint) return;
+  if (!drawingObject || !startPoint) {
+    probeWindowSelection(event);
+    return;
+  }
   const current = eventPoint(event);
   if (drawingObject.type === "brush" || drawingObject.type === "eraser") {
     drawingObject.points.push(current);
@@ -1092,6 +1156,13 @@ window.addEventListener("mouseup", () => {
     movingObject = false;
     moveOrigin = null;
     pushHistory();
+    return;
+  }
+  if (pendingAutoSelection) {
+    selection = clampRect(pendingAutoSelection, viewportBounds(), minSelectionSize);
+    pendingAutoSelection = null;
+    pendingAutoStart = null;
+    ipcRenderer.send("inline-region-selected", screenSelectionToCaptureRegion(selection));
     return;
   }
   if (selecting) {

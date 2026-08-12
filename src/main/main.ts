@@ -122,6 +122,11 @@ type CaptureRegion = {
   height: number;
 };
 
+type WindowProbeRect = CaptureRegion & {
+  title?: string;
+  className?: string;
+};
+
 type PrivacyRegion = CaptureRegion & {
   strength?: number;
 };
@@ -727,6 +732,120 @@ function captureCropFromDisplay(region: CaptureRegion, display: DisplayLike) {
   };
 }
 
+function nativeWindowHandleId(window: BrowserWindow) {
+  const handle = window.getNativeWindowHandle();
+  return handle.length >= 8 ? handle.readBigUInt64LE(0).toString() : String(handle.readUInt32LE(0));
+}
+
+async function queryWindowAtPoint(point: { x: number; y: number }, ignoredWindowIds: string[]): Promise<WindowProbeRect | null> {
+  if (process.platform !== "win32") return null;
+  const ignoredList = ignoredWindowIds.map((id) => `[UIntPtr]${id}`).join(",");
+  const script = `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class WinProbe {
+  [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X; public int Y; }
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+  [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT p);
+  [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
+  [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr hwnd, uint uCmd);
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int count);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr hwnd, StringBuilder text, int count);
+}
+"@
+$point = New-Object WinProbe+POINT
+$point.X = ${Math.round(point.x)}
+$point.Y = ${Math.round(point.y)}
+$ignored = New-Object 'System.Collections.Generic.HashSet[UInt64]'
+@(${ignoredList}) | ForEach-Object { if ($_ -ne $null) { [void]$ignored.Add($_.ToUInt64()) } }
+$hwnd = [WinProbe]::WindowFromPoint($point)
+$classesToSkip = @("Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd")
+while ($hwnd -ne [IntPtr]::Zero) {
+  $root = [WinProbe]::GetAncestor($hwnd, 2)
+  if ($root -eq [IntPtr]::Zero) { $root = $hwnd }
+  $classBuilder = New-Object System.Text.StringBuilder 256
+  [void][WinProbe]::GetClassName($root, $classBuilder, $classBuilder.Capacity)
+  $className = $classBuilder.ToString()
+  $rect = New-Object WinProbe+RECT
+  $visible = [WinProbe]::IsWindowVisible($root)
+  $hasRect = [WinProbe]::GetWindowRect($root, [ref]$rect)
+  $width = $rect.Right - $rect.Left
+  $height = $rect.Bottom - $rect.Top
+  $containsPoint = $point.X -ge $rect.Left -and $point.X -le $rect.Right -and $point.Y -ge $rect.Top -and $point.Y -le $rect.Bottom
+  if ($visible -and $hasRect -and $containsPoint -and $width -ge 40 -and $height -ge 40 -and -not $ignored.Contains($root.ToUInt64()) -and $classesToSkip -notcontains $className) {
+    $titleBuilder = New-Object System.Text.StringBuilder 512
+    [void][WinProbe]::GetWindowText($root, $titleBuilder, $titleBuilder.Capacity)
+    [PSCustomObject]@{
+      x = $rect.Left
+      y = $rect.Top
+      width = $width
+      height = $height
+      title = $titleBuilder.ToString()
+      className = $className
+    } | ConvertTo-Json -Compress
+    exit 0
+  }
+  $hwnd = [WinProbe]::GetWindow($root, 2)
+}
+"null"
+`;
+  try {
+    const { stdout } = await execFileAsync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+      windowsHide: true,
+      timeout: 1800,
+      maxBuffer: 64 * 1024
+    });
+    const trimmed = stdout.trim();
+    if (!trimmed || trimmed === "null") return null;
+    const parsed = JSON.parse(trimmed) as WindowProbeRect;
+    if (!Number.isFinite(parsed.x) || !Number.isFinite(parsed.y) || parsed.width < 40 || parsed.height < 40) return null;
+    return parsed;
+  } catch (error) {
+    console.warn("Window auto-detect failed.", error);
+    return null;
+  }
+}
+
+function intersectCaptureRect(a: CaptureRegion, b: CaptureRegion): CaptureRegion | null {
+  const left = Math.max(a.x, b.x);
+  const top = Math.max(a.y, b.y);
+  const right = Math.min(a.x + a.width, b.x + b.width);
+  const bottom = Math.min(a.y + a.height, b.y + b.height);
+  if (right - left < 40 || bottom - top < 40) return null;
+  return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
+function windowRectForDisplay(rect: WindowProbeRect, display: DisplayLike, point: { x: number; y: number }): CaptureRegion | null {
+  const displayBounds = display.bounds;
+  const scaleFactor = display.scaleFactor || 1;
+  const variants: CaptureRegion[] = [
+    { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+  ];
+  if (scaleFactor !== 1) {
+    variants.push({
+      x: rect.x / scaleFactor,
+      y: rect.y / scaleFactor,
+      width: rect.width / scaleFactor,
+      height: rect.height / scaleFactor
+    });
+  }
+  const matchingVariant = variants.find((variant) =>
+    point.x >= variant.x && point.x <= variant.x + variant.width && point.y >= variant.y && point.y <= variant.y + variant.height
+  );
+  const clipped = intersectCaptureRect(matchingVariant || variants[0], displayBounds);
+  if (!clipped) return null;
+  return {
+    x: clipped.x - displayBounds.x,
+    y: clipped.y - displayBounds.y,
+    width: clipped.width,
+    height: clipped.height
+  };
+}
+
 async function captureWithElectron(width: number, height: number, display?: DisplayLike): Promise<Buffer> {
   const sources = await desktopCapturer.getSources({
     types: ["screen"],
@@ -851,6 +970,7 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
       return { display, overlay };
     });
     const overlayDisplays = new Map(overlays.map(({ display, overlay }) => [overlay.webContents.id, display]));
+    const overlayWindowIds = overlays.map(({ overlay }) => nativeWindowHandleId(overlay));
     let resolved = false;
     let preparingCapture = false;
     let preparingPreview = false;
@@ -980,6 +1100,7 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
       ipcMain.removeListener("inline-capture-cancel", onCancel);
       ipcMain.removeListener("inline-region-selected", onRegionSelected);
       ipcMain.removeListener("overlay:ready", onOverlayReady);
+      ipcMain.removeHandler("overlay:window-at-point");
       overlays.forEach(({ overlay }) => {
         if (!overlay.isDestroyed()) overlay.close();
       });
@@ -1041,6 +1162,16 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
         readyOverlay.focus();
       }
     };
+
+    ipcMain.removeHandler("overlay:window-at-point");
+    ipcMain.handle("overlay:window-at-point", async (event, point: { x: number; y: number }) => {
+      if (resolved || preparingPreview || preparingCapture || event.sender.isDestroyed()) return null;
+      const display = overlayDisplays.get(event.sender.id);
+      if (!display || !Number.isFinite(point?.x) || !Number.isFinite(point?.y)) return null;
+      const rect = await queryWindowAtPoint(point, overlayWindowIds);
+      if (!rect) return null;
+      return windowRectForDisplay(rect, display, point);
+    });
 
     const onRegionSelected = async (event: Electron.IpcMainEvent, region: CaptureRegion) => {
       if (preparingCapture || preparingPreview || resolved || event.sender.isDestroyed()) {
