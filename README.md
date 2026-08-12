@@ -280,8 +280,8 @@ npm run dist
 生成文件示例：
 
 ```text
-release/zhuageping-Setup-0.1.1-x64.exe
-release/zhuageping-Setup-0.1.1-x64.exe.blockmap
+release/zhuageping-Setup-0.1.2-x64.exe
+release/zhuageping-Setup-0.1.2-x64.exe.blockmap
 release/win-unpacked/
 ```
 

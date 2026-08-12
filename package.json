@@ -1,7 +1,7 @@
 {
   "name": "zhua-ge-ping",
   "productName": "抓个屏",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "抓个屏：Windows 本地截图、贴图与水印工具。",
   "homepage": "https://local.zhuageping.app",
