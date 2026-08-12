@@ -308,11 +308,13 @@ function positionHelpNearToolbar() {
     return;
   }
   const toolbarRect = toolbar.getBoundingClientRect();
+  const openContext = contextualGroups.find((group) => !group.classList.contains("is-hidden"));
+  const contextRect = openContext ? openContext.getBoundingClientRect() : null;
   helpEl.style.maxWidth = `${Math.max(280, Math.round(toolbarRect.width))}px`;
   helpEl.style.left = `${Math.round(toolbarRect.left)}px`;
-  let top = toolbarRect.bottom + 8;
+  let top = Math.max(toolbarRect.bottom, contextRect?.bottom || 0) + 8;
   if (top + helpEl.offsetHeight > window.innerHeight - 12) {
-    top = toolbarRect.top - helpEl.offsetHeight - 8;
+    top = Math.min(toolbarRect.top, contextRect?.top || toolbarRect.top) - helpEl.offsetHeight - 8;
   }
   helpEl.style.top = `${Math.max(12, Math.round(top))}px`;
 }

@@ -140,10 +140,11 @@ body {
   z-index: 10;
   display: none;
   align-items: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 0;
+  width: max-content;
   min-height: 40px;
-  max-width: min(1040px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
   padding: 5px;
   color: #1f2937;
   background: rgba(255, 255, 255, 0.97);
@@ -158,6 +159,7 @@ body {
 
 .toolbar-section {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 3px;
   min-height: 30px;
@@ -177,7 +179,10 @@ body {
   position: fixed;
   left: var(--context-left, 0);
   top: var(--context-top, 0);
-  z-index: 11;
+  z-index: 13;
+  display: inline-flex;
+  width: max-content;
+  max-width: calc(100vw - 24px);
   gap: 8px;
   min-height: 42px;
   padding: 6px 10px;
