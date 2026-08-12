@@ -225,9 +225,9 @@ let appSettings: AppSettings = {
   logLevel: "normal",
   screenshotDir: defaultScreenshotDir,
   shortcutCapture: "F1",
-  shortcutCaptureCopy: "CommandOrControl+F1",
+  shortcutCaptureCopy: "Ctrl+F1",
   shortcutArea: "Shift+F1",
-  shortcutScrollCapture: "CommandOrControl+Shift+F1",
+  shortcutScrollCapture: "Ctrl+Shift+F1",
   shortcutPin: "F3",
   shortcutTogglePins: "Shift+F3"
 };
@@ -500,6 +500,7 @@ async function readSettings(): Promise<AppSettings> {
       ...stored,
       screenshotDir: stored.screenshotDir || defaultScreenshotDir
     };
+    normalizeShortcutSettings(appSettings);
     await fs.writeFile(settingsPath, JSON.stringify(appSettings, null, 2), "utf8");
   } catch {
     await writeSettings(appSettings);
@@ -510,12 +511,32 @@ async function readSettings(): Promise<AppSettings> {
 
 async function writeSettings(settings: AppSettings) {
   appSettings = settings;
+  normalizeShortcutSettings(appSettings);
   await fs.mkdir(dataDir, { recursive: true });
   await fs.mkdir(appSettings.screenshotDir, { recursive: true });
   await fs.writeFile(settingsPath, JSON.stringify(appSettings, null, 2), "utf8");
   syncLoginItemSettings();
   registerGlobalShortcuts();
   updateTrayMenu();
+}
+
+function normalizeWindowsShortcut(accelerator: string) {
+  return accelerator
+    .replace(/CommandOrControl/gi, "Ctrl")
+    .replace(/CmdOrCtrl/gi, "Ctrl")
+    .replace(/Control/gi, "Ctrl")
+    .replace(/Command/gi, "Ctrl")
+    .replace(/\s*\+\s*/g, "+")
+    .trim();
+}
+
+function normalizeShortcutSettings(settings: AppSettings) {
+  settings.shortcutCapture = normalizeWindowsShortcut(settings.shortcutCapture);
+  settings.shortcutCaptureCopy = normalizeWindowsShortcut(settings.shortcutCaptureCopy);
+  settings.shortcutArea = normalizeWindowsShortcut(settings.shortcutArea);
+  settings.shortcutScrollCapture = normalizeWindowsShortcut(settings.shortcutScrollCapture);
+  settings.shortcutPin = normalizeWindowsShortcut(settings.shortcutPin);
+  settings.shortcutTogglePins = normalizeWindowsShortcut(settings.shortcutTogglePins);
 }
 
 function syncLoginItemSettings() {

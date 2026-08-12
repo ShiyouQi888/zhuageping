@@ -42,12 +42,22 @@ const defaultSettings: AppSettings = {
   logLevel: "normal",
   screenshotDir: "",
   shortcutCapture: "F1",
-  shortcutCaptureCopy: "CommandOrControl+F1",
+  shortcutCaptureCopy: "Ctrl+F1",
   shortcutArea: "Shift+F1",
-  shortcutScrollCapture: "CommandOrControl+Shift+F1",
+  shortcutScrollCapture: "Ctrl+Shift+F1",
   shortcutPin: "F3",
   shortcutTogglePins: "Shift+F3"
 };
+
+function formatShortcutForWindows(shortcut: string) {
+  return shortcut
+    .replace(/CommandOrControl/gi, "Ctrl")
+    .replace(/CmdOrCtrl/gi, "Ctrl")
+    .replace(/Control/gi, "Ctrl")
+    .replace(/Command/gi, "Ctrl")
+    .replace(/\s*\+\s*/g, "+")
+    .trim();
+}
 
 export function App() {
   const [activeTab, setActiveTab] = useState<Tab>("常规");
@@ -398,7 +408,10 @@ export function App() {
               {shortcutFields.map(([key, name]) => (
                 <div className="shortcut-item editable" key={key}>
                   <span>{name}</span>
-                  <input value={String(settings[key])} onChange={(event) => updateSetting(key, event.target.value)} />
+                  <input
+                    value={formatShortcutForWindows(String(settings[key]))}
+                    onChange={(event) => updateSetting(key, formatShortcutForWindows(event.target.value))}
+                  />
                 </div>
               ))}
             </div>
