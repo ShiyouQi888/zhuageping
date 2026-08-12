@@ -1,6 +1,7 @@
 const { ipcRenderer } = require("electron");
 
 const image = document.getElementById("pinImage");
+const toolbar = document.getElementById("toolbar");
 const opacityInput = document.getElementById("opacity");
 const lockButton = document.getElementById("lock");
 const topLevelButton = document.getElementById("topLevel");
@@ -11,15 +12,17 @@ let locked = false;
 let clickThrough = false;
 let topLevel = "screen";
 let dragging = false;
+let toolbarInteractive = false;
 
 function syncState() {
   document.body.classList.toggle("is-locked", locked);
   document.body.classList.toggle("is-click-through", clickThrough);
   lockButton.classList.toggle("active", locked);
   clickThroughButton.classList.toggle("active", clickThrough);
-  lockButton.textContent = locked ? "已锁" : "锁定";
-  clickThroughButton.textContent = clickThrough ? "已穿透" : "穿透";
-  topLevelButton.textContent = topLevel === "normal" ? "普通" : topLevel === "floating" ? "浮层" : "置顶";
+  lockButton.textContent = locked ? "解锁" : "锁定";
+  clickThroughButton.textContent = clickThrough ? "取消穿透" : "穿透";
+  topLevelButton.classList.toggle("active", topLevel !== "normal");
+  topLevelButton.textContent = topLevel === "normal" ? "置顶" : "取消置顶";
 }
 
 ipcRenderer.on("pin:init", (_event, payload) => {
@@ -36,7 +39,7 @@ document.getElementById("open").addEventListener("click", () => ipcRenderer.send
 document.getElementById("close").addEventListener("click", () => window.close());
 lockButton.addEventListener("click", () => ipcRenderer.send("pin:lock", !locked));
 topLevelButton.addEventListener("click", () => {
-  const next = topLevel === "normal" ? "floating" : topLevel === "floating" ? "screen" : "normal";
+  const next = topLevel === "normal" ? "screen" : "normal";
   ipcRenderer.send("pin:top-level", next);
 });
 clickThroughButton.addEventListener("click", () => ipcRenderer.send("pin:click-through", !clickThrough));
@@ -54,6 +57,21 @@ window.addEventListener(
   },
   { passive: false }
 );
+
+function updateToolbarInteractive(event) {
+  if (!clickThrough) return;
+  const rect = toolbar.getBoundingClientRect();
+  const insideToolbarZone =
+    event.clientX >= rect.left - 12 &&
+    event.clientX <= rect.right + 12 &&
+    event.clientY >= rect.top - 12 &&
+    event.clientY <= rect.bottom + 12;
+  if (insideToolbarZone === toolbarInteractive) return;
+  toolbarInteractive = insideToolbarZone;
+  ipcRenderer.send("pin:toolbar-interactive", toolbarInteractive);
+}
+
+window.addEventListener("mousemove", updateToolbarInteractive);
 
 window.addEventListener("contextmenu", (event) => {
   event.preventDefault();
@@ -95,7 +113,7 @@ window.addEventListener("keydown", (event) => {
   if (event.key === "-") ipcRenderer.send("pin:resize", 0.86);
   if (event.key === "0") ipcRenderer.send("pin:reset-size");
   if (event.key.toLowerCase() === "l") ipcRenderer.send("pin:lock", !locked);
-  if (event.key.toLowerCase() === "t") ipcRenderer.send("pin:top-level", topLevel === "normal" ? "floating" : topLevel === "floating" ? "screen" : "normal");
+  if (event.key.toLowerCase() === "t") ipcRenderer.send("pin:top-level", topLevel === "normal" ? "screen" : "normal");
   if (event.key.toLowerCase() === "x") ipcRenderer.send("pin:click-through", !clickThrough);
   if (event.key === "[" || event.key === "{") ipcRenderer.send("pin:opacity-step", -0.08);
   if (event.key === "]" || event.key === "}") ipcRenderer.send("pin:opacity-step", 0.08);

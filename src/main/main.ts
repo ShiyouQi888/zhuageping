@@ -149,6 +149,7 @@ type PinWindowState = {
   initialHeight: number;
   locked: boolean;
   clickThrough: boolean;
+  toolbarInteractive: boolean;
   topLevel: "normal" | "floating" | "screen";
   opacity: number;
   dragStart?: {
@@ -1246,6 +1247,7 @@ async function createPinWindow(filePath: string) {
     initialHeight: height,
     locked: false,
     clickThrough: false,
+    toolbarInteractive: false,
     topLevel: "screen",
     opacity: 1
   });
@@ -1312,6 +1314,10 @@ function applyPinTopLevel(pinWindow: BrowserWindow, topLevel: PinWindowState["to
     return;
   }
   pinWindow.setAlwaysOnTop(true, topLevel === "screen" ? "screen-saver" : "floating");
+}
+
+function applyPinClickThrough(pinWindow: BrowserWindow, state: PinWindowState) {
+  pinWindow.setIgnoreMouseEvents(state.clickThrough && !state.toolbarInteractive, { forward: true });
 }
 
 function resizePinWindow(pinWindow: BrowserWindow, ratio: number) {
@@ -1459,7 +1465,17 @@ function registerPinWindowIpc() {
     const state = pinWindow ? pinWindowStates.get(pinWindow.webContents.id) : undefined;
     if (!pinWindow || pinWindow.isDestroyed() || !state) return;
     state.clickThrough = Boolean(enabled);
-    pinWindow.setIgnoreMouseEvents(state.clickThrough, { forward: true });
+    state.toolbarInteractive = false;
+    applyPinClickThrough(pinWindow, state);
+    sendPinState(pinWindow);
+  });
+
+  ipcMain.on("pin:toolbar-interactive", (event, interactive: boolean) => {
+    const pinWindow = pinWindowFromEvent(event);
+    const state = pinWindow ? pinWindowStates.get(pinWindow.webContents.id) : undefined;
+    if (!pinWindow || pinWindow.isDestroyed() || !state || !state.clickThrough) return;
+    state.toolbarInteractive = Boolean(interactive);
+    applyPinClickThrough(pinWindow, state);
     sendPinState(pinWindow);
   });
 
@@ -1549,7 +1565,8 @@ function registerPinWindowIpc() {
         click: () => {
           if (!state || pinWindow.isDestroyed()) return;
           state.clickThrough = !state.clickThrough;
-          pinWindow.setIgnoreMouseEvents(state.clickThrough, { forward: true });
+          state.toolbarInteractive = false;
+          applyPinClickThrough(pinWindow, state);
           sendPinState(pinWindow);
         }
       },
