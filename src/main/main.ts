@@ -739,59 +739,59 @@ function nativeWindowHandleId(window: BrowserWindow) {
 
 async function queryWindowAtPoint(point: { x: number; y: number }, ignoredWindowIds: string[]): Promise<WindowProbeRect | null> {
   if (process.platform !== "win32") return null;
-  const ignoredList = ignoredWindowIds.map((id) => `[UIntPtr]${id}`).join(",");
+  const ignoredList = ignoredWindowIds.map((id) => `[UInt64]${id}`).join(",");
   const script = `
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
 public static class WinProbe {
-  [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X; public int Y; }
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
-  [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT p);
-  [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
-  [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr hwnd, uint uCmd);
+  public delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
+  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc enumProc, IntPtr lParam);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
+  [DllImport("user32.dll")] public static extern IntPtr GetShellWindow();
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int count);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr hwnd, StringBuilder text, int count);
 }
 "@
-$point = New-Object WinProbe+POINT
-$point.X = ${Math.round(point.x)}
-$point.Y = ${Math.round(point.y)}
+$pointX = ${Math.round(point.x)}
+$pointY = ${Math.round(point.y)}
 $ignored = New-Object 'System.Collections.Generic.HashSet[UInt64]'
-@(${ignoredList}) | ForEach-Object { if ($_ -ne $null) { [void]$ignored.Add($_.ToUInt64()) } }
-$hwnd = [WinProbe]::WindowFromPoint($point)
+@(${ignoredList}) | ForEach-Object { if ($_ -ne $null) { [void]$ignored.Add([UInt64]$_) } }
 $classesToSkip = @("Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd")
-while ($hwnd -ne [IntPtr]::Zero) {
-  $root = [WinProbe]::GetAncestor($hwnd, 2)
-  if ($root -eq [IntPtr]::Zero) { $root = $hwnd }
+$shell = [WinProbe]::GetShellWindow()
+$result = $null
+$callback = [WinProbe+EnumWindowsProc]{
+  param([IntPtr]$hwnd, [IntPtr]$lParam)
+  if ($hwnd -eq [IntPtr]::Zero -or $hwnd -eq $shell -or $ignored.Contains($hwnd.ToUInt64())) { return $true }
+  if (-not [WinProbe]::IsWindowVisible($hwnd)) { return $true }
   $classBuilder = New-Object System.Text.StringBuilder 256
-  [void][WinProbe]::GetClassName($root, $classBuilder, $classBuilder.Capacity)
+  [void][WinProbe]::GetClassName($hwnd, $classBuilder, $classBuilder.Capacity)
   $className = $classBuilder.ToString()
+  if ($classesToSkip -contains $className) { return $true }
   $rect = New-Object WinProbe+RECT
-  $visible = [WinProbe]::IsWindowVisible($root)
-  $hasRect = [WinProbe]::GetWindowRect($root, [ref]$rect)
+  $hasRect = [WinProbe]::GetWindowRect($hwnd, [ref]$rect)
+  if (-not $hasRect) { return $true }
   $width = $rect.Right - $rect.Left
   $height = $rect.Bottom - $rect.Top
-  $containsPoint = $point.X -ge $rect.Left -and $point.X -le $rect.Right -and $point.Y -ge $rect.Top -and $point.Y -le $rect.Bottom
-  if ($visible -and $hasRect -and $containsPoint -and $width -ge 40 -and $height -ge 40 -and -not $ignored.Contains($root.ToUInt64()) -and $classesToSkip -notcontains $className) {
-    $titleBuilder = New-Object System.Text.StringBuilder 512
-    [void][WinProbe]::GetWindowText($root, $titleBuilder, $titleBuilder.Capacity)
-    [PSCustomObject]@{
-      x = $rect.Left
-      y = $rect.Top
-      width = $width
-      height = $height
-      title = $titleBuilder.ToString()
-      className = $className
-    } | ConvertTo-Json -Compress
-    exit 0
+  $containsPoint = $pointX -ge $rect.Left -and $pointX -le $rect.Right -and $pointY -ge $rect.Top -and $pointY -le $rect.Bottom
+  if (-not $containsPoint -or $width -lt 40 -or $height -lt 40) { return $true }
+  $titleBuilder = New-Object System.Text.StringBuilder 512
+  [void][WinProbe]::GetWindowText($hwnd, $titleBuilder, $titleBuilder.Capacity)
+  $script:result = [PSCustomObject]@{
+    x = $rect.Left
+    y = $rect.Top
+    width = $width
+    height = $height
+    title = $titleBuilder.ToString()
+    className = $className
   }
-  $hwnd = [WinProbe]::GetWindow($root, 2)
+  return $false
 }
-"null"
+[void][WinProbe]::EnumWindows($callback, [IntPtr]::Zero)
+if ($null -eq $result) { "null" } else { $result | ConvertTo-Json -Compress }
 `;
   try {
     const { stdout } = await execFileAsync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
@@ -1157,9 +1157,20 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
     const onOverlayReady = (event: Electron.IpcMainEvent) => {
       if (resolved) return;
       showActiveOverlays();
-      const readyOverlay = overlays.find(({ overlay }) => !overlay.isDestroyed() && overlay.webContents.id === event.sender.id)?.overlay;
-      if (readyOverlay && !readyOverlay.isDestroyed()) {
+      const readyEntry = overlays.find(({ overlay }) => !overlay.isDestroyed() && overlay.webContents.id === event.sender.id);
+      const readyOverlay = readyEntry?.overlay;
+      if (readyEntry && readyOverlay && !readyOverlay.isDestroyed()) {
         readyOverlay.focus();
+        const cursorPoint = screen.getCursorScreenPoint();
+        const displayBounds = readyEntry.display.bounds;
+        const cursorInDisplay =
+          cursorPoint.x >= displayBounds.x &&
+          cursorPoint.x <= displayBounds.x + displayBounds.width &&
+          cursorPoint.y >= displayBounds.y &&
+          cursorPoint.y <= displayBounds.y + displayBounds.height;
+        if (cursorInDisplay) {
+          readyOverlay.webContents.send("overlay:cursor-point", cursorPoint);
+        }
       }
     };
 

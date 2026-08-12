@@ -301,17 +301,22 @@ function setHoverSelection(rect) {
   }
 }
 
-function probeWindowSelection(event) {
-  if (phase !== "selecting" || selecting || pendingAutoSelection || event.buttons || windowProbeInFlight) return;
+function probeWindowSelectionAt(clientX, clientY, options = {}) {
+  if (phase !== "selecting" || selecting || pendingAutoSelection || windowProbeInFlight) return;
+  if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return;
+  if (clientX < 0 || clientY < 0 || clientX > window.innerWidth || clientY > window.innerHeight) {
+    setHoverSelection(null);
+    return;
+  }
   const now = performance.now();
-  if (now - lastWindowProbeAt < 160) return;
+  if (!options.force && now - lastWindowProbeAt < 120) return;
   lastWindowProbeAt = now;
   const seq = ++windowProbeSeq;
   windowProbeInFlight = true;
   ipcRenderer
     .invoke("overlay:window-at-point", {
-      x: event.clientX + overlayOffset.x,
-      y: event.clientY + overlayOffset.y
+      x: clientX + overlayOffset.x,
+      y: clientY + overlayOffset.y
     })
     .then((rect) => {
       if (seq !== windowProbeSeq || phase !== "selecting" || selecting || pendingAutoSelection) return;
@@ -323,6 +328,11 @@ function probeWindowSelection(event) {
     .finally(() => {
       if (seq === windowProbeSeq) windowProbeInFlight = false;
     });
+}
+
+function probeWindowSelection(event, options = {}) {
+  if (event.buttons && !options.force) return;
+  probeWindowSelectionAt(event.clientX, event.clientY, options);
 }
 
 function positionToolbarNearSelection() {
@@ -1135,6 +1145,10 @@ window.addEventListener("mousemove", (event) => {
   drawObject(ctx, drawingObject);
 });
 
+window.addEventListener("mouseenter", (event) => {
+  probeWindowSelection(event, { force: true });
+});
+
 window.addEventListener("mouseup", () => {
   if (resizeState?.mode === "crop") {
     const nextRect = { ...selection };
@@ -1259,6 +1273,12 @@ ipcRenderer.on("inline-region-ready", (_event, rect) => enterEditMode(rect));
 ipcRenderer.on("inline-capture-error", () => {
   setStatus("截图失败，请按 Esc 退出后重试");
   document.body.style.cursor = "default";
+});
+ipcRenderer.on("overlay:cursor-point", (_event, point) => {
+  if (phase !== "selecting") return;
+  const clientX = point.x - overlayOffset.x;
+  const clientY = point.y - overlayOffset.y;
+  requestAnimationFrame(() => probeWindowSelectionAt(clientX, clientY, { force: true }));
 });
 
 setTool("rect");
