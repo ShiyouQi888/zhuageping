@@ -9,6 +9,7 @@ export type CaptureOptions = {
 };
 
 export type OutputFormat = "png" | "jpg";
+export type AppLanguage = "zh-CN" | "en-US";
 
 export type AppSettings = CaptureOptions & {
   launchAtStartup: boolean;
@@ -19,7 +20,7 @@ export type AppSettings = CaptureOptions & {
   autoCopy: boolean;
   autoPinAfterCapture: boolean;
   outputFormat: OutputFormat;
-  language: "zh-CN" | "en-US";
+  language: AppLanguage;
   logLevel: "normal" | "verbose" | "silent";
   screenshotDir: string;
   shortcutCapture: string;

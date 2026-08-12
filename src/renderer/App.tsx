@@ -2,27 +2,19 @@ import { useEffect, useState } from "react";
 import { Camera, FolderOpen, HelpCircle, Minus, Pin, RotateCcw, ScrollText, Shield, X } from "lucide-react";
 import appLogoUrl from "./assets/app-logo.png";
 import wechatQrUrl from "./assets/weichat-qr.svg";
-import type { AppSettings, ScreenshotRecord, StoragePaths, WatermarkPosition } from "./types";
+import { fallbackLanguage, formatShortcutForWindows, languageOptions, messages, normalizeLanguage, tabKeys, type TabKey } from "./i18n";
+import type { AppLanguage, AppSettings, ScreenshotRecord, StoragePaths, WatermarkPosition } from "./types";
 
-const tabs = ["常规", "界面", "截屏", "贴图", "输出", "控制", "关于"] as const;
-type Tab = (typeof tabs)[number];
-
-const shortcutFields: Array<[keyof AppSettings, string]> = [
-  ["shortcutCapture", "截屏"],
-  ["shortcutCaptureCopy", "截屏并自动复制"],
-  ["shortcutArea", "自定义截屏"],
-  ["shortcutScrollCapture", "滚动截图"],
-  ["shortcutPin", "贴图"],
-  ["shortcutTogglePins", "隐藏/显示所有贴图"]
+const shortcutKeys: Array<keyof AppSettings> = [
+  "shortcutCapture",
+  "shortcutCaptureCopy",
+  "shortcutArea",
+  "shortcutScrollCapture",
+  "shortcutPin",
+  "shortcutTogglePins"
 ];
 
-const watermarkOptions: Array<{ label: string; value: WatermarkPosition }> = [
-  { label: "左上", value: "top-left" },
-  { label: "右上", value: "top-right" },
-  { label: "左下", value: "bottom-left" },
-  { label: "右下", value: "bottom-right" },
-  { label: "底部横条", value: "bottom-bar" }
-];
+const watermarkValues: WatermarkPosition[] = ["top-left", "top-right", "bottom-left", "bottom-right", "bottom-bar"];
 
 const defaultSettings: AppSettings = {
   location: "上海市",
@@ -38,7 +30,7 @@ const defaultSettings: AppSettings = {
   autoCopy: true,
   autoPinAfterCapture: false,
   outputFormat: "png",
-  language: "zh-CN",
+  language: fallbackLanguage,
   logLevel: "normal",
   screenshotDir: "",
   shortcutCapture: "F1",
@@ -49,22 +41,18 @@ const defaultSettings: AppSettings = {
   shortcutTogglePins: "Shift+F3"
 };
 
-function formatShortcutForWindows(shortcut: string) {
-  return shortcut
-    .replace(/CommandOrControl/gi, "Ctrl")
-    .replace(/CmdOrCtrl/gi, "Ctrl")
-    .replace(/Control/gi, "Ctrl")
-    .replace(/Command/gi, "Ctrl")
-    .replace(/\s*\+\s*/g, "+")
-    .trim();
-}
-
 export function App() {
-  const [activeTab, setActiveTab] = useState<Tab>("常规");
+  const [activeTab, setActiveTab] = useState<TabKey>("general");
   const [storagePaths, setStoragePaths] = useState<StoragePaths | null>(null);
   const [history, setHistory] = useState<ScreenshotRecord[]>([]);
-  const [status, setStatus] = useState("准备就绪");
+  const [status, setStatus] = useState<string>(messages[fallbackLanguage].status.ready);
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
+  const language = normalizeLanguage(settings.language);
+  const t = messages[language];
+
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
 
   useEffect(() => {
     void Promise.all([
@@ -74,24 +62,26 @@ export function App() {
     ]).then(([paths, records, loadedSettings]) => {
       setStoragePaths(paths);
       setHistory(records);
-      setSettings(loadedSettings);
+      setSettings({ ...loadedSettings, language: normalizeLanguage(loadedSettings.language) });
     });
+  }, []);
 
-    const removeOpenPreferencesListener = window.screenshotApp.onOpenPreferences(() => setStatus("首选项已打开"));
+  useEffect(() => {
+    const removeOpenPreferencesListener = window.screenshotApp.onOpenPreferences(() => setStatus(t.status.preferencesOpened));
     const removeCaptureCreatedListener = window.screenshotApp.onCaptureCreated((record) => {
       setHistory((current) => (current.some((item) => item.id === record.id) ? current : [record, ...current]));
-      setStatus(`已保存：${record.filePath}`);
+      setStatus(t.status.saved(record.filePath));
     });
     const removeHistoryClearedListener = window.screenshotApp.onHistoryCleared(() => {
       setHistory([]);
-      setStatus("截图历史已清空");
+      setStatus(t.status.historyCleared);
     });
     const removeSettingsUpdatedListener = window.screenshotApp.onSettingsUpdated((updatedSettings) => {
-      setSettings(updatedSettings);
+      setSettings({ ...updatedSettings, language: normalizeLanguage(updatedSettings.language) });
       setStoragePaths((current) =>
         current ? { ...current, screenshotDir: updatedSettings.screenshotDir } : current
       );
-      setStatus("设置已更新");
+      setStatus(t.status.settingsUpdated);
     });
     const removeStatusListener = window.screenshotApp.onStatus((message) => setStatus(message));
 
@@ -102,14 +92,14 @@ export function App() {
       removeSettingsUpdatedListener();
       removeStatusListener();
     };
-  }, []);
+  }, [t]);
 
   async function saveSettings(nextSettings: AppSettings) {
     setSettings(nextSettings);
     const savedSettings = await window.screenshotApp.updateSettings(nextSettings);
-    setSettings(savedSettings);
+    setSettings({ ...savedSettings, language: normalizeLanguage(savedSettings.language) });
     setStoragePaths((current) => (current ? { ...current, screenshotDir: savedSettings.screenshotDir } : current));
-    setStatus("设置已保存");
+    setStatus(t.status.settingsSaved);
   }
 
   function updateSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
@@ -124,52 +114,52 @@ export function App() {
   }
 
   async function captureNow(copyAfterCapture = false) {
-    setStatus("正在截屏...");
+    setStatus(t.status.capturing);
     const record = await window.screenshotApp.captureFullscreen(settings, copyAfterCapture || settings.autoCopy);
     if (!record) {
-      setStatus("截图已取消");
+      setStatus(t.status.captureCanceled);
       return;
     }
     setHistory((current) => (current.some((item) => item.id === record.id) ? current : [record, ...current]));
-    setStatus("截图已保存并复制");
+    setStatus(t.status.captureSavedCopied);
   }
 
   async function captureArea(copyAfterCapture = false) {
-    setStatus("拖动选择截图区域...");
+    setStatus(t.status.selectingRegion);
     const record = await window.screenshotApp.captureRegion(settings, copyAfterCapture || settings.autoCopy);
     if (!record) {
-      setStatus("区域截图已取消");
+      setStatus(t.status.regionCanceled);
       return;
     }
     setHistory((current) => (current.some((item) => item.id === record.id) ? current : [record, ...current]));
-    setStatus("区域截图已保存并复制");
+    setStatus(t.status.regionSavedCopied);
   }
 
   async function captureScroll(copyAfterCapture = false) {
-    setStatus("拖动选择长截图区域...");
+    setStatus(t.status.selectingScroll);
     const record = await window.screenshotApp.captureScroll(settings, copyAfterCapture || settings.autoCopy);
     if (!record) {
-      setStatus("滚动截图已取消");
+      setStatus(t.status.scrollCanceled);
       return;
     }
     setHistory((current) => (current.some((item) => item.id === record.id) ? current : [record, ...current]));
-    setStatus("长截图已保存并复制");
+    setStatus(t.status.scrollSavedCopied);
   }
 
   async function pinLatest() {
     await window.screenshotApp.pinLatest();
-    setStatus("已执行贴图");
+    setStatus(t.status.pinned);
   }
 
   async function clearHistory() {
     await window.screenshotApp.clearHistory();
     setHistory([]);
-    setStatus("截图历史已清空");
+    setStatus(t.status.historyCleared);
   }
 
   async function openPath(targetPath?: string) {
     if (!targetPath) {
-      setStatus("路径还没有准备好");
+      setStatus(t.status.pathMissing);
       return;
     }
     await window.screenshotApp.openPath(targetPath);
@@ -177,18 +167,18 @@ export function App() {
 
   async function chooseScreenshotDir() {
     const updatedSettings = await window.screenshotApp.chooseScreenshotDir();
-    setSettings(updatedSettings);
+    setSettings({ ...updatedSettings, language: normalizeLanguage(updatedSettings.language) });
     setStoragePaths((current) => (current ? { ...current, screenshotDir: updatedSettings.screenshotDir } : current));
-    setStatus("截图保存目录已更新");
+    setStatus(t.status.screenshotDirUpdated);
   }
 
   async function restoreDefaults() {
     const screenshotDir = storagePaths?.screenshotDir ?? settings.screenshotDir;
-    await saveSettings({ ...defaultSettings, screenshotDir });
+    await saveSettings({ ...defaultSettings, language, screenshotDir });
   }
 
   async function restartAsAdmin() {
-    setStatus("正在请求管理员权限重启...");
+    setStatus(t.status.restartingAsAdmin);
     await window.screenshotApp.restartAsAdmin();
   }
 
@@ -197,217 +187,220 @@ export function App() {
       <header className="titlebar">
         <div className="titlebar-brand">
           <img src={appLogoUrl} alt="" aria-hidden="true" />
-          <span>抓个屏</span>
+          <span>{t.appName}</span>
         </div>
         <div className="titlebar-controls">
-          <button type="button" aria-label="最小化" onClick={() => void window.screenshotApp.minimizePreferences()}>
+          <button type="button" aria-label={t.titlebar.minimize} onClick={() => void window.screenshotApp.minimizePreferences()}>
             <Minus size={15} aria-hidden="true" />
           </button>
-          <button className="titlebar-close" type="button" aria-label="关闭" onClick={() => void window.screenshotApp.closePreferences()}>
+          <button className="titlebar-close" type="button" aria-label={t.titlebar.close} onClick={() => void window.screenshotApp.closePreferences()}>
             <X size={15} aria-hidden="true" />
           </button>
         </div>
       </header>
-      <nav className="tabs" aria-label="首选项分类">
-        {tabs.map((tab) => (
+      <nav className="tabs" aria-label={t.control.shortcutsLabel}>
+        {tabKeys.map((tab) => (
           <button key={tab} className={activeTab === tab ? "active" : ""} onClick={() => setActiveTab(tab)}>
-            {tab}
+            {t.tabs[tab]}
           </button>
         ))}
       </nav>
 
       <section className="content">
-        {activeTab === "常规" ? (
+        {activeTab === "general" ? (
           <>
             <label className="field-row">
-              <span>显示语言:</span>
-              <select value={settings.language} onChange={(event) => updateSetting("language", event.target.value as AppSettings["language"])}>
-                <option value="zh-CN">简体中文</option>
-                <option value="en-US">English</option>
-              </select>
-            </label>
-            <div className="checkbox-grid">
-              <label>
-                <input checked={settings.launchAtStartup} onChange={() => toggleSetting("launchAtStartup")} type="checkbox" />
-                开机启动
-              </label>
-              <label>
-                <input checked={settings.runAsAdmin} onChange={() => toggleSetting("runAsAdmin")} type="checkbox" />
-                以管理员身份
-              </label>
-              <label>
-                <input checked={settings.autoBackup} onChange={() => toggleSetting("autoBackup")} type="checkbox" />
-                自动备份
-              </label>
-              <label>
-                <input checked={settings.keepResponsive} onChange={() => toggleSetting("keepResponsive")} type="checkbox" />
-                保持快速响应
-              </label>
-              <label>
-                <input checked={settings.trayMenu} onChange={() => toggleSetting("trayMenu")} type="checkbox" />
-                增强版托盘菜单
-              </label>
-            </div>
-            <label className="field-row">
-              <span>日志级别:</span>
-              <select value={settings.logLevel} onChange={(event) => updateSetting("logLevel", event.target.value as AppSettings["logLevel"])}>
-                <option value="normal">普通</option>
-                <option value="verbose">详细</option>
-                <option value="silent">静默</option>
-              </select>
-            </label>
-            <fieldset>
-              <legend>配置文件存储位置</legend>
-              <label className="field-row stacked">
-                <span>路径:</span>
-                <input readOnly value={storagePaths?.dataDir ?? "加载中..."} />
-              </label>
-              <div className="button-row">
-                <button onClick={() => void openPath(storagePaths?.dataDir)}>打开所在文件夹</button>
-                <button onClick={() => void openPath(storagePaths?.dataDir)}>打开</button>
-              </div>
-            </fieldset>
-            <div className="button-row">
-              <button onClick={() => void restartAsAdmin()}>
-                <Shield size={16} aria-hidden="true" />
-                以管理员身份重启
-              </button>
-            </div>
-          </>
-        ) : null}
-
-        {activeTab === "界面" ? (
-          <>
-            <label className="field-row">
-              <span>窗口模式:</span>
-              <select defaultValue="preferences">
-                <option value="preferences">仅首选项小窗口</option>
-                <option value="tray">仅托盘</option>
-              </select>
-            </label>
-            <label className="field-row">
-              <span>主题:</span>
-              <select defaultValue="system">
-                <option value="system">跟随系统</option>
-                <option value="light">浅色</option>
-              </select>
-            </label>
-          </>
-        ) : null}
-
-        {activeTab === "截屏" ? (
-          <>
-            <div className="action-grid">
-              <button className="primary" onClick={() => void captureNow(false)}>
-                <Camera size={16} aria-hidden="true" />
-                区域截图
-              </button>
-              <button onClick={() => void captureNow(true)}>区域截图并复制</button>
-              <button onClick={() => void captureArea(false)}>区域截图</button>
-              <button onClick={() => void captureScroll(false)}>
-                <ScrollText size={16} aria-hidden="true" />
-                滚动截图
-              </button>
-              <button onClick={() => void pinLatest()}>
-                <Pin size={16} aria-hidden="true" />
-                贴图
-              </button>
-            </div>
-            <label className="field-row">
-              <span>默认地点:</span>
-              <input value={settings.location} onChange={(event) => updateSetting("location", event.target.value)} />
-            </label>
-            <label className="field-row">
-              <span>默认项目:</span>
-              <input value={settings.project} onChange={(event) => updateSetting("project", event.target.value)} />
-            </label>
-            <label className="field-row">
-              <span>备注:</span>
-              <input value={settings.note} onChange={(event) => updateSetting("note", event.target.value)} placeholder="可选备注" />
-            </label>
-            <label className="field-row">
-              <span>水印位置:</span>
-              <select
-                disabled={!settings.watermarkEnabled}
-                value={settings.watermarkPosition}
-                onChange={(event) => updateSetting("watermarkPosition", event.target.value as WatermarkPosition)}
-              >
-                {watermarkOptions.map((option) => (
+              <span>{t.general.language}</span>
+              <select value={language} onChange={(event) => updateSetting("language", event.target.value as AppLanguage)}>
+                {languageOptions.map((option) => (
                   <option value={option.value} key={option.value}>
                     {option.label}
                   </option>
                 ))}
               </select>
             </label>
-            <label className="checkbox-line">
-              <input checked={settings.watermarkEnabled} onChange={() => toggleSetting("watermarkEnabled")} type="checkbox" />
-              开启时间地点水印
+            <div className="checkbox-grid">
+              <label>
+                <input checked={settings.launchAtStartup} onChange={() => toggleSetting("launchAtStartup")} type="checkbox" />
+                {t.general.launchAtStartup}
+              </label>
+              <label>
+                <input checked={settings.runAsAdmin} onChange={() => toggleSetting("runAsAdmin")} type="checkbox" />
+                {t.general.runAsAdmin}
+              </label>
+              <label>
+                <input checked={settings.autoBackup} onChange={() => toggleSetting("autoBackup")} type="checkbox" />
+                {t.general.autoBackup}
+              </label>
+              <label>
+                <input checked={settings.keepResponsive} onChange={() => toggleSetting("keepResponsive")} type="checkbox" />
+                {t.general.keepResponsive}
+              </label>
+              <label>
+                <input checked={settings.trayMenu} onChange={() => toggleSetting("trayMenu")} type="checkbox" />
+                {t.general.trayMenu}
+              </label>
+            </div>
+            <label className="field-row">
+              <span>{t.general.logLevel}</span>
+              <select value={settings.logLevel} onChange={(event) => updateSetting("logLevel", event.target.value as AppSettings["logLevel"])}>
+                <option value="normal">{t.general.logLevelOptions.normal}</option>
+                <option value="verbose">{t.general.logLevelOptions.verbose}</option>
+                <option value="silent">{t.general.logLevelOptions.silent}</option>
+              </select>
             </label>
-            <label className="checkbox-line">
-              <input checked={settings.autoCopy} onChange={() => toggleSetting("autoCopy")} type="checkbox" />
-              截屏后自动复制
+            <fieldset>
+              <legend>{t.general.configLocation}</legend>
+              <label className="field-row stacked">
+                <span>{t.general.path}</span>
+                <input readOnly value={storagePaths?.dataDir ?? t.common.loading} />
+              </label>
+              <div className="button-row">
+                <button onClick={() => void openPath(storagePaths?.dataDir)}>{t.common.openFolder}</button>
+                <button onClick={() => void openPath(storagePaths?.dataDir)}>{t.common.open}</button>
+              </div>
+            </fieldset>
+            <div className="button-row">
+              <button onClick={() => void restartAsAdmin()}>
+                <Shield size={16} aria-hidden="true" />
+                {t.general.restartAsAdmin}
+              </button>
+            </div>
+          </>
+        ) : null}
+
+        {activeTab === "interface" ? (
+          <>
+            <label className="field-row">
+              <span>{t.interface.windowMode}</span>
+              <select defaultValue="preferences">
+                <option value="preferences">{t.interface.preferencesOnly}</option>
+                <option value="tray">{t.interface.trayOnly}</option>
+              </select>
             </label>
-            <label className="checkbox-line">
-              <input checked={settings.autoPinAfterCapture} onChange={() => toggleSetting("autoPinAfterCapture")} type="checkbox" />
-              截图完成后自动贴图
+            <label className="field-row">
+              <span>{t.interface.theme}</span>
+              <select defaultValue="system">
+                <option value="system">{t.interface.systemTheme}</option>
+                <option value="light">{t.interface.lightTheme}</option>
+              </select>
             </label>
           </>
         ) : null}
 
-        {activeTab === "贴图" ? (
+        {activeTab === "capture" ? (
+          <>
+            <div className="action-grid">
+              <button className="primary" onClick={() => void captureNow(false)}>
+                <Camera size={16} aria-hidden="true" />
+                {t.capture.regionCapture}
+              </button>
+              <button onClick={() => void captureNow(true)}>{t.capture.regionCaptureCopy}</button>
+              <button onClick={() => void captureArea(false)}>{t.capture.regionCapture}</button>
+              <button onClick={() => void captureScroll(false)}>
+                <ScrollText size={16} aria-hidden="true" />
+                {t.capture.scrollCapture}
+              </button>
+              <button onClick={() => void pinLatest()}>
+                <Pin size={16} aria-hidden="true" />
+                {t.capture.pin}
+              </button>
+            </div>
+            <label className="field-row">
+              <span>{t.capture.location}</span>
+              <input value={settings.location} onChange={(event) => updateSetting("location", event.target.value)} />
+            </label>
+            <label className="field-row">
+              <span>{t.capture.project}</span>
+              <input value={settings.project} onChange={(event) => updateSetting("project", event.target.value)} />
+            </label>
+            <label className="field-row">
+              <span>{t.capture.note}</span>
+              <input value={settings.note} onChange={(event) => updateSetting("note", event.target.value)} placeholder={t.capture.notePlaceholder} />
+            </label>
+            <label className="field-row">
+              <span>{t.capture.watermarkPosition}</span>
+              <select
+                disabled={!settings.watermarkEnabled}
+                value={settings.watermarkPosition}
+                onChange={(event) => updateSetting("watermarkPosition", event.target.value as WatermarkPosition)}
+              >
+                {watermarkValues.map((value) => (
+                  <option value={value} key={value}>
+                    {t.watermark[value]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="checkbox-line">
+              <input checked={settings.watermarkEnabled} onChange={() => toggleSetting("watermarkEnabled")} type="checkbox" />
+              {t.capture.watermarkEnabled}
+            </label>
+            <label className="checkbox-line">
+              <input checked={settings.autoCopy} onChange={() => toggleSetting("autoCopy")} type="checkbox" />
+              {t.capture.autoCopy}
+            </label>
+            <label className="checkbox-line">
+              <input checked={settings.autoPinAfterCapture} onChange={() => toggleSetting("autoPinAfterCapture")} type="checkbox" />
+              {t.capture.autoPin}
+            </label>
+          </>
+        ) : null}
+
+        {activeTab === "pin" ? (
           <>
             <div className="note-box">
-              <strong>贴图</strong>
-              <span>F3 贴最近截图，Shift+F3 隐藏或显示所有贴图。</span>
-              <span>贴图窗口可拖动、缩放、调透明度、复制、打开源文件，Esc 关闭。</span>
+              <strong>{t.pin.title}</strong>
+              <span>{t.pin.line1}</span>
+              <span>{t.pin.line2}</span>
             </div>
             <div className="button-row">
               <button onClick={() => void pinLatest()}>
                 <Pin size={16} aria-hidden="true" />
-                贴最近截图
+                {t.pin.pinLatest}
               </button>
-              <button onClick={() => void window.screenshotApp.togglePins()}>隐藏/显示所有贴图</button>
+              <button onClick={() => void window.screenshotApp.togglePins()}>{t.pin.togglePins}</button>
             </div>
             <label className="checkbox-line">
               <input checked={settings.autoPinAfterCapture} onChange={() => toggleSetting("autoPinAfterCapture")} type="checkbox" />
-              截图完成后自动贴到桌面
+              {t.pin.autoPin}
             </label>
           </>
         ) : null}
 
-        {activeTab === "输出" ? (
+        {activeTab === "output" ? (
           <>
             <fieldset>
-              <legend>截图文件存储位置</legend>
+              <legend>{t.output.screenshotLocation}</legend>
               <label className="field-row stacked">
-                <span>路径:</span>
-                <input readOnly value={settings.screenshotDir || storagePaths?.screenshotDir || "加载中..."} />
+                <span>{t.output.path}</span>
+                <input readOnly value={settings.screenshotDir || storagePaths?.screenshotDir || t.common.loading} />
               </label>
               <div className="button-row">
                 <button onClick={() => void openPath(settings.screenshotDir || storagePaths?.screenshotDir)}>
                   <FolderOpen size={16} aria-hidden="true" />
-                  打开所在文件夹
+                  {t.common.openFolder}
                 </button>
-                <button onClick={() => void chooseScreenshotDir()}>更改</button>
+                <button onClick={() => void chooseScreenshotDir()}>{t.common.change}</button>
               </div>
             </fieldset>
             <label className="field-row">
-              <span>输出格式:</span>
+              <span>{t.output.format}</span>
               <select value={settings.outputFormat} onChange={(event) => updateSetting("outputFormat", event.target.value as AppSettings["outputFormat"])}>
                 <option value="png">PNG</option>
                 <option value="jpg">JPG</option>
               </select>
             </label>
-            <p className="subtle">当前历史：{history.length} 张</p>
+            <p className="subtle">{t.output.historyCount(history.length)}</p>
           </>
         ) : null}
 
-        {activeTab === "控制" ? (
+        {activeTab === "control" ? (
           <>
             <div className="shortcut-list">
-              {shortcutFields.map(([key, name]) => (
+              {shortcutKeys.map((key) => (
                 <div className="shortcut-item editable" key={key}>
-                  <span>{name}</span>
+                  <span>{t.control.shortcuts[key as keyof typeof t.control.shortcuts]}</span>
                   <input
                     value={formatShortcutForWindows(String(settings[key]))}
                     onChange={(event) => updateSetting(key, formatShortcutForWindows(event.target.value))}
@@ -415,27 +408,27 @@ export function App() {
                 </div>
               ))}
             </div>
-            <button onClick={clearHistory}>清空截屏历史</button>
+            <button onClick={clearHistory}>{t.control.clearHistory}</button>
           </>
         ) : null}
 
-        {activeTab === "关于" ? (
+        {activeTab === "about" ? (
           <div className="about-box">
             <div className="about-copy">
               <div className="about-brand">
-                <img className="about-logo" src={appLogoUrl} alt="抓个屏 logo" />
+                <img className="about-logo" src={appLogoUrl} alt={t.about.logoAlt} />
                 <div>
-                  <strong>抓个屏</strong>
-                  <span>Windows 本地截图工具</span>
+                  <strong>{t.appName}</strong>
+                  <span>{t.about.subtitle}</span>
                 </div>
               </div>
-              <span>作者：齐世有</span>
-              <span>邮箱：blacklaw@foxmail.com</span>
-              <span>纯本地截图、贴图、时间戳与地点水印工具。</span>
-              <span>无云端、无账号、无上传。</span>
+              <span>{t.about.author}</span>
+              <span>{t.about.email}</span>
+              <span>{t.about.description}</span>
+              <span>{t.about.privacy}</span>
             </div>
-            <button className="about-qr-trigger" type="button" aria-label="放大微信二维码">
-              <img className="about-qr" src={wechatQrUrl} alt="微信二维码" />
+            <button className="about-qr-trigger" type="button" aria-label={t.about.qrLabel}>
+              <img className="about-qr" src={wechatQrUrl} alt={t.about.qrAlt} />
               <img className="about-qr-preview" src={wechatQrUrl} alt="" aria-hidden="true" />
             </button>
           </div>
@@ -443,13 +436,13 @@ export function App() {
       </section>
 
       <footer className="footer">
-        <button className="help" title="帮助">
+        <button className="help" title={t.common.help}>
           <HelpCircle size={16} aria-hidden="true" />
         </button>
         <span>{status}</span>
         <button onClick={() => void restoreDefaults()}>
           <RotateCcw size={16} aria-hidden="true" />
-          恢复默认
+          {t.common.restoreDefaults}
         </button>
       </footer>
     </main>

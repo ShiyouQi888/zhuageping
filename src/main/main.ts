@@ -86,6 +86,7 @@ type CaptureOptions = {
 };
 
 type OutputFormat = "png" | "jpg";
+type AppLanguage = "zh-CN" | "en-US";
 
 type AppSettings = CaptureOptions & {
   launchAtStartup: boolean;
@@ -96,7 +97,7 @@ type AppSettings = CaptureOptions & {
   autoCopy: boolean;
   autoPinAfterCapture: boolean;
   outputFormat: OutputFormat;
-  language: "zh-CN" | "en-US";
+  language: AppLanguage;
   logLevel: "normal" | "verbose" | "silent";
   screenshotDir: string;
   shortcutCapture: string;
@@ -232,6 +233,133 @@ let appSettings: AppSettings = {
   shortcutTogglePins: "Shift+F3"
 };
 
+const mainMessages = {
+  "zh-CN": {
+    preferences: "首选项",
+    protocolOpened: (protocol: string) => `已通过 ${protocol}:// 唤起`,
+    tray: {
+      regionCapture: "区域截图",
+      regionCaptureCopy: "区域截图并自动复制",
+      customCapture: "自定义截屏",
+      scrollCapture: "滚动截图（长图）",
+      pinLatest: "贴最近截图",
+      togglePins: "隐藏/显示所有贴图",
+      switchPinGroup: "切换到另一贴图组",
+      clearHistory: "清空截屏历史",
+      preferences: "首选项...",
+      help: "帮助",
+      restart: "重新启动",
+      quit: "退出"
+    },
+    status: {
+      shortcutFailed: (accelerator: string) => `快捷键注册失败：${accelerator}`,
+      scrollSelect: "拖动选择要滚动截取的区域",
+      scrollHint: "拖动选择长截图区域，单击可选中窗口",
+      scrollPreparing: "正在准备滚动截图...",
+      scrollMerged: (frames: number) => `长截图合成完成：${frames} 帧`,
+      scrollMergedEditable: (frames: number) => `长截图已合成：${frames} 帧，可继续编辑`,
+      ocrDone: "OCR 识别完成，文字已复制",
+      ocrFailed: "OCR 识别失败",
+      noPinSource: "暂无可贴图的截图",
+      pinMissing: "贴图文件不存在",
+      pinned: "截图已贴到桌面",
+      pinsShown: "已显示所有贴图",
+      pinsHidden: "已隐藏所有贴图",
+      pinLockedResize: "贴图已锁定，无法缩放",
+      pinLockedReset: "贴图已锁定，无法重置大小",
+      pinSaved: "贴图已保存",
+      pinCopied: "贴图已复制"
+    },
+    dialog: {
+      scrollSelectionTitle: "滚动截图选区",
+      captureTitle: "截图",
+      pinTitle: "贴图",
+      savePin: "保存贴图",
+      imageFilter: "图片",
+      chooseScreenshotDir: "选择截图保存目录"
+    },
+    pinMenu: {
+      unlock: "解除锁定",
+      lock: "锁定贴图",
+      topLevel: "置顶级别",
+      normal: "普通窗口",
+      floating: "浮层置顶",
+      screen: "最高置顶",
+      opacity: "透明度",
+      disableClickThrough: "关闭鼠标穿透",
+      enableClickThrough: "开启鼠标穿透",
+      saveImage: "保存图片...",
+      copyImage: "复制图片",
+      openFolder: "打开所在文件夹",
+      destroy: "销毁贴图"
+    }
+  },
+  "en-US": {
+    preferences: "Preferences",
+    protocolOpened: (protocol: string) => `Opened via ${protocol}://`,
+    tray: {
+      regionCapture: "Region Capture",
+      regionCaptureCopy: "Capture and Auto Copy",
+      customCapture: "Custom Capture",
+      scrollCapture: "Scrolling Capture",
+      pinLatest: "Pin Latest Screenshot",
+      togglePins: "Show/Hide All Pins",
+      switchPinGroup: "Switch Pin Group",
+      clearHistory: "Clear Screenshot History",
+      preferences: "Preferences...",
+      help: "Help",
+      restart: "Restart",
+      quit: "Quit"
+    },
+    status: {
+      shortcutFailed: (accelerator: string) => `Shortcut registration failed: ${accelerator}`,
+      scrollSelect: "Drag to select the scrolling capture region",
+      scrollHint: "Drag to select a scrolling capture region, or click to select a window",
+      scrollPreparing: "Preparing scrolling capture...",
+      scrollMerged: (frames: number) => `Scrolling capture merged: ${frames} frames`,
+      scrollMergedEditable: (frames: number) => `Long screenshot merged: ${frames} frames, ready to edit`,
+      ocrDone: "OCR completed, text copied",
+      ocrFailed: "OCR failed",
+      noPinSource: "No screenshot available to pin",
+      pinMissing: "Pinned image file does not exist",
+      pinned: "Screenshot pinned to desktop",
+      pinsShown: "All pins shown",
+      pinsHidden: "All pins hidden",
+      pinLockedResize: "Pin is locked and cannot be resized",
+      pinLockedReset: "Pin is locked and cannot reset size",
+      pinSaved: "Pin saved",
+      pinCopied: "Pin copied"
+    },
+    dialog: {
+      scrollSelectionTitle: "Scrolling Capture Region",
+      captureTitle: "Capture",
+      pinTitle: "Pin",
+      savePin: "Save Pin",
+      imageFilter: "Images",
+      chooseScreenshotDir: "Choose Screenshot Folder"
+    },
+    pinMenu: {
+      unlock: "Unlock Pin",
+      lock: "Lock Pin",
+      topLevel: "Always-on-top Level",
+      normal: "Normal Window",
+      floating: "Floating Top",
+      screen: "Highest Top",
+      opacity: "Opacity",
+      disableClickThrough: "Disable Mouse Pass-through",
+      enableClickThrough: "Enable Mouse Pass-through",
+      saveImage: "Save Image...",
+      copyImage: "Copy Image",
+      openFolder: "Open Folder",
+      destroy: "Destroy Pin"
+    }
+  }
+} as const;
+
+function mt() {
+  return mainMessages[appSettings.language] ?? mainMessages["zh-CN"];
+}
+
 function createWindow() {
   Menu.setApplicationMenu(null);
 
@@ -249,7 +377,7 @@ function createWindow() {
     hasShadow: true,
     autoHideMenuBar: true,
     backgroundColor: "#00000000",
-    title: `${APP_NAME} 首选项`,
+    title: `${APP_NAME} ${mt().preferences}`,
     icon: createAppIcon(),
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload.js"),
@@ -350,7 +478,7 @@ function handleProtocolUrl(protocolUrl?: string) {
   }
 
   showPreferencesWindow();
-  mainWindow?.webContents.send("app:status", `已通过 ${APP_PROTOCOL}:// 唤起`);
+  mainWindow?.webContents.send("app:status", mt().protocolOpened(APP_PROTOCOL));
 }
 
 async function createTray() {
@@ -379,14 +507,14 @@ function updateTrayMenu() {
 
   const baseItems: Electron.MenuItemConstructorOptions[] = [
     {
-      label: "区域截图",
+      label: mt().tray.regionCapture,
       accelerator: appSettings.shortcutCapture,
       click: () => {
         void capturePrimaryScreen(appSettings, appSettings.autoCopy);
       }
     },
     {
-      label: "区域截图并自动复制",
+      label: mt().tray.regionCaptureCopy,
       accelerator: appSettings.shortcutCaptureCopy,
       click: async () => {
         await capturePrimaryScreen(appSettings, true);
@@ -397,14 +525,14 @@ function updateTrayMenu() {
   const extendedItems: Electron.MenuItemConstructorOptions[] = appSettings.trayMenu
     ? [
         {
-          label: "自定义截屏",
+          label: mt().tray.customCapture,
           accelerator: appSettings.shortcutArea,
           click: () => {
             void captureSelectedRegion(appSettings, appSettings.autoCopy);
           }
         },
         {
-          label: "滚动截图（长图）",
+          label: mt().tray.scrollCapture,
           accelerator: appSettings.shortcutScrollCapture,
           click: () => {
             void captureScrollingRegion(appSettings, appSettings.autoCopy);
@@ -412,21 +540,21 @@ function updateTrayMenu() {
         },
         { type: "separator" },
         {
-          label: "贴最近截图",
+          label: mt().tray.pinLatest,
           accelerator: appSettings.shortcutPin,
           click: () => {
             void pinLatestScreenshot();
           }
         },
         {
-          label: "隐藏/显示所有贴图",
+          label: mt().tray.togglePins,
           accelerator: appSettings.shortcutTogglePins,
           click: () => togglePinWindows()
         },
-        { label: "切换到另一贴图组", accelerator: "Ctrl+F3", enabled: false },
+        { label: mt().tray.switchPinGroup, accelerator: "Ctrl+F3", enabled: false },
         { type: "separator" },
         {
-          label: "清空截屏历史",
+          label: mt().tray.clearHistory,
           click: async () => {
             await writeHistory([]);
             mainWindow?.webContents.send("app:history-cleared");
@@ -441,17 +569,17 @@ function updateTrayMenu() {
       ...extendedItems,
       { type: "separator" },
       {
-        label: "首选项...",
+        label: mt().tray.preferences,
         click: () => {
           mainWindow?.show();
           mainWindow?.focus();
           mainWindow?.webContents.send("app:open-preferences");
         }
       },
-      { label: "帮助", enabled: false },
+      { label: mt().tray.help, enabled: false },
       { type: "separator" },
       {
-        label: "重新启动",
+        label: mt().tray.restart,
         click: () => {
           isQuitting = true;
           app.relaunch();
@@ -459,7 +587,7 @@ function updateTrayMenu() {
         }
       },
       {
-        label: "退出",
+        label: mt().tray.quit,
         click: () => {
           isQuitting = true;
           app.quit();
@@ -500,7 +628,7 @@ async function readSettings(): Promise<AppSettings> {
       ...stored,
       screenshotDir: stored.screenshotDir || defaultScreenshotDir
     };
-    normalizeShortcutSettings(appSettings);
+    normalizeSettings(appSettings);
     await fs.writeFile(settingsPath, JSON.stringify(appSettings, null, 2), "utf8");
   } catch {
     await writeSettings(appSettings);
@@ -511,10 +639,11 @@ async function readSettings(): Promise<AppSettings> {
 
 async function writeSettings(settings: AppSettings) {
   appSettings = settings;
-  normalizeShortcutSettings(appSettings);
+  normalizeSettings(appSettings);
   await fs.mkdir(dataDir, { recursive: true });
   await fs.mkdir(appSettings.screenshotDir, { recursive: true });
   await fs.writeFile(settingsPath, JSON.stringify(appSettings, null, 2), "utf8");
+  mainWindow?.setTitle(`${APP_NAME} ${mt().preferences}`);
   syncLoginItemSettings();
   registerGlobalShortcuts();
   updateTrayMenu();
@@ -537,6 +666,15 @@ function normalizeShortcutSettings(settings: AppSettings) {
   settings.shortcutScrollCapture = normalizeWindowsShortcut(settings.shortcutScrollCapture);
   settings.shortcutPin = normalizeWindowsShortcut(settings.shortcutPin);
   settings.shortcutTogglePins = normalizeWindowsShortcut(settings.shortcutTogglePins);
+}
+
+function normalizeLanguageSetting(settings: AppSettings) {
+  settings.language = settings.language === "en-US" ? "en-US" : "zh-CN";
+}
+
+function normalizeSettings(settings: AppSettings) {
+  normalizeLanguageSetting(settings);
+  normalizeShortcutSettings(settings);
 }
 
 function syncLoginItemSettings() {
@@ -608,7 +746,7 @@ function registerGlobalShortcuts() {
       const registered = globalShortcut.register(accelerator, handler);
       if (!registered) {
         console.warn(`Global shortcut registration failed: ${accelerator}`);
-        mainWindow?.webContents.send("app:status", `快捷键注册失败：${accelerator}`);
+        mainWindow?.webContents.send("app:status", mt().status.shortcutFailed(accelerator));
       } else if (!app.isPackaged) {
         console.info(`Global shortcut registered: ${accelerator}`);
       }
@@ -1192,7 +1330,7 @@ async function selectScreenRegionOnly(selectionHint: string): Promise<CaptureReg
         focusable: true,
         alwaysOnTop: true,
         skipTaskbar: true,
-        title: "滚动截图选区",
+        title: mt().dialog.scrollSelectionTitle,
         webPreferences: {
           nodeIntegration: true,
           contextIsolation: false
@@ -1219,7 +1357,8 @@ async function selectScreenRegionOnly(selectionHint: string): Promise<CaptureReg
           offsetX: String(display.bounds.x),
           offsetY: String(display.bounds.y),
           selectionChannel,
-          selectionHint
+          selectionHint,
+          language: appSettings.language
         }
       });
       return { display, overlay };
@@ -1334,7 +1473,7 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
         focusable: true,
         alwaysOnTop: true,
         skipTaskbar: true,
-        title: "截图",
+        title: mt().dialog.captureTitle,
         webPreferences: {
           nodeIntegration: true,
           contextIsolation: false
@@ -1359,7 +1498,8 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
         query: {
           scaleFactor: String(display.scaleFactor || 1),
           offsetX: String(display.bounds.x),
-          offsetY: String(display.bounds.y)
+          offsetY: String(display.bounds.y),
+          language: appSettings.language
         }
       });
       return { display, overlay };
@@ -1602,7 +1742,7 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
           backgroundDataUrl: dataUrl,
           baseDataUrl: dataUrl
         });
-        mainWindow?.webContents.send("app:status", `长截图已合成：${usedFrames} 帧，可继续编辑`);
+        mainWindow?.webContents.send("app:status", mt().status.scrollMergedEditable(usedFrames));
       } catch (error) {
         console.error("Inline scroll capture failed.", error);
         showActiveOverlays();
@@ -1622,7 +1762,7 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
         if (!event.sender.isDestroyed()) {
           event.sender.send("inline-ocr-result", result);
         }
-        mainWindow?.webContents.send("app:status", result.ok ? "OCR 识别完成，文字已复制" : result.error || "OCR 识别失败");
+        mainWindow?.webContents.send("app:status", result.ok ? mt().status.ocrDone : result.error || mt().status.ocrFailed);
       } catch (error) {
         const result: OcrResult = {
           ok: false,
@@ -2059,17 +2199,17 @@ async function captureScrollingRegion(options: CaptureOptions, copyAfterCapture 
   await delay(32);
 
   try {
-    mainWindow?.webContents.send("app:status", "拖动选择要滚动截取的区域");
-    const region = await selectScreenRegionOnly("拖动选择长截图区域，单击可选中窗口");
+    mainWindow?.webContents.send("app:status", mt().status.scrollSelect);
+    const region = await selectScreenRegionOnly(mt().status.scrollHint);
     if (!region) {
       return null;
     }
 
-    mainWindow?.webContents.send("app:status", "正在准备滚动截图...");
+    mainWindow?.webContents.send("app:status", mt().status.scrollPreparing);
     const { buffer, usedFrames } = await captureScrollingBufferFromRegion(region, (message) =>
       mainWindow?.webContents.send("app:status", message)
     );
-    mainWindow?.webContents.send("app:status", `长截图合成完成：${usedFrames} 帧`);
+    mainWindow?.webContents.send("app:status", mt().status.scrollMerged(usedFrames));
     return saveCapturedBuffer(buffer, options, copyAfterCapture || appSettings.autoCopy);
   } finally {
     if (shouldRestoreWindow) {
@@ -2083,7 +2223,7 @@ async function pinLatestScreenshot() {
   const history = await readHistory();
   const latest = history[0];
   if (!latest) {
-    mainWindow?.webContents.send("app:status", "暂无可贴图的截图");
+    mainWindow?.webContents.send("app:status", mt().status.noPinSource);
     return;
   }
   await createPinWindow(latest.filePath);
@@ -2091,7 +2231,7 @@ async function pinLatestScreenshot() {
 
 async function createPinWindow(filePath: string) {
   if (!fsSync.existsSync(filePath)) {
-    mainWindow?.webContents.send("app:status", "贴图文件不存在");
+    mainWindow?.webContents.send("app:status", mt().status.pinMissing);
     return;
   }
 
@@ -2124,7 +2264,7 @@ async function createPinWindow(filePath: string) {
     skipTaskbar: true,
     resizable: true,
     movable: true,
-    title: `${APP_NAME} 贴图`,
+    title: `${APP_NAME} ${mt().dialog.pinTitle}`,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false
@@ -2166,7 +2306,7 @@ async function createPinWindow(filePath: string) {
   if (!pinsVisible && !pinWindow.isDestroyed()) {
     pinWindow.hide();
   }
-  mainWindow?.webContents.send("app:status", "截图已贴到桌面");
+  mainWindow?.webContents.send("app:status", mt().status.pinned);
 }
 
 function togglePinWindows() {
@@ -2181,7 +2321,7 @@ function togglePinWindows() {
       pinWindow.hide();
     }
   }
-  mainWindow?.webContents.send("app:status", pinsVisible ? "已显示所有贴图" : "已隐藏所有贴图");
+  mainWindow?.webContents.send("app:status", pinsVisible ? mt().status.pinsShown : mt().status.pinsHidden);
 }
 
 function pinWindowFromEvent(event: Electron.IpcMainEvent) {
@@ -2221,7 +2361,7 @@ function resizePinWindow(pinWindow: BrowserWindow, ratio: number) {
   if (pinWindow.isDestroyed() || !Number.isFinite(ratio)) return;
   const state = pinWindowStates.get(pinWindow.webContents.id);
   if (state?.locked) {
-    mainWindow?.webContents.send("app:status", "贴图已锁定，无法缩放");
+    mainWindow?.webContents.send("app:status", mt().status.pinLockedResize);
     return;
   }
   const bounds = pinWindow.getBounds();
@@ -2237,26 +2377,26 @@ function resizePinWindow(pinWindow: BrowserWindow, ratio: number) {
 
 async function savePinnedImageAs(sourcePath: string, owner?: BrowserWindow | null) {
   if (!fsSync.existsSync(sourcePath)) {
-    mainWindow?.webContents.send("app:status", "贴图文件不存在");
+    mainWindow?.webContents.send("app:status", mt().status.pinMissing);
     return;
   }
   const parsed = path.parse(sourcePath);
   const result = owner && !owner.isDestroyed()
     ? await dialog.showSaveDialog(owner, {
-        title: "保存贴图",
+        title: mt().dialog.savePin,
         defaultPath: path.join(app.getPath("pictures"), `${parsed.name}${parsed.ext}`),
-        filters: [{ name: "图片", extensions: [parsed.ext.replace(".", "") || "png"] }]
+        filters: [{ name: mt().dialog.imageFilter, extensions: [parsed.ext.replace(".", "") || "png"] }]
       })
     : await dialog.showSaveDialog({
-        title: "保存贴图",
+        title: mt().dialog.savePin,
         defaultPath: path.join(app.getPath("pictures"), `${parsed.name}${parsed.ext}`),
-        filters: [{ name: "图片", extensions: [parsed.ext.replace(".", "") || "png"] }]
+        filters: [{ name: mt().dialog.imageFilter, extensions: [parsed.ext.replace(".", "") || "png"] }]
       });
   if (result.canceled || !result.filePath) return;
   if (path.resolve(result.filePath) !== path.resolve(sourcePath)) {
     await fs.copyFile(sourcePath, result.filePath);
   }
-  mainWindow?.webContents.send("app:status", "贴图已保存");
+  mainWindow?.webContents.send("app:status", mt().status.pinSaved);
 }
 
 function registerPinWindowIpc() {
@@ -2264,7 +2404,7 @@ function registerPinWindowIpc() {
     const targetPath = pinFilePathFromEvent(event, filePath);
     if (targetPath && fsSync.existsSync(targetPath)) {
       clipboard.writeImage(nativeImage.createFromPath(targetPath));
-      mainWindow?.webContents.send("app:status", "贴图已复制");
+      mainWindow?.webContents.send("app:status", mt().status.pinCopied);
     }
   });
 
@@ -2314,7 +2454,7 @@ function registerPinWindowIpc() {
     const state = pinWindowStates.get(event.sender.id);
     if (!pinWindow || pinWindow.isDestroyed() || !state) return;
     if (state.locked) {
-      mainWindow?.webContents.send("app:status", "贴图已锁定，无法重置大小");
+      mainWindow?.webContents.send("app:status", mt().status.pinLockedReset);
       return;
     }
     const bounds = pinWindow.getBounds();
@@ -2397,7 +2537,7 @@ function registerPinWindowIpc() {
     if (!pinWindow || pinWindow.isDestroyed()) return;
     Menu.buildFromTemplate([
       {
-        label: state?.locked ? "解除锁定" : "锁定贴图",
+        label: state?.locked ? mt().pinMenu.unlock : mt().pinMenu.lock,
         click: () => {
           if (!state || pinWindow.isDestroyed()) return;
           state.locked = !state.locked;
@@ -2406,10 +2546,10 @@ function registerPinWindowIpc() {
         }
       },
       {
-        label: "置顶级别",
+        label: mt().pinMenu.topLevel,
         submenu: [
           {
-            label: "普通窗口",
+            label: mt().pinMenu.normal,
             type: "radio",
             checked: state?.topLevel === "normal",
             click: () => {
@@ -2420,7 +2560,7 @@ function registerPinWindowIpc() {
             }
           },
           {
-            label: "浮层置顶",
+            label: mt().pinMenu.floating,
             type: "radio",
             checked: state?.topLevel === "floating",
             click: () => {
@@ -2431,7 +2571,7 @@ function registerPinWindowIpc() {
             }
           },
           {
-            label: "最高置顶",
+            label: mt().pinMenu.screen,
             type: "radio",
             checked: !state || state.topLevel === "screen",
             click: () => {
@@ -2444,7 +2584,7 @@ function registerPinWindowIpc() {
         ]
       },
       {
-        label: "透明度",
+        label: mt().pinMenu.opacity,
         submenu: [100, 85, 70, 55, 40].map((value) => ({
           label: `${value}%`,
           type: "radio",
@@ -2458,7 +2598,7 @@ function registerPinWindowIpc() {
         }))
       },
       {
-        label: state?.clickThrough ? "关闭鼠标穿透" : "开启鼠标穿透",
+        label: state?.clickThrough ? mt().pinMenu.disableClickThrough : mt().pinMenu.enableClickThrough,
         click: () => {
           if (!state || pinWindow.isDestroyed()) return;
           state.clickThrough = !state.clickThrough;
@@ -2469,24 +2609,24 @@ function registerPinWindowIpc() {
       },
       { type: "separator" },
       {
-        label: "保存图片...",
+        label: mt().pinMenu.saveImage,
         enabled: Boolean(targetPath),
         click: () => {
           if (targetPath) void savePinnedImageAs(targetPath, pinWindow);
         }
       },
       {
-        label: "复制图片",
+        label: mt().pinMenu.copyImage,
         enabled: Boolean(targetPath),
         click: () => {
           if (targetPath && fsSync.existsSync(targetPath)) {
             clipboard.writeImage(nativeImage.createFromPath(targetPath));
-            mainWindow?.webContents.send("app:status", "贴图已复制");
+            mainWindow?.webContents.send("app:status", mt().status.pinCopied);
           }
         }
       },
       {
-        label: "打开所在文件夹",
+        label: mt().pinMenu.openFolder,
         enabled: Boolean(targetPath),
         click: () => {
           if (targetPath && fsSync.existsSync(targetPath)) shell.showItemInFolder(targetPath);
@@ -2494,7 +2634,7 @@ function registerPinWindowIpc() {
       },
       { type: "separator" },
       {
-        label: "销毁贴图",
+        label: mt().pinMenu.destroy,
         click: () => {
           if (!pinWindow.isDestroyed()) pinWindow.destroy();
         }
@@ -2561,7 +2701,7 @@ app.whenReady().then(async () => {
   });
   ipcMain.handle("app:choose-screenshot-dir", async () => {
     const dialogOptions: Electron.OpenDialogOptions = {
-      title: "选择截图保存目录",
+      title: mt().dialog.chooseScreenshotDir,
       properties: ["openDirectory", "createDirectory"]
     };
     const result = mainWindow

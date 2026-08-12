@@ -56,9 +56,155 @@ const toolHotkeys = {
 };
 
 const params = new URLSearchParams(window.location.search);
+const overlayLanguage = params.get("language") === "en-US" ? "en-US" : "zh-CN";
+const editorMessages = {
+  "zh-CN": {
+    documentTitle: "抓个屏截图编辑器",
+    toolbarLabel: "截图编辑工具",
+    selectionHint: "拖动选择截图区域",
+    help: "V 选择 · R 矩形 · T 文字 · M 马赛克 · U 模糊 · Ctrl+Shift+O OCR · Ctrl+Shift+F1 滚动截图 · F3 贴图 · Esc 取消 · Ctrl+C 复制 · Enter 完成",
+    editableStatus: "可移动选区，也可选中对象后二次编辑",
+    textPlaceholder: "输入文字",
+    ocr: {
+      title: "OCR 识别结果",
+      ready: "准备就绪",
+      close: "关闭 OCR 结果",
+      empty: "未识别到文字",
+      failed: "OCR 识别失败",
+      lines: (count) => `${count} 行`,
+      copied: "已自动复制到剪贴板",
+      noText: "没有识别到文字，可调整截图区域后重试",
+      copyButton: "复制文字",
+      copyAgain: "已复制到剪贴板",
+      copiedStatus: "OCR 文字已复制",
+      running: "正在 OCR 识别...",
+      doneStatus: "OCR 完成，文字已复制",
+      tip: "识别成功后会自动复制到剪贴板"
+    },
+    statusByChannel: {
+      "inline-capture-copy": "正在复制...",
+      "inline-capture-pin": "正在贴图...",
+      "inline-capture-scroll": "正在滚动截图...",
+      "inline-capture-complete": "正在保存..."
+    },
+    processing: "正在处理...",
+    captureError: "截图失败，请按 Esc 退出后重试",
+    titles: {
+      select: "选择/移动 V",
+      rect: "矩形 R",
+      ellipse: "圆形 O",
+      line: "直线 L",
+      arrow: "箭头 A",
+      brush: "画笔 B",
+      text: "文字 T",
+      mosaic: "马赛克 M",
+      blur: "模糊块 U",
+      eraser: "橡皮擦 E",
+      scrollCapture: "滚动截图 Ctrl+Shift+F1",
+      color: "自定义颜色",
+      strokeSize: "线宽",
+      duplicateObject: "复制对象 Ctrl+D",
+      bringForward: "上移一层 Ctrl+]",
+      sendBackward: "下移一层 Ctrl+[",
+      alignMenu: "对齐选中对象",
+      undo: "撤销 Ctrl+Z",
+      ocrCapture: "OCR 识别并复制 Ctrl+Shift+O",
+      copy: "复制 Ctrl+C",
+      pin: "贴图 F3",
+      save: "保存 Ctrl+S",
+      cancel: "取消 Esc",
+      ok: "完成 Enter",
+      fontSize: "文字大小",
+      boldText: "文字加粗",
+      textBg: "文字背景",
+      textStroke: "文字描边",
+      privacyStrength: "马赛克/模糊强度"
+    },
+    swatches: {
+      "#ef4444": "红色",
+      "#2563eb": "蓝色",
+      "#16a34a": "绿色",
+      "#f59e0b": "黄色",
+      "#111827": "黑色",
+      "#ffffff": "白色"
+    }
+  },
+  "en-US": {
+    documentTitle: "Zhuageping Screenshot Editor",
+    toolbarLabel: "Screenshot editing tools",
+    selectionHint: "Drag to select a capture region",
+    help: "V Select · R Rectangle · T Text · M Mosaic · U Blur · Ctrl+Shift+O OCR · Ctrl+Shift+F1 Scroll · F3 Pin · Esc Cancel · Ctrl+C Copy · Enter Done",
+    editableStatus: "Move the selection, or select objects for further editing",
+    textPlaceholder: "Enter text",
+    ocr: {
+      title: "OCR Result",
+      ready: "Ready",
+      close: "Close OCR result",
+      empty: "No text detected",
+      failed: "OCR failed",
+      lines: (count) => `${count} line${count === 1 ? "" : "s"}`,
+      copied: "Automatically copied to clipboard",
+      noText: "No text detected. Adjust the region and try again.",
+      copyButton: "Copy Text",
+      copyAgain: "Copied to clipboard",
+      copiedStatus: "OCR text copied",
+      running: "Running OCR...",
+      doneStatus: "OCR completed, text copied",
+      tip: "Recognized text will be copied automatically"
+    },
+    statusByChannel: {
+      "inline-capture-copy": "Copying...",
+      "inline-capture-pin": "Pinning...",
+      "inline-capture-scroll": "Capturing scroll...",
+      "inline-capture-complete": "Saving..."
+    },
+    processing: "Processing...",
+    captureError: "Capture failed. Press Esc and try again.",
+    titles: {
+      select: "Select/Move V",
+      rect: "Rectangle R",
+      ellipse: "Ellipse O",
+      line: "Line L",
+      arrow: "Arrow A",
+      brush: "Brush B",
+      text: "Text T",
+      mosaic: "Mosaic M",
+      blur: "Blur U",
+      eraser: "Eraser E",
+      scrollCapture: "Scrolling Capture Ctrl+Shift+F1",
+      color: "Custom color",
+      strokeSize: "Stroke width",
+      duplicateObject: "Duplicate Object Ctrl+D",
+      bringForward: "Bring Forward Ctrl+]",
+      sendBackward: "Send Backward Ctrl+[",
+      alignMenu: "Align selected objects",
+      undo: "Undo Ctrl+Z",
+      ocrCapture: "OCR and Copy Ctrl+Shift+O",
+      copy: "Copy Ctrl+C",
+      pin: "Pin F3",
+      save: "Save Ctrl+S",
+      cancel: "Cancel Esc",
+      ok: "Done Enter",
+      fontSize: "Font size",
+      boldText: "Bold text",
+      textBg: "Text background",
+      textStroke: "Text outline",
+      privacyStrength: "Mosaic/blur strength"
+    },
+    swatches: {
+      "#ef4444": "Red",
+      "#2563eb": "Blue",
+      "#16a34a": "Green",
+      "#f59e0b": "Amber",
+      "#111827": "Black",
+      "#ffffff": "White"
+    }
+  }
+};
+const ui = editorMessages[overlayLanguage];
 const pixelRatio = Number(params.get("scaleFactor")) || window.devicePixelRatio || 1;
 const selectionChannel = params.get("selectionChannel") || "inline-region-selected";
-const selectionHint = params.get("selectionHint") || "拖动选择截图区域";
+const selectionHint = params.get("selectionHint") || ui.selectionHint;
 const overlayOffset = {
   x: Number(params.get("offsetX")) || 0,
   y: Number(params.get("offsetY")) || 0
@@ -101,6 +247,28 @@ let windowProbeSeq = 0;
 let lastWindowProbeAt = 0;
 let windowProbeInFlight = false;
 const history = [];
+
+function applyEditorLanguage() {
+  document.documentElement.lang = overlayLanguage;
+  document.title = ui.documentTitle;
+  toolbar.setAttribute("aria-label", ui.toolbarLabel);
+  helpEl.textContent = ui.help;
+  document.getElementById("ocrTitle").textContent = ui.ocr.title;
+  ocrMeta.textContent = ui.ocr.ready;
+  ocrText.placeholder = ui.ocr.empty;
+  ocrTip.textContent = ui.ocr.tip;
+  ocrCopyButton.textContent = ui.ocr.copyButton;
+  ocrCloseButton.title = ui.ocr.close;
+  Object.entries(ui.titles).forEach(([idOrTool, title]) => {
+    const target = document.getElementById(idOrTool) || document.querySelector(`[data-tool="${idOrTool}"]`);
+    if (target) target.title = title;
+  });
+  document.querySelector(".privacy-tools .compact-control span").textContent = overlayLanguage === "en-US" ? "Strength" : "强度";
+  swatchButtons.forEach((button) => {
+    const color = button.dataset.color?.toLowerCase();
+    if (color && ui.swatches[color]) button.title = ui.swatches[color];
+  });
+}
 
 function nextId() {
   serial += 1;
@@ -484,7 +652,7 @@ function enterEditMode(rect) {
   pendingAutoStart = null;
   shade.style.display = "none";
   helpEl.style.display = "block";
-  setStatus("可移动选区，也可选中对象后二次编辑");
+  setStatus(ui.editableStatus);
   configureCanvas(rect);
   selection = { ...rect };
   renderSelection();
@@ -833,7 +1001,7 @@ function beginTextEditor(point, existingObject = null) {
   const rect = canvas.getBoundingClientRect();
   const editor = document.createElement("textarea");
   editor.className = "text-editor";
-  editor.placeholder = "输入文字";
+  editor.placeholder = ui.textPlaceholder;
   editor.spellcheck = false;
   editor.value = existingObject?.text || "";
   const fontSize = existingObject?.fontSize || Number(fontSizeInput.value) || Math.max(18, Number(strokeSize.value) * 5);
@@ -980,14 +1148,14 @@ function openOcrDialog(result) {
   ocrDialogOpen = true;
   ocrDialog.classList.add("is-open");
   ocrText.value = result.text || "";
-  ocrText.placeholder = result.ok ? "未识别到文字" : "OCR 识别失败";
-  const countText = result.ok ? `${result.lines?.length || 0} 行` : "失败";
+  ocrText.placeholder = result.ok ? ui.ocr.empty : ui.ocr.failed;
+  const countText = result.ok ? ui.ocr.lines(result.lines?.length || 0) : ui.ocr.failed;
   ocrMeta.textContent = `${countText} · ${Math.max(0, Math.round(result.elapsedMs || 0))} ms`;
   ocrTip.textContent = result.ok
     ? result.text
-      ? "已自动复制到剪贴板"
-      : "没有识别到文字，可调整截图区域后重试"
-    : result.error || "OCR 识别失败";
+      ? ui.ocr.copied
+      : ui.ocr.noText
+    : result.error || ui.ocr.failed;
   requestAnimationFrame(() => {
     ocrText.focus();
     ocrText.select();
@@ -1006,7 +1174,7 @@ function requestOcr() {
   ocrInFlight = true;
   ocrCaptureButton.disabled = true;
   document.body.style.cursor = "progress";
-  setStatus("正在 OCR 识别...");
+  setStatus(ui.ocr.running);
   ipcRenderer.send("inline-capture-ocr", capturePayload({ includeOcrImage: true }));
 }
 
@@ -1014,13 +1182,7 @@ function complete(channel) {
   commitTextEditor();
   if (!captureRegion) return;
   document.body.style.cursor = "wait";
-  const statusText = {
-    "inline-capture-copy": "正在复制...",
-    "inline-capture-pin": "正在贴图...",
-    "inline-capture-scroll": "正在滚动截图...",
-    "inline-capture-complete": "正在保存..."
-  };
-  setStatus(statusText[channel] || "正在处理...");
+  setStatus(ui.statusByChannel[channel] || ui.processing);
   ipcRenderer.send(channel, capturePayload());
 }
 
@@ -1294,8 +1456,8 @@ ocrCloseButton.addEventListener("click", closeOcrDialog);
 ocrCopyButton.addEventListener("click", () => {
   if (!ocrText.value.trim()) return;
   clipboard.writeText(ocrText.value);
-  ocrTip.textContent = "已复制到剪贴板";
-  setStatus("OCR 文字已复制");
+  ocrTip.textContent = ui.ocr.copyAgain;
+  setStatus(ui.ocr.copiedStatus);
 });
 ocrDialog.addEventListener("mousedown", (event) => {
   if (event.target === ocrDialog) closeOcrDialog();
@@ -1373,14 +1535,14 @@ window.addEventListener("keydown", (event) => {
 
 ipcRenderer.on("inline-region-ready", (_event, rect) => enterEditMode(rect));
 ipcRenderer.on("inline-capture-error", () => {
-  setStatus("截图失败，请按 Esc 退出后重试");
+  setStatus(ui.captureError);
   document.body.style.cursor = "default";
 });
 ipcRenderer.on("inline-ocr-result", (_event, result) => {
   ocrInFlight = false;
   ocrCaptureButton.disabled = false;
   document.body.style.cursor = tool === "select" ? "default" : "crosshair";
-  setStatus(result.ok ? "OCR 完成，文字已复制" : "OCR 识别失败");
+  setStatus(result.ok ? ui.ocr.doneStatus : ui.ocr.failed);
   openOcrDialog(result);
 });
 ipcRenderer.on("overlay:cursor-point", (_event, point) => {
@@ -1390,6 +1552,7 @@ ipcRenderer.on("overlay:cursor-point", (_event, point) => {
   requestAnimationFrame(() => probeWindowSelectionAt(clientX, clientY, { force: true }));
 });
 
+applyEditorLanguage();
 setStatus(selectionHint);
 setTool("rect");
 requestAnimationFrame(() => ipcRenderer.send("overlay:ready"));
