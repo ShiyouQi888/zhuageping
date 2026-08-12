@@ -1,6 +1,7 @@
 const { ipcRenderer } = require("electron");
 
 const image = document.getElementById("pinImage");
+const toolbarDock = document.getElementById("toolbarDock");
 const toolbar = document.getElementById("toolbar");
 const opacityInput = document.getElementById("opacity");
 const lockButton = document.getElementById("lock");
@@ -60,7 +61,7 @@ window.addEventListener(
 
 function updateToolbarInteractive(event) {
   if (!clickThrough) return;
-  const rect = toolbar.getBoundingClientRect();
+  const rect = toolbarDock.getBoundingClientRect();
   const insideToolbarZone =
     event.clientX >= rect.left - 12 &&
     event.clientX <= rect.right + 12 &&
@@ -79,7 +80,7 @@ window.addEventListener("contextmenu", (event) => {
 });
 
 window.addEventListener("mousedown", (event) => {
-  if (event.button !== 0 || locked || event.target.closest("#toolbar")) return;
+  if (event.button !== 0 || locked || event.target.closest("#toolbarDock")) return;
   dragging = true;
   event.preventDefault();
   ipcRenderer.send("pin:drag-start", { x: event.screenX, y: event.screenY });
