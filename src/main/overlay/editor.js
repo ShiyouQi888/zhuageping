@@ -111,9 +111,7 @@ function syncActiveSwatch() {
 function syncToolbarContext() {
   const items = selectedObjects();
   const hasSelected = items.length > 0;
-  const textContext = tool === "text" || items.some((object) => object.type === "text");
-  const privacyContext = tool === "mosaic" || tool === "blur" || items.some((object) => object.type === "mosaic" || object.type === "blur");
-  const activeContext = privacyContext ? "privacy" : textContext ? "text" : "";
+  const activeContext = activeToolbarContext(items);
 
   contextualGroups.forEach((group) => {
     group.classList.toggle("is-hidden", group.dataset.context !== activeContext);
@@ -122,6 +120,12 @@ function syncToolbarContext() {
     if (control) control.disabled = !hasSelected;
   });
   positionContextPanel(activeContext, items);
+}
+
+function activeToolbarContext(items = selectedObjects()) {
+  const textContext = tool === "text" || items.some((object) => object.type === "text");
+  const privacyContext = tool === "mosaic" || tool === "blur" || items.some((object) => object.type === "mosaic" || object.type === "blur");
+  return privacyContext ? "privacy" : textContext ? "text" : "";
 }
 
 function contextAnchorTool(activeContext, items) {
@@ -138,14 +142,17 @@ function positionContextPanel(activeContext, items = selectedObjects()) {
   const anchor = anchorTool ? toolbar.querySelector(`[data-tool="${anchorTool}"]`) : null;
   const panel = contextualGroups.find((group) => group.dataset.context === activeContext);
   if (!anchor || !panel) return;
-  const toolbarRect = toolbar.getBoundingClientRect();
   const anchorRect = anchor.getBoundingClientRect();
   const panelWidth = panel.offsetWidth || panel.scrollWidth || 160;
-  const anchorCenter = anchorRect.left - toolbarRect.left + anchorRect.width / 2;
-  const minLeft = panelWidth / 2 + 8;
-  const maxLeft = Math.max(minLeft, toolbarRect.width - panelWidth / 2 - 8);
-  const nextLeft = Math.max(minLeft, Math.min(maxLeft, anchorCenter));
-  toolbar.style.setProperty("--context-left", `${Math.round(nextLeft)}px`);
+  const anchorCenter = anchorRect.left + anchorRect.width / 2;
+  const minLeft = 12;
+  const maxLeft = Math.max(minLeft, window.innerWidth - panelWidth - 12);
+  const panelLeft = Math.max(minLeft, Math.min(maxLeft, anchorCenter - panelWidth / 2));
+  const panelTop = anchorRect.bottom + 14;
+  const arrowLeft = Math.max(12, Math.min(panelWidth - 12, anchorCenter - panelLeft));
+  panel.style.setProperty("--context-left", `${Math.round(panelLeft)}px`);
+  panel.style.setProperty("--context-top", `${Math.round(panelTop)}px`);
+  panel.style.setProperty("--context-arrow-left", `${Math.round(arrowLeft)}px`);
 }
 
 function cloneObjects(items = objects) {
@@ -292,6 +299,7 @@ function positionToolbarNearSelection() {
   if (left + toolbarWidth > window.innerWidth - 12) left = window.innerWidth - toolbarWidth - 12;
   toolbar.style.left = `${Math.max(12, left)}px`;
   toolbar.style.top = `${Math.max(12, top)}px`;
+  positionContextPanel(activeToolbarContext());
   positionHelpNearToolbar();
 }
 

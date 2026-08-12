@@ -174,9 +174,9 @@ body {
 }
 
 .contextual {
-  position: absolute;
-  left: var(--context-left, 50%);
-  top: calc(100% + 14px);
+  position: fixed;
+  left: var(--context-left, 0);
+  top: var(--context-top, 0);
   z-index: 11;
   gap: 8px;
   min-height: 42px;
@@ -187,7 +187,6 @@ body {
   box-shadow:
     0 16px 34px rgba(15, 23, 42, 0.22),
     0 1px 1px rgba(15, 23, 42, 0.06);
-  transform: translateX(-50%);
   transition:
     opacity 0.14s ease,
     transform 0.14s ease;
@@ -195,7 +194,7 @@ body {
 
 .contextual::before {
   position: absolute;
-  left: 50%;
+  left: var(--context-arrow-left, 50%);
   top: -6px;
   width: 12px;
   height: 12px;

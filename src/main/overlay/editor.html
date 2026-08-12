@@ -62,26 +62,6 @@
         </select>
       </div>
 
-      <div class="toolbar-section text-tools contextual" data-context="text" aria-label="文字样式">
-        <select id="fontSize" title="文字大小">
-          <option value="18">18</option>
-          <option value="24" selected>24</option>
-          <option value="32">32</option>
-          <option value="44">44</option>
-          <option value="56">56</option>
-        </select>
-        <button id="boldText" class="toggle" title="文字加粗"><svg viewBox="0 0 24 24"><path d="M7 5h6a4 4 0 0 1 0 8H7z"/><path d="M7 13h7a4 4 0 0 1 0 8H7z"/><path d="M7 5v16"/></svg></button>
-        <button id="textBg" class="toggle" title="文字背景"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2"/><path d="M8 10h8"/><path d="M8 14h5"/></svg></button>
-        <button id="textStroke" class="toggle" title="文字描边"><svg viewBox="0 0 24 24"><path d="M5 19l7-14 7 14"/><path d="M8 14h8"/></svg></button>
-      </div>
-
-      <div class="toolbar-section privacy-tools contextual" data-context="privacy" aria-label="隐私处理">
-        <label class="compact-control" title="马赛克/模糊强度">
-          <span>强度</span>
-          <input id="privacyStrength" type="range" min="1" max="10" value="5" />
-        </label>
-      </div>
-
       <div class="toolbar-section object-tools" aria-label="对象操作">
         <button id="duplicateObject" title="复制对象 Ctrl+D"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg></button>
         <button id="bringForward" title="上移一层 Ctrl+]"><svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M7 10l5-5 5 5"/><path d="M5 19h14"/></svg></button>
@@ -104,6 +84,28 @@
         <button id="save" title="保存 Ctrl+S"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></button>
         <button id="cancel" class="danger" title="取消 Esc"><svg viewBox="0 0 24 24"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg></button>
         <button id="ok" class="success" title="完成 Enter"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></button>
+      </div>
+    </div>
+
+    <div id="optionLayer" aria-label="工具参数">
+      <div class="toolbar-section text-tools contextual is-hidden" data-context="text" aria-label="文字样式">
+        <select id="fontSize" title="文字大小">
+          <option value="18">18</option>
+          <option value="24" selected>24</option>
+          <option value="32">32</option>
+          <option value="44">44</option>
+          <option value="56">56</option>
+        </select>
+        <button id="boldText" class="toggle" title="文字加粗"><svg viewBox="0 0 24 24"><path d="M7 5h6a4 4 0 0 1 0 8H7z"/><path d="M7 13h7a4 4 0 0 1 0 8H7z"/><path d="M7 5v16"/></svg></button>
+        <button id="textBg" class="toggle" title="文字背景"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="2"/><path d="M8 10h8"/><path d="M8 14h5"/></svg></button>
+        <button id="textStroke" class="toggle" title="文字描边"><svg viewBox="0 0 24 24"><path d="M5 19l7-14 7 14"/><path d="M8 14h8"/></svg></button>
+      </div>
+
+      <div class="toolbar-section privacy-tools contextual is-hidden" data-context="privacy" aria-label="隐私处理">
+        <label class="compact-control" title="马赛克/模糊强度">
+          <span>强度</span>
+          <input id="privacyStrength" type="range" min="1" max="10" value="5" />
+        </label>
       </div>
     </div>
 
