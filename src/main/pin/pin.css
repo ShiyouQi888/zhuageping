@@ -83,6 +83,7 @@ body {
     visibility 0.16s ease;
 }
 
+#pinSurface:hover #toolbar,
 #toolbarDock:hover #toolbar,
 #toolbar:focus-within {
   visibility: visible;
@@ -91,6 +92,7 @@ body {
   pointer-events: auto;
 }
 
+#pinSurface:hover #toolbarTrigger,
 #toolbarDock:hover #toolbarTrigger {
   opacity: 1;
   background: rgba(248, 250, 252, 0.9);
