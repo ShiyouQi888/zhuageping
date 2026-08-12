@@ -25,6 +25,13 @@ const boldTextButton = document.getElementById("boldText");
 const textBgButton = document.getElementById("textBg");
 const textStrokeButton = document.getElementById("textStroke");
 const alignMenu = document.getElementById("alignMenu");
+const contextualGroups = [...document.querySelectorAll(".contextual")];
+const objectActionControls = [
+  document.getElementById("duplicateObject"),
+  document.getElementById("bringForward"),
+  document.getElementById("sendBackward"),
+  alignMenu
+];
 const toolButtons = [...document.querySelectorAll("[data-tool]")];
 const swatchButtons = [...document.querySelectorAll(".swatch")];
 const toolHotkeys = {
@@ -90,6 +97,7 @@ function setTool(nextTool) {
   tool = nextTool;
   document.body.style.cursor = nextTool === "select" ? "default" : "crosshair";
   toolButtons.forEach((button) => button.classList.toggle("active", button.dataset.tool === nextTool));
+  syncToolbarContext();
   renderObjectBox();
 }
 
@@ -97,6 +105,22 @@ function syncActiveSwatch() {
   const activeColor = colorInput.value.toLowerCase();
   swatchButtons.forEach((button) => {
     button.classList.toggle("active", button.dataset.color.toLowerCase() === activeColor);
+  });
+}
+
+function syncToolbarContext() {
+  const items = selectedObjects();
+  const hasSelected = items.length > 0;
+  const textContext = tool === "text" || items.some((object) => object.type === "text");
+  const privacyContext = tool === "mosaic" || tool === "blur" || items.some((object) => object.type === "mosaic" || object.type === "blur");
+
+  contextualGroups.forEach((group) => {
+    const context = group.dataset.context;
+    const visible = context === "text" ? textContext : context === "privacy" ? privacyContext : true;
+    group.classList.toggle("is-hidden", !visible);
+  });
+  objectActionControls.forEach((control) => {
+    if (control) control.disabled = !hasSelected;
   });
 }
 
@@ -227,11 +251,18 @@ function renderSelection() {
   toolbar.style.display = phase === "editing" ? "flex" : "none";
   if (phase !== "editing") return;
 
+  syncToolbarContext();
+  positionToolbarNearSelection();
+}
+
+function positionToolbarNearSelection() {
+  if (!selection || toolbar.style.display === "none") return;
   const toolbarWidth = toolbar.offsetWidth || toolbar.scrollWidth;
+  const toolbarHeight = toolbar.offsetHeight || toolbar.scrollHeight || 58;
   const selectionCenterX = selection.x + selection.width / 2;
   let left = selectionCenterX - toolbarWidth / 2;
   let top = selection.y + selection.height + 10;
-  if (top + 58 > window.innerHeight) top = selection.y - 62;
+  if (top + toolbarHeight > window.innerHeight - 12) top = selection.y - toolbarHeight - 10;
   if (left + toolbarWidth > window.innerWidth - 12) left = window.innerWidth - toolbarWidth - 12;
   toolbar.style.left = `${Math.max(12, left)}px`;
   toolbar.style.top = `${Math.max(12, top)}px`;
@@ -254,6 +285,8 @@ function positionHelpNearToolbar() {
 
 function renderObjectBox() {
   const items = selectedObjects();
+  syncToolbarContext();
+  positionToolbarNearSelection();
   if (!items.length || phase !== "editing" || !canvasRect) {
     objectBox.style.display = "none";
     return;
