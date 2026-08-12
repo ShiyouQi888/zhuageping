@@ -175,7 +175,7 @@ body {
 
 .contextual {
   position: absolute;
-  left: 50%;
+  left: var(--context-left, 50%);
   top: calc(100% + 14px);
   z-index: 11;
   gap: 8px;
@@ -222,8 +222,8 @@ select {
 }
 
 button {
-  width: 32px;
-  min-width: 32px;
+  width: 34px;
+  min-width: 34px;
   padding: 0;
   display: inline-grid;
   place-items: center;
@@ -275,10 +275,10 @@ button.toggle.active {
 }
 
 button svg {
-  width: 17px;
-  height: 17px;
+  width: 20px;
+  height: 20px;
   stroke: currentColor;
-  stroke-width: 1.9;
+  stroke-width: 1.85;
   fill: none;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -426,8 +426,8 @@ select {
   }
 
   button {
-    width: 30px;
-    min-width: 30px;
+    width: 32px;
+    min-width: 32px;
   }
 
   .compact-control input[type="range"] {

@@ -121,6 +121,31 @@ function syncToolbarContext() {
   objectActionControls.forEach((control) => {
     if (control) control.disabled = !hasSelected;
   });
+  positionContextPanel(activeContext, items);
+}
+
+function contextAnchorTool(activeContext, items) {
+  if (activeContext === "text") return "text";
+  if (activeContext !== "privacy") return "";
+  if (tool === "mosaic" || tool === "blur") return tool;
+  const privacyObject = items.find((object) => object.type === "mosaic" || object.type === "blur");
+  return privacyObject?.type || "mosaic";
+}
+
+function positionContextPanel(activeContext, items = selectedObjects()) {
+  if (!activeContext || toolbar.style.display === "none") return;
+  const anchorTool = contextAnchorTool(activeContext, items);
+  const anchor = anchorTool ? toolbar.querySelector(`[data-tool="${anchorTool}"]`) : null;
+  const panel = contextualGroups.find((group) => group.dataset.context === activeContext);
+  if (!anchor || !panel) return;
+  const toolbarRect = toolbar.getBoundingClientRect();
+  const anchorRect = anchor.getBoundingClientRect();
+  const panelWidth = panel.offsetWidth || panel.scrollWidth || 160;
+  const anchorCenter = anchorRect.left - toolbarRect.left + anchorRect.width / 2;
+  const minLeft = panelWidth / 2 + 8;
+  const maxLeft = Math.max(minLeft, toolbarRect.width - panelWidth / 2 - 8);
+  const nextLeft = Math.max(minLeft, Math.min(maxLeft, anchorCenter));
+  toolbar.style.setProperty("--context-left", `${Math.round(nextLeft)}px`);
 }
 
 function cloneObjects(items = objects) {
