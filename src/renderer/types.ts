@@ -25,6 +25,7 @@ export type AppSettings = CaptureOptions & {
   shortcutCapture: string;
   shortcutCaptureCopy: string;
   shortcutArea: string;
+  shortcutScrollCapture: string;
   shortcutPin: string;
   shortcutTogglePins: string;
 };
@@ -55,6 +56,7 @@ declare global {
       chooseScreenshotDir: () => Promise<AppSettings>;
       captureFullscreen: (options: CaptureOptions, copyAfterCapture?: boolean) => Promise<ScreenshotRecord | null>;
       captureRegion: (options: CaptureOptions, copyAfterCapture?: boolean) => Promise<ScreenshotRecord | null>;
+      captureScroll: (options: CaptureOptions, copyAfterCapture?: boolean) => Promise<ScreenshotRecord | null>;
       pinLatest: () => Promise<void>;
       togglePins: () => Promise<void>;
       minimizePreferences: () => Promise<void>;

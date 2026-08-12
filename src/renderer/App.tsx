@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Camera, FolderOpen, HelpCircle, Minus, Pin, RotateCcw, Shield, X } from "lucide-react";
+import { Camera, FolderOpen, HelpCircle, Minus, Pin, RotateCcw, ScrollText, Shield, X } from "lucide-react";
 import appLogoUrl from "./assets/app-logo.png";
 import wechatQrUrl from "./assets/weichat-qr.svg";
 import type { AppSettings, ScreenshotRecord, StoragePaths, WatermarkPosition } from "./types";
@@ -11,6 +11,7 @@ const shortcutFields: Array<[keyof AppSettings, string]> = [
   ["shortcutCapture", "截屏"],
   ["shortcutCaptureCopy", "截屏并自动复制"],
   ["shortcutArea", "自定义截屏"],
+  ["shortcutScrollCapture", "滚动截图"],
   ["shortcutPin", "贴图"],
   ["shortcutTogglePins", "隐藏/显示所有贴图"]
 ];
@@ -43,6 +44,7 @@ const defaultSettings: AppSettings = {
   shortcutCapture: "F1",
   shortcutCaptureCopy: "CommandOrControl+F1",
   shortcutArea: "Shift+F1",
+  shortcutScrollCapture: "CommandOrControl+Shift+F1",
   shortcutPin: "F3",
   shortcutTogglePins: "Shift+F3"
 };
@@ -131,6 +133,17 @@ export function App() {
     }
     setHistory((current) => (current.some((item) => item.id === record.id) ? current : [record, ...current]));
     setStatus("区域截图已保存并复制");
+  }
+
+  async function captureScroll(copyAfterCapture = false) {
+    setStatus("拖动选择长截图区域...");
+    const record = await window.screenshotApp.captureScroll(settings, copyAfterCapture || settings.autoCopy);
+    if (!record) {
+      setStatus("滚动截图已取消");
+      return;
+    }
+    setHistory((current) => (current.some((item) => item.id === record.id) ? current : [record, ...current]));
+    setStatus("长截图已保存并复制");
   }
 
   async function pinLatest() {
@@ -281,6 +294,10 @@ export function App() {
               </button>
               <button onClick={() => void captureNow(true)}>区域截图并复制</button>
               <button onClick={() => void captureArea(false)}>区域截图</button>
+              <button onClick={() => void captureScroll(false)}>
+                <ScrollText size={16} aria-hidden="true" />
+                滚动截图
+              </button>
               <button onClick={() => void pinLatest()}>
                 <Pin size={16} aria-hidden="true" />
                 贴图

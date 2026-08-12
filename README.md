@@ -13,10 +13,10 @@
 
 当前版本：
 
-- 版本：`0.1.1`
+- 版本：`0.1.4`
 - 平台：Windows x64
-- 安装包：`zhuageping-Setup-0.1.1-x64.exe`
-- SHA256：`1CE2009E1D72E283F423A5C4E3530D048BCFB3F84F64907DC1B93ED0CEA3D21B`
+- 安装包：`zhuageping-Setup-0.1.4-x64.exe`
+- SHA256：`C06D4073D3B7FED38FCEE02F58B6BA3F88D95A9E2D3C78A8F95058F68694AB36`
 
 说明：当前安装包暂未购买代码签名证书。安装时 Windows 可能提示未知发布者，这是未签名安装包的正常现象，不代表软件连接云端或上传数据。
 
@@ -25,6 +25,7 @@
 - 区域截图：按 `F1` 进入透明截图层，拖拽框选截图区域。
 - 截图并复制：按 `Ctrl+F1` 截图完成后自动写入剪贴板。
 - 自定义截图：按 `Shift+F1` 进入区域截图流程。
+- 滚动截图：按 `Ctrl+Shift+F1` 选择可滚动区域，自动滚动并拼接成长图。
 - 贴图：按 `F3` 将截图固定到桌面，方便对照资料。
 - 隐藏/显示贴图：按 `Shift+F3` 快速切换所有贴图窗口。
 - 原地编辑：截图后直接在选区内添加标注，不打开独立编辑窗口。
@@ -63,6 +64,7 @@
 | 截图 | `F1` |
 | 截图并自动复制 | `Ctrl+F1` |
 | 自定义截图 | `Shift+F1` |
+| 滚动截图（长图） | `Ctrl+Shift+F1` |
 | 贴图 | `F3` |
 | 隐藏/显示所有贴图 | `Shift+F3` |
 | 完成截图 | `Enter` |
@@ -280,8 +282,8 @@ npm run dist
 生成文件示例：
 
 ```text
-release/zhuageping-Setup-0.1.3-x64.exe
-release/zhuageping-Setup-0.1.3-x64.exe.blockmap
+release/zhuageping-Setup-0.1.4-x64.exe
+release/zhuageping-Setup-0.1.4-x64.exe.blockmap
 release/win-unpacked/
 ```
 

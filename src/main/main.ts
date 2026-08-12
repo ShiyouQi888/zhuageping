@@ -101,6 +101,7 @@ type AppSettings = CaptureOptions & {
   shortcutCapture: string;
   shortcutCaptureCopy: string;
   shortcutArea: string;
+  shortcutScrollCapture: string;
   shortcutPin: string;
   shortcutTogglePins: string;
 };
@@ -134,6 +135,7 @@ type PrivacyRegion = CaptureRegion & {
 type InlineCapturePayload = {
   region: CaptureRegion;
   annotationDataUrl: string;
+  baseDataUrl?: string | null;
   privacyDataUrl?: string | null;
   mosaicRegions: PrivacyRegion[];
   blurRegions: PrivacyRegion[];
@@ -142,6 +144,14 @@ type InlineCapturePayload = {
 type InlineCaptureResult = {
   buffer: Buffer;
   action: "save" | "copy" | "pin";
+};
+
+type RegionFrame = {
+  buffer: Buffer;
+  raw: Buffer;
+  width: number;
+  height: number;
+  channels: number;
 };
 
 type DisplayLike = Pick<Electron.Display, "bounds" | "size" | "scaleFactor" | "id">;
@@ -198,6 +208,7 @@ let appSettings: AppSettings = {
   shortcutCapture: "F1",
   shortcutCaptureCopy: "CommandOrControl+F1",
   shortcutArea: "Shift+F1",
+  shortcutScrollCapture: "CommandOrControl+Shift+F1",
   shortcutPin: "F3",
   shortcutTogglePins: "Shift+F3"
 };
@@ -254,6 +265,11 @@ function createWindow() {
     if (input.type !== "keyDown" || input.alt) {
       return;
     }
+    if (input.key === "F1" && input.control && input.shift) {
+      event.preventDefault();
+      runShortcutScrollCapture(appSettings.autoCopy);
+      return;
+    }
     if (input.key === "F1") {
       event.preventDefault();
       runShortcutCapture(Boolean(input.control || input.meta) || appSettings.autoCopy);
@@ -301,6 +317,11 @@ function handleProtocolUrl(protocolUrl?: string) {
 
   if (command === "capture") {
     runShortcutCapture(appSettings.autoCopy);
+    return;
+  }
+
+  if (command === "scroll") {
+    runShortcutScrollCapture(appSettings.autoCopy);
     return;
   }
 
@@ -361,6 +382,13 @@ function updateTrayMenu() {
           accelerator: appSettings.shortcutArea,
           click: () => {
             void captureSelectedRegion(appSettings, appSettings.autoCopy);
+          }
+        },
+        {
+          label: "滚动截图（长图）",
+          accelerator: appSettings.shortcutScrollCapture,
+          click: () => {
+            void captureScrollingRegion(appSettings, appSettings.autoCopy);
           }
         },
         { type: "separator" },
@@ -514,12 +542,23 @@ function runShortcutCapture(copyAfterCapture = appSettings.autoCopy) {
   });
 }
 
+function runShortcutScrollCapture(copyAfterCapture = appSettings.autoCopy) {
+  if (shortcutCaptureRunning) {
+    return;
+  }
+  shortcutCaptureRunning = true;
+  void captureScrollingRegion(appSettings, copyAfterCapture).finally(() => {
+    shortcutCaptureRunning = false;
+  });
+}
+
 function registerGlobalShortcuts() {
   globalShortcut.unregisterAll();
   const registrations: Array<[string, () => void]> = [
     [appSettings.shortcutCapture, () => runShortcutCapture(appSettings.autoCopy)],
     [appSettings.shortcutCaptureCopy, () => runShortcutCapture(true)],
     [appSettings.shortcutArea, () => runShortcutCapture(appSettings.autoCopy)],
+    [appSettings.shortcutScrollCapture, () => runShortcutScrollCapture(appSettings.autoCopy)],
     [appSettings.shortcutPin, () => void pinLatestScreenshot()],
     [appSettings.shortcutTogglePins, () => togglePinWindows()]
   ];
@@ -901,6 +940,131 @@ async function captureScreenBuffer(width: number, height: number, display?: Disp
   }
 }
 
+async function selectScreenRegionOnly(selectionHint: string): Promise<CaptureRegion | null> {
+  return new Promise((resolve) => {
+    const editorPath = overlayEditorHtmlPath();
+    const displays = screen.getAllDisplays();
+    const selectionChannel = `scroll-region-selected-${crypto.randomUUID()}`;
+    const overlays = displays.map((display) => {
+      const overlay = new BrowserWindow({
+        x: display.bounds.x,
+        y: display.bounds.y,
+        width: display.bounds.width,
+        height: display.bounds.height,
+        frame: false,
+        transparent: true,
+        backgroundColor: "#00000000",
+        show: false,
+        resizable: false,
+        movable: false,
+        fullscreenable: false,
+        focusable: true,
+        alwaysOnTop: true,
+        skipTaskbar: true,
+        title: "滚动截图选区",
+        webPreferences: {
+          nodeIntegration: true,
+          contextIsolation: false
+        }
+      });
+      overlay.setMenu(null);
+      overlay.setMenuBarVisibility(false);
+      overlay.setAlwaysOnTop(true, "screen-saver");
+      overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      overlay.once("ready-to-show", () => {
+        if (overlay.isDestroyed()) return;
+        overlay.showInactive();
+        overlay.moveTop();
+        overlay.focus();
+      });
+      overlay.webContents.once("did-finish-load", () => {
+        if (overlay.isDestroyed()) return;
+        overlay.showInactive();
+        overlay.moveTop();
+      });
+      void overlay.loadFile(editorPath, {
+        query: {
+          scaleFactor: String(display.scaleFactor || 1),
+          offsetX: String(display.bounds.x),
+          offsetY: String(display.bounds.y),
+          selectionChannel,
+          selectionHint
+        }
+      });
+      return { display, overlay };
+    });
+    const overlayWindowIds = overlays.map(({ overlay }) => nativeWindowHandleId(overlay));
+    const overlayDisplays = new Map(overlays.map(({ display, overlay }) => [overlay.webContents.id, display]));
+    let resolved = false;
+
+    const showActiveOverlays = () => {
+      overlays.forEach(({ overlay }) => {
+        if (!overlay.isDestroyed()) {
+          overlay.showInactive();
+          overlay.moveTop();
+          overlay.setAlwaysOnTop(true, "screen-saver");
+        }
+      });
+      overlays.find(({ overlay }) => !overlay.isDestroyed())?.overlay.focus();
+    };
+
+    const finish = (region: CaptureRegion | null) => {
+      if (resolved) return;
+      resolved = true;
+      ipcMain.removeListener(selectionChannel, onRegionSelected);
+      ipcMain.removeListener("inline-capture-cancel", onCancel);
+      ipcMain.removeListener("overlay:ready", onOverlayReady);
+      ipcMain.removeHandler("overlay:window-at-point");
+      overlays.forEach(({ overlay }) => {
+        if (!overlay.isDestroyed()) overlay.close();
+      });
+      resolve(region);
+    };
+
+    const onCancel = () => finish(null);
+
+    const onRegionSelected = (_event: Electron.IpcMainEvent, region: CaptureRegion) => {
+      finish(region);
+    };
+
+    const onOverlayReady = (event: Electron.IpcMainEvent) => {
+      if (resolved) return;
+      showActiveOverlays();
+      const readyEntry = overlays.find(({ overlay }) => !overlay.isDestroyed() && overlay.webContents.id === event.sender.id);
+      if (!readyEntry || readyEntry.overlay.isDestroyed()) return;
+      readyEntry.overlay.focus();
+      const cursorPoint = screen.getCursorScreenPoint();
+      const displayBounds = readyEntry.display.bounds;
+      const cursorInDisplay =
+        cursorPoint.x >= displayBounds.x &&
+        cursorPoint.x <= displayBounds.x + displayBounds.width &&
+        cursorPoint.y >= displayBounds.y &&
+        cursorPoint.y <= displayBounds.y + displayBounds.height;
+      if (cursorInDisplay) {
+        readyEntry.overlay.webContents.send("overlay:cursor-point", cursorPoint);
+      }
+    };
+
+    ipcMain.removeHandler("overlay:window-at-point");
+    ipcMain.handle("overlay:window-at-point", async (event, point: { x: number; y: number }) => {
+      if (resolved || event.sender.isDestroyed()) return null;
+      const display = overlayDisplays.get(event.sender.id);
+      if (!display || !Number.isFinite(point?.x) || !Number.isFinite(point?.y)) return null;
+      const rect = await queryWindowAtPoint(point, overlayWindowIds);
+      if (!rect) return null;
+      return windowRectForDisplay(rect, display, point);
+    });
+
+    ipcMain.once("inline-capture-cancel", onCancel);
+    ipcMain.on(selectionChannel, onRegionSelected);
+    ipcMain.on("overlay:ready", onOverlayReady);
+    overlays.forEach(({ overlay }) => {
+      overlay.on("closed", () => finish(null));
+    });
+    showActiveOverlays();
+  });
+}
+
 async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
   return new Promise((resolve) => {
     const editorPath = overlayEditorHtmlPath();
@@ -981,29 +1145,40 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
       });
       await delay(32);
 
-      const display = screen.getDisplayMatching({
-        x: Math.round(payload.region.x),
-        y: Math.round(payload.region.y),
-        width: Math.round(payload.region.width),
-        height: Math.round(payload.region.height)
-      });
-      const displayScaleFactor = display.scaleFactor || 1;
-      const width = Math.round(display.size.width * displayScaleFactor);
-      const height = Math.round(display.size.height * displayScaleFactor);
-      const capturedBuffer = await captureScreenBuffer(width, height, display);
-      const metadata = await sharp(capturedBuffer).metadata();
-      const imageWidth = metadata.width ?? width;
-      const imageHeight = metadata.height ?? height;
-      const crop = captureCropFromDisplay(payload.region, display);
-      const left = Math.max(0, Math.min(crop.left, imageWidth - 1));
-      const top = Math.max(0, Math.min(crop.top, imageHeight - 1));
-      const extractWidth = Math.max(1, Math.min(crop.width, imageWidth - left));
-      const extractHeight = Math.max(1, Math.min(crop.height, imageHeight - top));
+      let baseBuffer: Buffer;
+      let extractWidth: number;
+      let extractHeight: number;
 
-      let baseBuffer = await sharp(capturedBuffer)
-        .extract({ left, top, width: extractWidth, height: extractHeight })
-        .png()
-        .toBuffer();
+      if (payload.baseDataUrl) {
+        baseBuffer = Buffer.from(payload.baseDataUrl.replace(/^data:image\/png;base64,/, ""), "base64");
+        const baseMetadata = await sharp(baseBuffer).metadata();
+        extractWidth = baseMetadata.width ?? Math.round(payload.region.width);
+        extractHeight = baseMetadata.height ?? Math.round(payload.region.height);
+      } else {
+        const display = screen.getDisplayMatching({
+          x: Math.round(payload.region.x),
+          y: Math.round(payload.region.y),
+          width: Math.round(payload.region.width),
+          height: Math.round(payload.region.height)
+        });
+        const displayScaleFactor = display.scaleFactor || 1;
+        const width = Math.round(display.size.width * displayScaleFactor);
+        const height = Math.round(display.size.height * displayScaleFactor);
+        const capturedBuffer = await captureScreenBuffer(width, height, display);
+        const metadata = await sharp(capturedBuffer).metadata();
+        const imageWidth = metadata.width ?? width;
+        const imageHeight = metadata.height ?? height;
+        const crop = captureCropFromDisplay(payload.region, display);
+        const left = Math.max(0, Math.min(crop.left, imageWidth - 1));
+        const top = Math.max(0, Math.min(crop.top, imageHeight - 1));
+        extractWidth = Math.max(1, Math.min(crop.width, imageWidth - left));
+        extractHeight = Math.max(1, Math.min(crop.height, imageHeight - top));
+
+        baseBuffer = await sharp(capturedBuffer)
+          .extract({ left, top, width: extractWidth, height: extractHeight })
+          .png()
+          .toBuffer();
+      }
 
       const clampPrivacyRegion = (region: CaptureRegion) => {
         const regionLeft = Math.max(0, Math.min(Math.round(region.x), extractWidth - 1));
@@ -1097,6 +1272,7 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
       ipcMain.removeListener("inline-capture-complete", onComplete);
       ipcMain.removeListener("inline-capture-copy", onCopy);
       ipcMain.removeListener("inline-capture-pin", onPin);
+      ipcMain.removeListener("inline-capture-scroll", onScroll);
       ipcMain.removeListener("inline-capture-cancel", onCancel);
       ipcMain.removeListener("inline-region-selected", onRegionSelected);
       ipcMain.removeListener("overlay:ready", onOverlayReady);
@@ -1148,6 +1324,57 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
         console.error("Inline copy failed.", error);
         showActiveOverlays();
         notifyCaptureError();
+        preparingCapture = false;
+      }
+    };
+
+    const onScroll = async (event: Electron.IpcMainEvent, payload: InlineCapturePayload) => {
+      if (preparingCapture || preparingPreview || resolved || event.sender.isDestroyed()) {
+        return;
+      }
+      preparingCapture = true;
+      const display = overlayDisplays.get(event.sender.id);
+      try {
+        overlays.forEach(({ overlay }) => {
+          if (!overlay.isDestroyed()) overlay.hide();
+        });
+        const { buffer, usedFrames } = await captureScrollingBufferFromRegion(payload.region, (message) => {
+          mainWindow?.webContents.send("app:status", message);
+        });
+        const metadata = await sharp(buffer).metadata();
+        const imageWidth = metadata.width ?? Math.round(payload.region.width);
+        const imageHeight = metadata.height ?? Math.round(payload.region.height);
+        const targetDisplay = display ?? screen.getDisplayMatching(payload.region);
+        const maxPreviewWidth = Math.max(240, targetDisplay.bounds.width - 80);
+        const maxPreviewHeight = Math.max(180, targetDisplay.bounds.height - 150);
+        const previewScale = Math.max(imageWidth / maxPreviewWidth, imageHeight / maxPreviewHeight, 1);
+        const previewWidth = Math.max(120, Math.round(imageWidth / previewScale));
+        const previewHeight = Math.max(80, Math.round(imageHeight / previewScale));
+        const previewX = Math.round((targetDisplay.bounds.width - previewWidth) / 2);
+        const previewY = Math.max(18, Math.round((targetDisplay.bounds.height - previewHeight) / 2) - 24);
+        const dataUrl = `data:image/png;base64,${buffer.toString("base64")}`;
+
+        showActiveOverlays();
+        if (resolved || event.sender.isDestroyed()) return;
+        event.sender.send("inline-region-ready", {
+          x: previewX,
+          y: previewY,
+          width: previewWidth,
+          height: previewHeight,
+          pixelWidth: imageWidth,
+          pixelHeight: imageHeight,
+          scaleFactor: previewScale,
+          captureRegion: { x: 0, y: 0, width: imageWidth, height: imageHeight },
+          backgroundMode: "image",
+          backgroundDataUrl: dataUrl,
+          baseDataUrl: dataUrl
+        });
+        mainWindow?.webContents.send("app:status", `长截图已合成：${usedFrames} 帧，可继续编辑`);
+      } catch (error) {
+        console.error("Inline scroll capture failed.", error);
+        showActiveOverlays();
+        notifyCaptureError();
+      } finally {
         preparingCapture = false;
       }
     };
@@ -1218,6 +1445,7 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
     ipcMain.once("inline-capture-complete", onComplete);
     ipcMain.once("inline-capture-copy", onCopy);
     ipcMain.once("inline-capture-pin", onPin);
+    ipcMain.on("inline-capture-scroll", onScroll);
     ipcMain.once("inline-capture-cancel", onCancel);
     ipcMain.on("inline-region-selected", onRegionSelected);
     ipcMain.on("overlay:ready", onOverlayReady);
@@ -1226,6 +1454,245 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
     });
     showActiveOverlays();
   });
+}
+
+function clampExtractRect(crop: CaptureRegion, imageWidth: number, imageHeight: number) {
+  const left = Math.max(0, Math.min(Math.round(crop.x), imageWidth - 1));
+  const top = Math.max(0, Math.min(Math.round(crop.y), imageHeight - 1));
+  return {
+    left,
+    top,
+    width: Math.max(1, Math.min(Math.round(crop.width), imageWidth - left)),
+    height: Math.max(1, Math.min(Math.round(crop.height), imageHeight - top))
+  };
+}
+
+async function captureRegionFrame(region: CaptureRegion): Promise<RegionFrame> {
+  const display = screen.getDisplayMatching({
+    x: Math.round(region.x),
+    y: Math.round(region.y),
+    width: Math.round(region.width),
+    height: Math.round(region.height)
+  });
+  const displayScaleFactor = display.scaleFactor || 1;
+  const width = Math.round(display.size.width * displayScaleFactor);
+  const height = Math.round(display.size.height * displayScaleFactor);
+  const capturedBuffer = await captureScreenBuffer(width, height, display);
+  const metadata = await sharp(capturedBuffer).metadata();
+  const imageWidth = metadata.width ?? width;
+  const imageHeight = metadata.height ?? height;
+  const crop = captureCropFromDisplay(region, display);
+  const extractRect = clampExtractRect(
+    { x: crop.left, y: crop.top, width: crop.width, height: crop.height },
+    imageWidth,
+    imageHeight
+  );
+  const buffer = await sharp(capturedBuffer).extract(extractRect).png().toBuffer();
+  const rawImage = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  return {
+    buffer,
+    raw: rawImage.data,
+    width: rawImage.info.width,
+    height: rawImage.info.height,
+    channels: rawImage.info.channels
+  };
+}
+
+function frameDifference(a: RegionFrame, b: RegionFrame) {
+  if (a.width !== b.width || a.height !== b.height || a.channels !== b.channels) return Number.POSITIVE_INFINITY;
+  const strideX = Math.max(1, Math.floor(a.width / 80));
+  const strideY = Math.max(1, Math.floor(a.height / 80));
+  let total = 0;
+  let count = 0;
+  for (let y = 0; y < a.height; y += strideY) {
+    for (let x = 0; x < a.width; x += strideX) {
+      const offset = (y * a.width + x) * a.channels;
+      total += Math.abs(a.raw[offset] - b.raw[offset]);
+      total += Math.abs(a.raw[offset + 1] - b.raw[offset + 1]);
+      total += Math.abs(a.raw[offset + 2] - b.raw[offset + 2]);
+      count += 3;
+    }
+  }
+  return count ? total / count : Number.POSITIVE_INFINITY;
+}
+
+function overlapDifference(previous: RegionFrame, next: RegionFrame, overlap: number) {
+  const width = Math.min(previous.width, next.width);
+  const strideX = Math.max(1, Math.floor(width / 96));
+  const strideY = Math.max(1, Math.floor(overlap / 48));
+  let total = 0;
+  let count = 0;
+  for (let y = 0; y < overlap; y += strideY) {
+    const previousY = previous.height - overlap + y;
+    const nextY = y;
+    for (let x = 0; x < width; x += strideX) {
+      const previousOffset = (previousY * previous.width + x) * previous.channels;
+      const nextOffset = (nextY * next.width + x) * next.channels;
+      total += Math.abs(previous.raw[previousOffset] - next.raw[nextOffset]);
+      total += Math.abs(previous.raw[previousOffset + 1] - next.raw[nextOffset + 1]);
+      total += Math.abs(previous.raw[previousOffset + 2] - next.raw[nextOffset + 2]);
+      count += 3;
+    }
+  }
+  return count ? total / count : Number.POSITIVE_INFINITY;
+}
+
+function findScrollOverlap(previous: RegionFrame, next: RegionFrame) {
+  if (previous.width !== next.width || previous.channels !== next.channels) return 0;
+  const maxOverlap = Math.min(previous.height - 8, next.height - 8, Math.floor(previous.height * 0.9));
+  const minOverlap = Math.max(24, Math.floor(previous.height * 0.12));
+  if (maxOverlap <= minOverlap) return 0;
+  const coarseStep = Math.max(4, Math.floor((maxOverlap - minOverlap) / 80));
+  let bestOverlap = 0;
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  for (let overlap = maxOverlap; overlap >= minOverlap; overlap -= coarseStep) {
+    const score = overlapDifference(previous, next, overlap);
+    if (score < bestScore) {
+      bestScore = score;
+      bestOverlap = overlap;
+    }
+  }
+
+  const refineStart = Math.min(maxOverlap, bestOverlap + coarseStep);
+  const refineEnd = Math.max(minOverlap, bestOverlap - coarseStep);
+  for (let overlap = refineStart; overlap >= refineEnd; overlap -= 1) {
+    const score = overlapDifference(previous, next, overlap);
+    if (score < bestScore) {
+      bestScore = score;
+      bestOverlap = overlap;
+    }
+  }
+
+  return bestScore <= 18 ? bestOverlap : 0;
+}
+
+function rowDifference(a: RegionFrame, b: RegionFrame, row: number) {
+  const width = Math.min(a.width, b.width);
+  const strideX = Math.max(1, Math.floor(width / 120));
+  let total = 0;
+  let count = 0;
+  for (let x = 0; x < width; x += strideX) {
+    const offsetA = (row * a.width + x) * a.channels;
+    const offsetB = (row * b.width + x) * b.channels;
+    total += Math.abs(a.raw[offsetA] - b.raw[offsetB]);
+    total += Math.abs(a.raw[offsetA + 1] - b.raw[offsetB + 1]);
+    total += Math.abs(a.raw[offsetA + 2] - b.raw[offsetB + 2]);
+    count += 3;
+  }
+  return count ? total / count : Number.POSITIVE_INFINITY;
+}
+
+function findRepeatedTopHeight(first: RegionFrame, next: RegionFrame) {
+  if (first.width !== next.width || first.channels !== next.channels) return 0;
+  const maxTop = Math.min(first.height, next.height, Math.max(48, Math.floor(first.height * 0.28)), 260);
+  let repeatedHeight = 0;
+  let misses = 0;
+  for (let y = 0; y < maxTop; y += 4) {
+    const diff = rowDifference(first, next, y);
+    if (diff <= 8) {
+      repeatedHeight = y + 4;
+      misses = 0;
+      continue;
+    }
+    misses += 1;
+    if (misses >= 3) break;
+  }
+  return repeatedHeight >= 24 ? repeatedHeight : 0;
+}
+
+async function sendWheelScrollAt(point: { x: number; y: number }, wheelDelta: number) {
+  if (process.platform !== "win32") return;
+  const script = `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class ScrollInput {
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, int data, UIntPtr extraInfo);
+}
+"@
+[ScrollInput]::SetCursorPos(${Math.round(point.x)}, ${Math.round(point.y)}) | Out-Null
+Start-Sleep -Milliseconds 20
+[ScrollInput]::mouse_event(0x0800, 0, 0, ${Math.round(wheelDelta)}, [UIntPtr]::Zero)
+`;
+  await execFileAsync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+    windowsHide: true,
+    timeout: 2000,
+    maxBuffer: 16 * 1024
+  });
+}
+
+async function stitchScrollFrames(frames: RegionFrame[]) {
+  if (!frames.length) {
+    throw new Error("没有可合成的滚动截图帧。");
+  }
+  const first = frames[0];
+  const composites: sharp.OverlayOptions[] = [{ input: first.buffer, left: 0, top: 0 }];
+  let totalHeight = first.height;
+  let usedFrames = 1;
+  const maxHeight = 60000;
+
+  for (let index = 1; index < frames.length; index += 1) {
+    const previous = frames[index - 1];
+    const frame = frames[index];
+    const overlap = findScrollOverlap(previous, frame);
+    const repeatedTop = findRepeatedTopHeight(first, frame);
+    const appendTop = Math.max(0, overlap, repeatedTop);
+    const appendHeight = frame.height - appendTop;
+    if (appendHeight < 16 || totalHeight + appendHeight > maxHeight) {
+      break;
+    }
+    const appendedBuffer = await sharp(frame.buffer)
+      .extract({ left: 0, top: appendTop, width: frame.width, height: appendHeight })
+      .png()
+      .toBuffer();
+    composites.push({ input: appendedBuffer, left: 0, top: totalHeight });
+    totalHeight += appendHeight;
+    usedFrames += 1;
+  }
+
+  return sharp({
+    create: {
+      width: first.width,
+      height: totalHeight,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 }
+    }
+  })
+    .composite(composites)
+    .png()
+    .toBuffer()
+    .then((buffer) => ({ buffer, usedFrames }));
+}
+
+async function captureScrollingBufferFromRegion(
+  region: CaptureRegion,
+  onProgress?: (message: string) => void
+) {
+  await delay(180);
+  const scrollPoint = {
+    x: Math.round(region.x + region.width / 2),
+    y: Math.round(region.y + Math.min(region.height - 12, region.height * 0.72))
+  };
+  const frames: RegionFrame[] = [];
+  const maxFrames = 24;
+  const wheelDelta = -720;
+
+  frames.push(await captureRegionFrame(region));
+  for (let index = 1; index < maxFrames; index += 1) {
+    await sendWheelScrollAt(scrollPoint, wheelDelta);
+    await delay(420);
+    const nextFrame = await captureRegionFrame(region);
+    const diff = frameDifference(frames[frames.length - 1], nextFrame);
+    if (diff < 1.2) {
+      break;
+    }
+    frames.push(nextFrame);
+    onProgress?.(`正在滚动截图：已捕获 ${frames.length} 帧`);
+  }
+
+  return stitchScrollFrames(frames);
 }
 
 async function saveCapturedBuffer(
@@ -1316,6 +1783,33 @@ async function captureSelectedRegion(options: CaptureOptions, copyAfterCapture =
       copyAfterCapture || captureResult.action === "copy",
       captureResult.action === "pin"
     );
+  } finally {
+    if (shouldRestoreWindow) {
+      mainWindow?.show();
+      mainWindow?.focus();
+    }
+  }
+}
+
+async function captureScrollingRegion(options: CaptureOptions, copyAfterCapture = false): Promise<ScreenshotRecord | null> {
+  await ensureStorage();
+  const shouldRestoreWindow = Boolean(mainWindow?.isVisible());
+  mainWindow?.hide();
+  await delay(32);
+
+  try {
+    mainWindow?.webContents.send("app:status", "拖动选择要滚动截取的区域");
+    const region = await selectScreenRegionOnly("拖动选择长截图区域，单击可选中窗口");
+    if (!region) {
+      return null;
+    }
+
+    mainWindow?.webContents.send("app:status", "正在准备滚动截图...");
+    const { buffer, usedFrames } = await captureScrollingBufferFromRegion(region, (message) =>
+      mainWindow?.webContents.send("app:status", message)
+    );
+    mainWindow?.webContents.send("app:status", `长截图合成完成：${usedFrames} 帧`);
+    return saveCapturedBuffer(buffer, options, copyAfterCapture || appSettings.autoCopy);
   } finally {
     if (shouldRestoreWindow) {
       mainWindow?.show();
@@ -1785,6 +2279,9 @@ app.whenReady().then(async () => {
   );
   ipcMain.handle("app:capture-region", async (_event, options: CaptureOptions, copyAfterCapture?: boolean) =>
     captureSelectedRegion(options, Boolean(copyAfterCapture) || appSettings.autoCopy)
+  );
+  ipcMain.handle("app:capture-scroll", async (_event, options: CaptureOptions, copyAfterCapture?: boolean) =>
+    captureScrollingRegion(options, Boolean(copyAfterCapture) || appSettings.autoCopy)
   );
   ipcMain.handle("app:pin-latest", async () => pinLatestScreenshot());
   ipcMain.handle("app:toggle-pins", async () => togglePinWindows());

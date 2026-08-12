@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld("screenshotApp", {
     ipcRenderer.invoke("app:capture-fullscreen", options, copyAfterCapture),
   captureRegion: (options: CaptureOptions, copyAfterCapture?: boolean) =>
     ipcRenderer.invoke("app:capture-region", options, copyAfterCapture),
+  captureScroll: (options: CaptureOptions, copyAfterCapture?: boolean) =>
+    ipcRenderer.invoke("app:capture-scroll", options, copyAfterCapture),
   pinLatest: () => ipcRenderer.invoke("app:pin-latest"),
   togglePins: () => ipcRenderer.invoke("app:toggle-pins"),
   minimizePreferences: () => ipcRenderer.invoke("app:minimize-preferences"),

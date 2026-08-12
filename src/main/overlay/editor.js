@@ -25,6 +25,7 @@ const boldTextButton = document.getElementById("boldText");
 const textBgButton = document.getElementById("textBg");
 const textStrokeButton = document.getElementById("textStroke");
 const alignMenu = document.getElementById("alignMenu");
+const scrollCaptureButton = document.getElementById("scrollCapture");
 const contextualGroups = [...document.querySelectorAll(".contextual")];
 const objectActionControls = [
   document.getElementById("duplicateObject"),
@@ -49,6 +50,8 @@ const toolHotkeys = {
 
 const params = new URLSearchParams(window.location.search);
 const pixelRatio = Number(params.get("scaleFactor")) || window.devicePixelRatio || 1;
+const selectionChannel = params.get("selectionChannel") || "inline-region-selected";
+const selectionHint = params.get("selectionHint") || "拖动选择截图区域";
 const overlayOffset = {
   x: Number(params.get("offsetX")) || 0,
   y: Number(params.get("offsetY")) || 0
@@ -81,6 +84,7 @@ let serial = 0;
 let objects = [];
 let backgroundImage = null;
 let backgroundMode = "selection";
+let baseImageDataUrl = null;
 let textBold = false;
 let textBackground = false;
 let textOutline = false;
@@ -96,6 +100,10 @@ function nextId() {
 
 function setStatus(message) {
   statusEl.textContent = message;
+}
+
+function sendSelectedRegion(rect) {
+  ipcRenderer.send(selectionChannel, screenSelectionToCaptureRegion(rect));
 }
 
 function setTool(nextTool) {
@@ -399,9 +407,9 @@ function renderObjectBox() {
 function configureCanvas(rect) {
   activeScaleFactor = rect.scaleFactor || pixelRatio;
   canvasRect = rect;
-  captureRegion = screenSelectionToCaptureRegion(rect);
-  canvas.width = Math.max(1, Math.round(rect.width * activeScaleFactor));
-  canvas.height = Math.max(1, Math.round(rect.height * activeScaleFactor));
+  captureRegion = rect.captureRegion || screenSelectionToCaptureRegion(rect);
+  canvas.width = Math.max(1, Math.round(rect.pixelWidth || rect.width * activeScaleFactor));
+  canvas.height = Math.max(1, Math.round(rect.pixelHeight || rect.height * activeScaleFactor));
   canvas.style.display = "block";
   canvas.style.left = `${rect.x}px`;
   canvas.style.top = `${rect.y}px`;
@@ -409,6 +417,7 @@ function configureCanvas(rect) {
   canvas.style.height = `${rect.height}px`;
   backgroundImage = null;
   backgroundMode = rect.backgroundMode || "selection";
+  baseImageDataUrl = rect.baseDataUrl || (backgroundMode === "image" ? rect.backgroundDataUrl : null);
   objects = [];
   selectedObjectId = null;
   history.length = 0;
@@ -937,12 +946,14 @@ function complete(channel) {
   const statusText = {
     "inline-capture-copy": "正在复制...",
     "inline-capture-pin": "正在贴图...",
+    "inline-capture-scroll": "正在滚动截图...",
     "inline-capture-complete": "正在保存..."
   };
   setStatus(statusText[channel] || "正在处理...");
   ipcRenderer.send(channel, {
     region: captureRegion,
     annotationDataUrl: annotationDataUrl(),
+    baseDataUrl: baseImageDataUrl,
     privacyDataUrl: privacyDataUrl(),
     mosaicRegions: mosaicPayload(),
     blurRegions: blurPayload()
@@ -1176,7 +1187,7 @@ window.addEventListener("mouseup", () => {
     selection = clampRect(pendingAutoSelection, viewportBounds(), minSelectionSize);
     pendingAutoSelection = null;
     pendingAutoStart = null;
-    ipcRenderer.send("inline-region-selected", screenSelectionToCaptureRegion(selection));
+    sendSelectedRegion(selection);
     return;
   }
   if (selecting) {
@@ -1187,7 +1198,7 @@ window.addEventListener("mouseup", () => {
       return;
     }
     selection = clampRect(selection, viewportBounds(), minSelectionSize);
-    ipcRenderer.send("inline-region-selected", screenSelectionToCaptureRegion(selection));
+    sendSelectedRegion(selection);
     return;
   }
   if (drawingObject) {
@@ -1210,6 +1221,7 @@ document.getElementById("undo").addEventListener("click", () => {
 });
 document.getElementById("copy").addEventListener("click", () => complete("inline-capture-copy"));
 document.getElementById("pin").addEventListener("click", () => complete("inline-capture-pin"));
+scrollCaptureButton.addEventListener("click", () => complete("inline-capture-scroll"));
 document.getElementById("save").addEventListener("click", () => complete("inline-capture-complete"));
 document.getElementById("ok").addEventListener("click", () => complete("inline-capture-complete"));
 document.getElementById("cancel").addEventListener("click", () => ipcRenderer.send("inline-capture-cancel"));
@@ -1262,6 +1274,10 @@ window.addEventListener("keydown", (event) => {
     event.preventDefault();
     complete("inline-capture-complete");
   }
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === "F1") {
+    event.preventDefault();
+    complete("inline-capture-scroll");
+  }
   if (event.key === "F3") {
     event.preventDefault();
     complete("inline-capture-pin");
@@ -1281,5 +1297,6 @@ ipcRenderer.on("overlay:cursor-point", (_event, point) => {
   requestAnimationFrame(() => probeWindowSelectionAt(clientX, clientY, { force: true }));
 });
 
+setStatus(selectionHint);
 setTool("rect");
 requestAnimationFrame(() => ipcRenderer.send("overlay:ready"));
