@@ -728,6 +728,7 @@ function beginTextEditor(point, existingObject = null) {
   const editor = document.createElement("textarea");
   editor.className = "text-editor";
   editor.placeholder = "输入文字";
+  editor.spellcheck = false;
   editor.value = existingObject?.text || "";
   const fontSize = existingObject?.fontSize || Number(fontSizeInput.value) || Math.max(18, Number(strokeSize.value) * 5);
   if (existingObject) {
@@ -745,7 +746,13 @@ function beginTextEditor(point, existingObject = null) {
   editor.style.width = existingObject?.width ? `${Math.max(160, existingObject.width / (canvas.width / rect.width))}px` : "220px";
   document.body.appendChild(editor);
   activeTextEditor = { element: editor, point, objectId: existingObject?.id || null, fontSize };
+  const resizeTextEditor = () => {
+    editor.style.height = "auto";
+    editor.style.height = `${Math.max(fontSize * 1.35, editor.scrollHeight)}px`;
+  };
+  editor.addEventListener("input", resizeTextEditor);
   requestAnimationFrame(() => {
+    resizeTextEditor();
     editor.focus();
     editor.select();
   });
