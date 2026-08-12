@@ -1,4 +1,4 @@
-const { ipcRenderer } = require("electron");
+const { ipcRenderer, clipboard } = require("electron");
 const {
   clampRect,
   normalizeRect,
@@ -26,6 +26,13 @@ const textBgButton = document.getElementById("textBg");
 const textStrokeButton = document.getElementById("textStroke");
 const alignMenu = document.getElementById("alignMenu");
 const scrollCaptureButton = document.getElementById("scrollCapture");
+const ocrCaptureButton = document.getElementById("ocrCapture");
+const ocrDialog = document.getElementById("ocrDialog");
+const ocrText = document.getElementById("ocrText");
+const ocrMeta = document.getElementById("ocrMeta");
+const ocrTip = document.getElementById("ocrTip");
+const ocrCloseButton = document.getElementById("ocrClose");
+const ocrCopyButton = document.getElementById("ocrCopy");
 const contextualGroups = [...document.querySelectorAll(".contextual")];
 const objectActionControls = [
   document.getElementById("duplicateObject"),
@@ -85,6 +92,8 @@ let objects = [];
 let backgroundImage = null;
 let backgroundMode = "selection";
 let baseImageDataUrl = null;
+let ocrDialogOpen = false;
+let ocrInFlight = false;
 let textBold = false;
 let textBackground = false;
 let textOutline = false;
@@ -927,6 +936,19 @@ function privacyDataUrl() {
   return output.toDataURL("image/png");
 }
 
+function ocrDataUrl() {
+  if (!backgroundImage) return null;
+  const output = document.createElement("canvas");
+  output.width = canvas.width;
+  output.height = canvas.height;
+  const outputCtx = output.getContext("2d");
+  drawBackgroundPreview(outputCtx);
+  objects
+    .filter((object) => object.type === "mosaic" || object.type === "blur")
+    .forEach((object) => drawPrivacyObject(outputCtx, object, { includeOutline: false }));
+  return output.toDataURL("image/png");
+}
+
 function mosaicPayload() {
   return objects
     .filter((object) => object.type === "mosaic")
@@ -937,6 +959,55 @@ function blurPayload() {
   return objects
     .filter((object) => object.type === "blur")
     .map((object) => ({ x: object.x, y: object.y, width: object.width, height: object.height, strength: object.strength || 5 }));
+}
+
+function capturePayload(options = {}) {
+  const payload = {
+    region: captureRegion,
+    annotationDataUrl: annotationDataUrl(),
+    baseDataUrl: baseImageDataUrl,
+    privacyDataUrl: privacyDataUrl(),
+    mosaicRegions: mosaicPayload(),
+    blurRegions: blurPayload()
+  };
+  if (options.includeOcrImage) {
+    payload.ocrDataUrl = ocrDataUrl();
+  }
+  return payload;
+}
+
+function openOcrDialog(result) {
+  ocrDialogOpen = true;
+  ocrDialog.classList.add("is-open");
+  ocrText.value = result.text || "";
+  ocrText.placeholder = result.ok ? "未识别到文字" : "OCR 识别失败";
+  const countText = result.ok ? `${result.lines?.length || 0} 行` : "失败";
+  ocrMeta.textContent = `${countText} · ${Math.max(0, Math.round(result.elapsedMs || 0))} ms`;
+  ocrTip.textContent = result.ok
+    ? result.text
+      ? "已自动复制到剪贴板"
+      : "没有识别到文字，可调整截图区域后重试"
+    : result.error || "OCR 识别失败";
+  requestAnimationFrame(() => {
+    ocrText.focus();
+    ocrText.select();
+  });
+}
+
+function closeOcrDialog() {
+  ocrDialogOpen = false;
+  ocrDialog.classList.remove("is-open");
+}
+
+function requestOcr() {
+  commitTextEditor();
+  if (!captureRegion) return;
+  if (ocrInFlight) return;
+  ocrInFlight = true;
+  ocrCaptureButton.disabled = true;
+  document.body.style.cursor = "progress";
+  setStatus("正在 OCR 识别...");
+  ipcRenderer.send("inline-capture-ocr", capturePayload({ includeOcrImage: true }));
 }
 
 function complete(channel) {
@@ -950,14 +1021,7 @@ function complete(channel) {
     "inline-capture-complete": "正在保存..."
   };
   setStatus(statusText[channel] || "正在处理...");
-  ipcRenderer.send(channel, {
-    region: captureRegion,
-    annotationDataUrl: annotationDataUrl(),
-    baseDataUrl: baseImageDataUrl,
-    privacyDataUrl: privacyDataUrl(),
-    mosaicRegions: mosaicPayload(),
-    blurRegions: blurPayload()
-  });
+  ipcRenderer.send(channel, capturePayload());
 }
 
 toolButtons.forEach((button) => button.addEventListener("click", () => setTool(button.dataset.tool)));
@@ -1219,14 +1283,32 @@ document.getElementById("undo").addEventListener("click", () => {
   history.pop();
   restore(history[history.length - 1]);
 });
+ocrCaptureButton.addEventListener("click", requestOcr);
 document.getElementById("copy").addEventListener("click", () => complete("inline-capture-copy"));
 document.getElementById("pin").addEventListener("click", () => complete("inline-capture-pin"));
 scrollCaptureButton.addEventListener("click", () => complete("inline-capture-scroll"));
 document.getElementById("save").addEventListener("click", () => complete("inline-capture-complete"));
 document.getElementById("ok").addEventListener("click", () => complete("inline-capture-complete"));
 document.getElementById("cancel").addEventListener("click", () => ipcRenderer.send("inline-capture-cancel"));
+ocrCloseButton.addEventListener("click", closeOcrDialog);
+ocrCopyButton.addEventListener("click", () => {
+  if (!ocrText.value.trim()) return;
+  clipboard.writeText(ocrText.value);
+  ocrTip.textContent = "已复制到剪贴板";
+  setStatus("OCR 文字已复制");
+});
+ocrDialog.addEventListener("mousedown", (event) => {
+  if (event.target === ocrDialog) closeOcrDialog();
+});
 
 window.addEventListener("keydown", (event) => {
+  if (ocrDialogOpen) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeOcrDialog();
+    }
+    return;
+  }
   if (activeTextEditor) return;
   if (event.key === "Escape") ipcRenderer.send("inline-capture-cancel");
   const toolFromKey = toolHotkeys[event.key.toLowerCase()];
@@ -1274,6 +1356,10 @@ window.addEventListener("keydown", (event) => {
     event.preventDefault();
     complete("inline-capture-complete");
   }
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "o") {
+    event.preventDefault();
+    requestOcr();
+  }
   if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === "F1") {
     event.preventDefault();
     complete("inline-capture-scroll");
@@ -1289,6 +1375,13 @@ ipcRenderer.on("inline-region-ready", (_event, rect) => enterEditMode(rect));
 ipcRenderer.on("inline-capture-error", () => {
   setStatus("截图失败，请按 Esc 退出后重试");
   document.body.style.cursor = "default";
+});
+ipcRenderer.on("inline-ocr-result", (_event, result) => {
+  ocrInFlight = false;
+  ocrCaptureButton.disabled = false;
+  document.body.style.cursor = tool === "select" ? "default" : "crosshair";
+  setStatus(result.ok ? "OCR 完成，文字已复制" : "OCR 识别失败");
+  openOcrDialog(result);
 });
 ipcRenderer.on("overlay:cursor-point", (_event, point) => {
   if (phase !== "selecting") return;

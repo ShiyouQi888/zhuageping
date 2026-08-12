@@ -7,7 +7,7 @@ export default defineConfig({
     build: {
       outDir: "dist/main",
       rollupOptions: {
-        external: ["sharp"]
+        external: ["sharp", "rapidocrjson"]
       },
       lib: {
         entry: "src/main/main.ts",

@@ -20,6 +20,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
 import sharp from "sharp";
+import OCR from "rapidocrjson";
 
 const execFileAsync = promisify(execFile);
 const APP_NAME = "抓个屏";
@@ -136,6 +137,7 @@ type InlineCapturePayload = {
   region: CaptureRegion;
   annotationDataUrl: string;
   baseDataUrl?: string | null;
+  ocrDataUrl?: string | null;
   privacyDataUrl?: string | null;
   mosaicRegions: PrivacyRegion[];
   blurRegions: PrivacyRegion[];
@@ -144,6 +146,21 @@ type InlineCapturePayload = {
 type InlineCaptureResult = {
   buffer: Buffer;
   action: "save" | "copy" | "pin";
+};
+
+type OcrLine = {
+  text: string;
+  confidence: number;
+  box?: [[number, number], [number, number], [number, number], [number, number]];
+};
+
+type OcrResult = {
+  ok: boolean;
+  text: string;
+  lines: OcrLine[];
+  elapsedMs: number;
+  enginePath?: string;
+  error?: string;
 };
 
 type RegionFrame = {
@@ -187,6 +204,8 @@ let pinWindows: BrowserWindow[] = [];
 let pinWindowStates = new Map<number, PinWindowState>();
 let pinsVisible = true;
 let shortcutCaptureRunning = false;
+let ocrWorker: OCR | null = null;
+let ocrWorkerEnginePath = "";
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 let appSettings: AppSettings = {
   location: "上海市",
@@ -940,6 +959,197 @@ async function captureScreenBuffer(width: number, height: number, display?: Disp
   }
 }
 
+function imageDataUrlToBuffer(dataUrl: string) {
+  const commaIndex = dataUrl.indexOf(",");
+  if (commaIndex < 0) {
+    throw new Error("无效的图片数据。");
+  }
+  return Buffer.from(dataUrl.slice(commaIndex + 1), "base64");
+}
+
+function rapidOcrEngineCandidates() {
+  const resourceRoot = process.resourcesPath || "";
+  return [
+    path.join(resourceRoot, "ocr", "RapidOCR-json", "RapidOCR_json.exe"),
+    path.join(resourceRoot, "ocr", "RapidOCR_json.exe"),
+    path.join(process.cwd(), "build", "ocr", "RapidOCR-json", "RapidOCR_json.exe"),
+    path.join(process.cwd(), "build", "ocr", "RapidOCR_json.exe"),
+    path.join(appRuntimeDir, "ocr", "RapidOCR-json", "RapidOCR_json.exe"),
+    path.join(appRuntimeDir, "ocr-v0.1.0", "RapidOCR-json", "RapidOCR_json.exe")
+  ];
+}
+
+function findRapidOcrEngine() {
+  return rapidOcrEngineCandidates().find((candidate) => fsSync.existsSync(candidate));
+}
+
+function resetOcrWorker() {
+  if (!ocrWorker) return;
+  try {
+    ocrWorker.terminate();
+  } catch (error) {
+    console.warn("RapidOCR worker terminate failed.", error);
+  }
+  ocrWorker = null;
+  ocrWorkerEnginePath = "";
+}
+
+function getOcrWorker(enginePath: string) {
+  if (ocrWorker && ocrWorkerEnginePath === enginePath && ocrWorker.exitCode === null) {
+    return ocrWorker;
+  }
+  resetOcrWorker();
+  ocrWorkerEnginePath = enginePath;
+  const worker = new OCR(enginePath, [], {
+    cwd: path.dirname(enginePath),
+    windowsHide: true
+  } as unknown as OCR.Options);
+  ocrWorker = worker;
+  worker.on("error", (error) => {
+    console.error("RapidOCR worker error.", error);
+    if (ocrWorker === worker) {
+      resetOcrWorker();
+    }
+  });
+  worker.once("exit", () => {
+    if (ocrWorker === worker) {
+      ocrWorker = null;
+      ocrWorkerEnginePath = "";
+    }
+  });
+  return worker;
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function prepareOcrImageBuffer(payload: InlineCapturePayload) {
+  if (payload.ocrDataUrl) {
+    return imageDataUrlToBuffer(payload.ocrDataUrl);
+  }
+  if (payload.baseDataUrl) {
+    return imageDataUrlToBuffer(payload.baseDataUrl);
+  }
+
+  const display = screen.getDisplayMatching({
+    x: Math.round(payload.region.x),
+    y: Math.round(payload.region.y),
+    width: Math.round(payload.region.width),
+    height: Math.round(payload.region.height)
+  });
+  const displayScaleFactor = display.scaleFactor || 1;
+  const width = Math.round(display.size.width * displayScaleFactor);
+  const height = Math.round(display.size.height * displayScaleFactor);
+  const capturedBuffer = await captureScreenBuffer(width, height, display);
+  const metadata = await sharp(capturedBuffer).metadata();
+  const imageWidth = metadata.width ?? width;
+  const imageHeight = metadata.height ?? height;
+  const crop = captureCropFromDisplay(payload.region, display);
+  return sharp(capturedBuffer)
+    .extract(clampExtractRect({ x: crop.left, y: crop.top, width: crop.width, height: crop.height }, imageWidth, imageHeight))
+    .png()
+    .toBuffer();
+}
+
+async function recognizeOcrFromInlinePayload(payload: InlineCapturePayload): Promise<OcrResult> {
+  const startedAt = Date.now();
+  const enginePath = findRapidOcrEngine();
+  if (!enginePath) {
+    return {
+      ok: false,
+      text: "",
+      lines: [],
+      elapsedMs: Date.now() - startedAt,
+      error: "未找到 RapidOCR-json 引擎。请将 RapidOCR_json.exe 和 models 放到 resources/ocr/RapidOCR-json 或 .runtime/ocr-v0.1.0/RapidOCR-json。"
+    };
+  }
+
+  await fs.mkdir(tempCaptureDir, { recursive: true });
+  const tempPath = path.join(tempCaptureDir, `ocr-${crypto.randomUUID()}.png`);
+  try {
+    const inputBuffer = await prepareOcrImageBuffer(payload);
+    const metadata = await sharp(inputBuffer).metadata();
+    const sourceWidth = metadata.width ?? Math.round(payload.region.width);
+    const resizeWidth = sourceWidth > 0 && sourceWidth < 1400 ? Math.min(2200, sourceWidth * 2) : undefined;
+    const preparedBuffer = await sharp(inputBuffer)
+      .resize(resizeWidth ? { width: resizeWidth, withoutEnlargement: false } : undefined)
+      .normalize()
+      .sharpen()
+      .png()
+      .toBuffer();
+    await fs.writeFile(tempPath, preparedBuffer);
+
+    const worker = getOcrWorker(enginePath);
+    const result = await withTimeout(
+      worker.flush({ imagePath: tempPath } as unknown as OCR.Arg),
+      25000,
+      "OCR 识别超时，请稍后重试。"
+    );
+    if (result.code !== 100) {
+      return {
+        ok: false,
+        text: "",
+        lines: [],
+        elapsedMs: Date.now() - startedAt,
+        enginePath,
+        error: result.message || `OCR 识别失败，错误码：${result.code}`
+      };
+    }
+
+    const lines = [...(result.data ?? [])]
+      .filter((line) => line.text?.trim())
+      .sort((a, b) => {
+        const ay = a.box.reduce((sum, point) => sum + point[1], 0) / 4;
+        const by = b.box.reduce((sum, point) => sum + point[1], 0) / 4;
+        if (Math.abs(ay - by) > 12) return ay - by;
+        const ax = a.box.reduce((sum, point) => sum + point[0], 0) / 4;
+        const bx = b.box.reduce((sum, point) => sum + point[0], 0) / 4;
+        return ax - bx;
+      })
+      .map((line) => ({
+        text: line.text.trim(),
+        confidence: line.score,
+        box: line.box
+      }));
+    const text = lines.map((line) => line.text).join("\n");
+    if (text) {
+      clipboard.writeText(text);
+    }
+    return {
+      ok: true,
+      text,
+      lines,
+      elapsedMs: Date.now() - startedAt,
+      enginePath
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("超时")) {
+      resetOcrWorker();
+    }
+    return {
+      ok: false,
+      text: "",
+      lines: [],
+      elapsedMs: Date.now() - startedAt,
+      enginePath,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  } finally {
+    await fs.rm(tempPath, { force: true });
+  }
+}
+
 async function selectScreenRegionOnly(selectionHint: string): Promise<CaptureRegion | null> {
   return new Promise((resolve) => {
     const editorPath = overlayEditorHtmlPath();
@@ -1138,6 +1348,7 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
     let resolved = false;
     let preparingCapture = false;
     let preparingPreview = false;
+    let preparingOcr = false;
 
     const buildCompositeBuffer = async (payload: InlineCapturePayload) => {
       overlays.forEach(({ overlay }) => {
@@ -1273,6 +1484,7 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
       ipcMain.removeListener("inline-capture-copy", onCopy);
       ipcMain.removeListener("inline-capture-pin", onPin);
       ipcMain.removeListener("inline-capture-scroll", onScroll);
+      ipcMain.removeListener("inline-capture-ocr", onOcr);
       ipcMain.removeListener("inline-capture-cancel", onCancel);
       ipcMain.removeListener("inline-region-selected", onRegionSelected);
       ipcMain.removeListener("overlay:ready", onOverlayReady);
@@ -1379,6 +1591,33 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
       }
     };
 
+    const onOcr = async (event: Electron.IpcMainEvent, payload: InlineCapturePayload) => {
+      if (preparingCapture || preparingPreview || preparingOcr || resolved || event.sender.isDestroyed()) {
+        return;
+      }
+      preparingOcr = true;
+      try {
+        const result = await recognizeOcrFromInlinePayload(payload);
+        if (!event.sender.isDestroyed()) {
+          event.sender.send("inline-ocr-result", result);
+        }
+        mainWindow?.webContents.send("app:status", result.ok ? "OCR 识别完成，文字已复制" : result.error || "OCR 识别失败");
+      } catch (error) {
+        const result: OcrResult = {
+          ok: false,
+          text: "",
+          lines: [],
+          elapsedMs: 0,
+          error: error instanceof Error ? error.message : String(error)
+        };
+        if (!event.sender.isDestroyed()) {
+          event.sender.send("inline-ocr-result", result);
+        }
+      } finally {
+        preparingOcr = false;
+      }
+    };
+
     const onCancel = () => finish(null);
 
     const onOverlayReady = (event: Electron.IpcMainEvent) => {
@@ -1446,6 +1685,7 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
     ipcMain.once("inline-capture-copy", onCopy);
     ipcMain.once("inline-capture-pin", onPin);
     ipcMain.on("inline-capture-scroll", onScroll);
+    ipcMain.on("inline-capture-ocr", onOcr);
     ipcMain.once("inline-capture-cancel", onCancel);
     ipcMain.on("inline-region-selected", onRegionSelected);
     ipcMain.on("overlay:ready", onOverlayReady);
@@ -2342,4 +2582,5 @@ app.on("activate", () => {
 
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
+  resetOcrWorker();
 });

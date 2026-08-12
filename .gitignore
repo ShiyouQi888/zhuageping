@@ -3,6 +3,7 @@ dist
 data
 screenshots
 .runtime
+build/ocr
 release
 work
 *.log

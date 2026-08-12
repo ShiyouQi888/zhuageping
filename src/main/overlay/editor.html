@@ -80,6 +80,7 @@
 
       <div class="toolbar-section output-tools" aria-label="完成操作">
         <button id="undo" title="撤销 Ctrl+Z"><svg viewBox="0 0 24 24"><path d="M9 7H4v5"/><path d="M4 12a8 8 0 1 0 3-6"/></svg></button>
+        <button id="ocrCapture" title="OCR 识别并复制 Ctrl+Shift+O"><svg viewBox="0 0 24 24"><path d="M5 8V6a1 1 0 0 1 1-1h2"/><path d="M16 5h2a1 1 0 0 1 1 1v2"/><path d="M19 16v2a1 1 0 0 1-1 1h-2"/><path d="M8 19H6a1 1 0 0 1-1-1v-2"/><path d="M8 10h8"/><path d="M10 10v6"/><path d="M14 10v6"/><path d="M8 16h8"/></svg></button>
         <button id="copy" title="复制 Ctrl+C"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg></button>
         <button id="pin" title="贴图 F3"><svg viewBox="0 0 24 24"><path d="M9 4h6"/><path d="M12 4v7"/><path d="M7 11h10l-2 5H9z"/><path d="M12 16v5"/></svg></button>
         <button id="save" title="保存 Ctrl+S"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></button>
@@ -112,7 +113,23 @@
 
     <div id="bootFlash"></div>
     <div id="status">拖动选择截图区域</div>
-    <div id="help">V 选择 · R 矩形 · T 文字 · M 马赛克 · U 模糊 · Ctrl+Shift+F1 滚动截图 · F3 贴图 · Esc 取消 · Ctrl+C 复制 · Enter 完成</div>
+    <div id="help">V 选择 · R 矩形 · T 文字 · M 马赛克 · U 模糊 · Ctrl+Shift+O OCR · Ctrl+Shift+F1 滚动截图 · F3 贴图 · Esc 取消 · Ctrl+C 复制 · Enter 完成</div>
+    <div id="ocrDialog" aria-modal="true" role="dialog" aria-labelledby="ocrTitle">
+      <div class="ocr-card">
+        <div class="ocr-header">
+          <div>
+            <strong id="ocrTitle">OCR 识别结果</strong>
+            <span id="ocrMeta">准备就绪</span>
+          </div>
+          <button id="ocrClose" title="关闭 OCR 结果"><svg viewBox="0 0 24 24"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg></button>
+        </div>
+        <textarea id="ocrText" readonly spellcheck="false" placeholder="未识别到文字"></textarea>
+        <div class="ocr-footer">
+          <span id="ocrTip">识别成功后会自动复制到剪贴板</span>
+          <button id="ocrCopy" class="text-button">复制文字</button>
+        </div>
+      </div>
+    </div>
     <script src="./editor.js"></script>
   </body>
 </html>
