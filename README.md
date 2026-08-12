@@ -31,18 +31,19 @@
 
 当前版本：
 
-- 版本：`0.1.5`
+- 版本：`0.1.6`
 - 平台：Windows x64
-- 安装包：`zhuageping-Setup-0.1.5-x64.exe`
-- SHA256：`30241A8E305FBF49AB11C981406723156C6F012CBD8531B1EDFAC14C4D180551`
-- Release：[抓个屏 v0.1.5](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.5)
+- 安装包：`zhuageping-Setup-0.1.6-x64.exe`
+- SHA256：`1CAA6253383CB2B7F47B618E60D893424AC84717FA4D9BE765A5279608E4D378`
+- Release：[抓个屏 v0.1.6](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.6)
 
 说明：当前安装包暂未购买商业代码签名证书。安装时 Windows 可能提示未知发布者，这是未签名安装包的正常现象，不代表软件连接云端或上传数据。
 
 ## 最新功能
 
-`v0.1.5` 重点更新：
+`v0.1.6` 重点更新：
 
+- Windows 首选项快捷键显示统一为 `Ctrl`，不再显示 `CommandOrControl`。
 - 新增当前截图区域 OCR：在截图编辑工具栏点击 OCR，或按 `Ctrl+Shift+O`，即可识别选区文字。
 - OCR 自动复制：识别成功后文字会自动写入系统剪贴板。
 - OCR 结果弹窗：识别完成后在截图浮层内弹出结果窗口，可查看、选择和再次复制文字。
@@ -368,8 +369,8 @@ npm run dist
 生成文件示例：
 
 ```text
-release/zhuageping-Setup-0.1.5-x64.exe
-release/zhuageping-Setup-0.1.5-x64.exe.blockmap
+release/zhuageping-Setup-0.1.6-x64.exe
+release/zhuageping-Setup-0.1.6-x64.exe.blockmap
 release/win-unpacked/
 ```
 
