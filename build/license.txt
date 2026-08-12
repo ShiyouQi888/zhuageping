@@ -1,9 +1,0 @@
-抓个屏
-
-Copyright (c) 2026 齐世有. All rights reserved.
-
-作者：齐世有
-邮箱：blacklaw@foxmail.com
-
-本软件为 Windows 本地截图、贴图与水印工具。
-未经作者书面许可，不得反向工程、复制、修改、分发或用于其他商业再发布用途。

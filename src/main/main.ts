@@ -16,7 +16,7 @@ import path from "node:path";
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
-import { execFile } from "node:child_process";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
 import sharp from "sharp";
@@ -205,6 +205,10 @@ let pinWindows: BrowserWindow[] = [];
 let pinWindowStates = new Map<number, PinWindowState>();
 let pinsVisible = true;
 let shortcutCaptureRunning = false;
+let hotkeyGuardProcess: ChildProcess | null = null;
+let hotkeyGuardRestartTimer: NodeJS.Timeout | null = null;
+let hotkeyGuardOutputBuffer = "";
+let hotkeyGuardIntentionalStop = false;
 let ocrWorker: OCR | null = null;
 let ocrWorkerEnginePath = "";
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
@@ -253,6 +257,9 @@ const mainMessages = {
     },
     status: {
       shortcutFailed: (accelerator: string) => `快捷键注册失败：${accelerator}`,
+      hotkeyGuardReady: "快捷键增强已启用",
+      hotkeyGuardUnavailable: "快捷键增强未启用，已使用系统全局热键兜底",
+      hotkeyGuardStopped: "快捷键增强已停止，正在尝试恢复",
       scrollSelect: "拖动选择要滚动截取的区域",
       scrollHint: "拖动选择长截图区域，单击可选中窗口",
       scrollPreparing: "正在准备滚动截图...",
@@ -313,6 +320,9 @@ const mainMessages = {
     },
     status: {
       shortcutFailed: (accelerator: string) => `Shortcut registration failed: ${accelerator}`,
+      hotkeyGuardReady: "Shortcut guard enabled",
+      hotkeyGuardUnavailable: "Shortcut guard unavailable; using system global shortcuts as fallback",
+      hotkeyGuardStopped: "Shortcut guard stopped, trying to recover",
       scrollSelect: "Drag to select the scrolling capture region",
       scrollHint: "Drag to select a scrolling capture region, or click to select a window",
       scrollPreparing: "Preparing scrolling capture...",
@@ -364,12 +374,12 @@ function createWindow() {
   Menu.setApplicationMenu(null);
 
   mainWindow = new BrowserWindow({
-    width: 468,
-    height: 476,
+    width: 540,
+    height: 500,
     minWidth: 468,
     minHeight: 476,
-    maxWidth: 520,
-    maxHeight: 600,
+    maxWidth: 620,
+    maxHeight: 640,
     resizable: false,
     maximizable: false,
     frame: false,
@@ -646,6 +656,7 @@ async function writeSettings(settings: AppSettings) {
   mainWindow?.setTitle(`${APP_NAME} ${mt().preferences}`);
   syncLoginItemSettings();
   registerGlobalShortcuts();
+  startHotkeyGuard();
   updateTrayMenu();
 }
 
@@ -752,6 +763,144 @@ function registerGlobalShortcuts() {
       }
     }
   }
+}
+
+function hotkeyGuardPath() {
+  const fileName = "ZhuagepingHotkeyGuard.exe";
+  const packagedPath = path.join(process.resourcesPath, "hotkey", fileName);
+  if (app.isPackaged) {
+    return packagedPath;
+  }
+
+  const builtPath = path.join(process.cwd(), "build", "hotkey", fileName);
+  if (fsSync.existsSync(builtPath)) {
+    return builtPath;
+  }
+
+  return packagedPath;
+}
+
+function hotkeyGuardConfigArg() {
+  const payload = {
+    shortcutCapture: appSettings.shortcutCapture,
+    shortcutCaptureCopy: appSettings.shortcutCaptureCopy,
+    shortcutArea: appSettings.shortcutArea,
+    shortcutScrollCapture: appSettings.shortcutScrollCapture,
+    shortcutPin: appSettings.shortcutPin,
+    shortcutTogglePins: appSettings.shortcutTogglePins
+  };
+  return Buffer.from(JSON.stringify(payload), "utf8").toString("base64");
+}
+
+function handleHotkeyGuardAction(action: string) {
+  switch (action) {
+    case "capture":
+    case "area":
+      runShortcutCapture(appSettings.autoCopy);
+      break;
+    case "capture-copy":
+      runShortcutCapture(true);
+      break;
+    case "scroll":
+      runShortcutScrollCapture(appSettings.autoCopy);
+      break;
+    case "pin":
+      void pinLatestScreenshot();
+      break;
+    case "toggle-pins":
+      togglePinWindows();
+      break;
+    case "ready":
+      if (!app.isPackaged) {
+        console.info("Hotkey guard ready");
+      }
+      mainWindow?.webContents.send("app:status", mt().status.hotkeyGuardReady);
+      break;
+    default:
+      if (action.startsWith("error:")) {
+        console.warn(`Hotkey guard ${action}`);
+        mainWindow?.webContents.send("app:status", mt().status.hotkeyGuardUnavailable);
+      }
+      break;
+  }
+}
+
+function stopHotkeyGuard() {
+  hotkeyGuardIntentionalStop = true;
+  if (hotkeyGuardRestartTimer) {
+    clearTimeout(hotkeyGuardRestartTimer);
+    hotkeyGuardRestartTimer = null;
+  }
+
+  const child = hotkeyGuardProcess;
+  hotkeyGuardProcess = null;
+  if (child && !child.killed) {
+    child.kill();
+  }
+}
+
+function startHotkeyGuard() {
+  if (process.platform !== "win32") {
+    return;
+  }
+
+  stopHotkeyGuard();
+  hotkeyGuardIntentionalStop = false;
+  hotkeyGuardOutputBuffer = "";
+
+  const guardPath = hotkeyGuardPath();
+  if (!fsSync.existsSync(guardPath)) {
+    if (!app.isPackaged) {
+      console.warn(`Hotkey guard not found: ${guardPath}`);
+    }
+    mainWindow?.webContents.send("app:status", mt().status.hotkeyGuardUnavailable);
+    return;
+  }
+
+  const child = spawn(guardPath, [hotkeyGuardConfigArg()], {
+    windowsHide: true,
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  hotkeyGuardProcess = child;
+
+  child.stdout.on("data", (chunk: Buffer) => {
+    hotkeyGuardOutputBuffer += chunk.toString("utf8");
+    const lines = hotkeyGuardOutputBuffer.split(/\r?\n/);
+    hotkeyGuardOutputBuffer = lines.pop() ?? "";
+    for (const line of lines) {
+      const action = line.trim();
+      if (action) {
+        handleHotkeyGuardAction(action);
+      }
+    }
+  });
+
+  child.stderr.on("data", (chunk: Buffer) => {
+    const message = chunk.toString("utf8").trim();
+    if (message) {
+      console.warn(`Hotkey guard stderr: ${message}`);
+    }
+  });
+
+  child.on("error", (error) => {
+    console.warn(`Hotkey guard failed to start: ${error.message}`);
+    mainWindow?.webContents.send("app:status", mt().status.hotkeyGuardUnavailable);
+  });
+
+  child.on("exit", (code, signal) => {
+    if (hotkeyGuardProcess === child) {
+      hotkeyGuardProcess = null;
+    }
+    if (hotkeyGuardIntentionalStop || isQuitting) {
+      return;
+    }
+    console.warn(`Hotkey guard exited: code=${code ?? "null"} signal=${signal ?? "null"}`);
+    mainWindow?.webContents.send("app:status", mt().status.hotkeyGuardStopped);
+    hotkeyGuardRestartTimer = setTimeout(() => {
+      hotkeyGuardRestartTimer = null;
+      startHotkeyGuard();
+    }, 1200);
+  });
 }
 
 async function backupLocalData() {
@@ -2662,6 +2811,7 @@ app.whenReady().then(async () => {
   createWindow();
   await createTray();
   registerGlobalShortcuts();
+  startHotkeyGuard();
   registerPinWindowIpc();
   const initialProtocolUrl = process.argv.find((argument) => argument.toLowerCase().startsWith(`${APP_PROTOCOL}://`));
   if (initialProtocolUrl) {
@@ -2742,6 +2892,7 @@ app.on("activate", () => {
 });
 
 app.on("will-quit", () => {
+  stopHotkeyGuard();
   globalShortcut.unregisterAll();
   resetOcrWorker();
 });

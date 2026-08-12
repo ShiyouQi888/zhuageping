@@ -97,9 +97,10 @@ export function App() {
   async function saveSettings(nextSettings: AppSettings) {
     setSettings(nextSettings);
     const savedSettings = await window.screenshotApp.updateSettings(nextSettings);
-    setSettings({ ...savedSettings, language: normalizeLanguage(savedSettings.language) });
+    const savedLanguage = normalizeLanguage(savedSettings.language);
+    setSettings({ ...savedSettings, language: savedLanguage });
     setStoragePaths((current) => (current ? { ...current, screenshotDir: savedSettings.screenshotDir } : current));
-    setStatus(t.status.settingsSaved);
+    setStatus(messages[savedLanguage].status.settingsSaved);
   }
 
   function updateSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {

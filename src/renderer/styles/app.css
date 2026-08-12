@@ -191,16 +191,20 @@ input[type="checkbox"] {
 }
 
 .tabs button {
-  min-width: 55px;
+  flex: 1 1 0;
+  min-width: 0;
   height: 36px;
-  padding: 0 11px;
+  padding: 0 6px;
   background: transparent;
   border: 0;
   border-radius: 7px 7px 0 0;
   box-shadow: none;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 800;
   color: #59362e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tabs button.active {
@@ -214,7 +218,7 @@ input[type="checkbox"] {
   flex-direction: column;
   gap: 10px;
   min-height: 0;
-  padding: 14px 22px;
+  padding: 14px 20px;
   overflow: auto;
   background: var(--surface);
 }
@@ -226,6 +230,12 @@ input[type="checkbox"] {
   gap: 6px;
   font-size: 14px;
   font-weight: 700;
+  min-width: 0;
+}
+
+.field-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .field-row.stacked {
@@ -239,6 +249,7 @@ input[type="checkbox"] {
 
 .field-row input {
   width: 100%;
+  min-width: 0;
 }
 
 .checkbox-grid {
@@ -277,11 +288,22 @@ legend {
   display: flex;
   gap: 8px;
   margin-top: 8px;
+  min-width: 0;
 }
 
 .action-grid {
   margin: 0 0 4px;
   flex-wrap: wrap;
+}
+
+.button-row button,
+.action-grid button {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.action-grid button {
+  flex: 0 1 auto;
 }
 
 .shortcut-list {
@@ -294,7 +316,7 @@ legend {
 
 .shortcut-item {
   display: grid;
-  grid-template-columns: minmax(118px, 0.9fr) minmax(0, 1.35fr);
+  grid-template-columns: minmax(150px, 1fr) minmax(140px, 1.1fr);
   align-items: center;
   gap: 12px;
   min-height: 29px;
@@ -302,6 +324,11 @@ legend {
   border-bottom: 1px solid var(--line);
   font-size: 14px;
   font-weight: 700;
+}
+
+.shortcut-item span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .shortcut-item:last-child {
@@ -335,6 +362,13 @@ legend {
   font-size: 14px;
   line-height: 22px;
   box-shadow: var(--shadow-sm);
+  min-width: 0;
+}
+
+.note-box span,
+.about-copy span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .about-box {
@@ -432,16 +466,22 @@ legend {
 
 .footer {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   min-height: 45px;
-  padding: 6px 22px;
+  padding: 6px 20px;
   background: linear-gradient(180deg, #ffffff 0%, #f8fbfa 100%);
   border-top: 1px solid var(--line);
 }
 
+.footer button {
+  min-width: 0;
+  white-space: nowrap;
+}
+
 .footer span {
+  min-width: 0;
   overflow: hidden;
   color: var(--muted);
   font-size: 12px;

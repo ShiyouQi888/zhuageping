@@ -173,7 +173,7 @@ export const messages = {
       open: "Open",
       openFolder: "Open Folder",
       change: "Change",
-      restoreDefaults: "Restore Defaults",
+      restoreDefaults: "Reset",
       help: "Help"
     },
     status: {
@@ -245,8 +245,8 @@ export const messages = {
     } satisfies Record<WatermarkPosition, string>,
     pin: {
       title: "Pin",
-      line1: "Press F3 to pin the latest screenshot. Press Shift+F3 to show or hide all pins.",
-      line2: "Pinned images can be moved, resized, faded, copied, opened, and closed with Esc.",
+      line1: "F3 pins the latest screenshot. Shift+F3 shows or hides all pins.",
+      line2: "Move, resize, fade, copy, open, or close pins with Esc.",
       pinLatest: "Pin Latest",
       togglePins: "Show/Hide All Pins",
       autoPin: "Auto pin captures to desktop"

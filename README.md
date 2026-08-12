@@ -31,25 +31,24 @@
 
 当前版本：
 
-- 版本：`0.1.6`
+- 版本：`0.1.7`
 - 平台：Windows x64
-- 安装包：`zhuageping-Setup-0.1.6-x64.exe`
-- SHA256：`1CAA6253383CB2B7F47B618E60D893424AC84717FA4D9BE765A5279608E4D378`
-- Release：[抓个屏 v0.1.6](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.6)
+- 安装包：`zhuageping-Setup-0.1.7-x64.exe`
+- SHA256：`1AE01791278233718116CBA3DD59BDACFC547DEF772E90921CBF30CCBA1313ED`
+- Release：[抓个屏 v0.1.7](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.7)
 
 说明：当前安装包暂未购买商业代码签名证书。安装时 Windows 可能提示未知发布者，这是未签名安装包的正常现象，不代表软件连接云端或上传数据。
 
 ## 最新功能
 
-`v0.1.6` 重点更新：
+`v0.1.7` 重点更新：
 
-- Windows 首选项快捷键显示统一为 `Ctrl`，不再显示 `CommandOrControl`。
-- 新增当前截图区域 OCR：在截图编辑工具栏点击 OCR，或按 `Ctrl+Shift+O`，即可识别选区文字。
-- OCR 自动复制：识别成功后文字会自动写入系统剪贴板。
-- OCR 结果弹窗：识别完成后在截图浮层内弹出结果窗口，可查看、选择和再次复制文字。
-- 内置 RapidOCR-json：安装包已打入 `RapidOCR_json.exe` 和 OCR 模型文件，用户安装后即可使用，不需要额外下载模型。
-- OCR 本地运行：识别过程不上传图片，不需要账号，不依赖网络。
-- 打包流程增强：发行版会自动携带 OCR 资源，避免用户手动配置模型。
+- 安装器新增语言选择：安装开始前可选择简体中文或 English。
+- 安装协议多语言：许可协议会跟随安装语言显示中文或英文。
+- 英文界面适配：优化首选项窗口尺寸、标签栏、按钮、状态栏和长文本显示，减少英文截断。
+- F1 快捷键增强：新增 Windows 热键守护，优先拦截 F1 触发截图，降低与浏览器 F1 帮助冲突。
+- 打包流程增强：发行版会自动携带 OCR 资源和热键守护组件。
+- 继续保留当前截图区域 OCR、自动复制、结果弹窗和本地模型内置能力。
 
 ## 核心功能
 
@@ -350,8 +349,9 @@ scripts/
 安装包由 `electron-builder` 生成，当前配置包含：
 
 - Windows NSIS 安装器。
+- 安装器中英文语言选择。
+- 中英文安装许可协议。
 - 应用图标。
-- 安装协议。
 - 桌面快捷方式。
 - 开始菜单快捷方式。
 - `zhuageping://` 协议注册。
@@ -359,6 +359,7 @@ scripts/
 - Sharp 原生依赖解包配置。
 - RapidOCR-json Node 依赖解包配置。
 - RapidOCR-json exe 和模型资源打包配置。
+- Windows 热键守护组件打包配置。
 
 打包命令：
 
@@ -369,8 +370,8 @@ npm run dist
 生成文件示例：
 
 ```text
-release/zhuageping-Setup-0.1.6-x64.exe
-release/zhuageping-Setup-0.1.6-x64.exe.blockmap
+release/zhuageping-Setup-0.1.7-x64.exe
+release/zhuageping-Setup-0.1.7-x64.exe.blockmap
 release/win-unpacked/
 ```
 
@@ -388,6 +389,7 @@ release/win-unpacked/
 
 - 退出托盘中的抓个屏后重新打开。
 - 在首选项中修改快捷键。
+- 如果当前浏览器或业务软件以管理员身份运行，请在抓个屏中使用“以管理员身份重启”。
 - 检查是否同时运行了开发版和安装版。
 
 ### OCR 无法使用

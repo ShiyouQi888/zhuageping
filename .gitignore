@@ -4,6 +4,9 @@ data
 screenshots
 .runtime
 build/ocr
+build/hotkey
+native/**/bin
+native/**/obj
 release
 work
 *.log
