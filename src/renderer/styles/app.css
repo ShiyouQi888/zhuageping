@@ -83,6 +83,12 @@ button.primary {
   box-shadow: 0 8px 18px rgba(233, 54, 34, 0.24);
 }
 
+button:disabled {
+  cursor: default;
+  opacity: 0.62;
+  transform: none;
+}
+
 input,
 select {
   height: 28px;
@@ -283,12 +289,93 @@ legend {
   font-weight: 800;
 }
 
+.update-panel {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 247, 239, 0.98) 100%),
+    var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+}
+
+.update-panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.update-panel-header strong {
+  color: var(--brand-strong);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.update-panel-header span,
+.update-panel p {
+  min-width: 0;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.update-meta {
+  display: grid;
+  grid-template-columns: auto minmax(58px, 1fr) auto minmax(58px, 1fr);
+  gap: 6px 8px;
+  align-items: center;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.update-meta span {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.update-meta strong {
+  min-width: 0;
+  color: var(--text);
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-progress {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  background: #f4d8c9;
+  border-radius: 999px;
+}
+
+.update-progress span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: linear-gradient(90deg, var(--brand) 0%, var(--accent) 100%);
+  border-radius: inherit;
+  transition: width 160ms ease-out;
+}
+
 .button-row,
 .action-grid {
   display: flex;
   gap: 8px;
   margin-top: 8px;
   min-width: 0;
+}
+
+.button-row.compact {
+  margin-top: 8px;
 }
 
 .action-grid {

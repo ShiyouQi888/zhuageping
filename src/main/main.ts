@@ -21,6 +21,7 @@ import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
 import sharp from "sharp";
 import OCR from "rapidocrjson";
+import { autoUpdater } from "electron-updater";
 
 const execFileAsync = promisify(execFile);
 const APP_NAME = "抓个屏";
@@ -149,6 +150,14 @@ type InlineCaptureResult = {
   action: "save" | "copy" | "pin";
 };
 
+type AppUpdateStatus = {
+  state: "idle" | "checking" | "available" | "not-available" | "downloading" | "downloaded" | "error" | "disabled";
+  message: string;
+  currentVersion: string;
+  latestVersion?: string;
+  percent?: number;
+};
+
 type OcrLine = {
   text: string;
   confidence: number;
@@ -173,6 +182,10 @@ type RegionFrame = {
 };
 
 type DisplayLike = Pick<Electron.Display, "bounds" | "size" | "scaleFactor" | "id">;
+
+function getCursorDisplay() {
+  return screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+}
 
 type PinWindowState = {
   filePath: string;
@@ -211,6 +224,10 @@ let hotkeyGuardOutputBuffer = "";
 let hotkeyGuardIntentionalStop = false;
 let ocrWorker: OCR | null = null;
 let ocrWorkerEnginePath = "";
+let updaterReady = false;
+let updateCheckInProgress = false;
+let updateDownloaded = false;
+let downloadedUpdateVersion = "";
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 let appSettings: AppSettings = {
   location: "上海市",
@@ -251,6 +268,7 @@ const mainMessages = {
       switchPinGroup: "切换到另一贴图组",
       clearHistory: "清空截屏历史",
       preferences: "首选项...",
+      checkForUpdates: "检查更新...",
       help: "帮助",
       restart: "重新启动",
       quit: "退出"
@@ -275,7 +293,14 @@ const mainMessages = {
       pinLockedResize: "贴图已锁定，无法缩放",
       pinLockedReset: "贴图已锁定，无法重置大小",
       pinSaved: "贴图已保存",
-      pinCopied: "贴图已复制"
+      pinCopied: "贴图已复制",
+      checkingUpdate: "正在检查更新...",
+      updateAvailable: (version: string) => `发现新版本：${version}，正在下载`,
+      updateNotAvailable: "当前已是最新版本",
+      updateDownloading: (percent: number) => `正在下载更新：${percent}%`,
+      updateDownloaded: (version: string) => `新版 ${version} 已下载，重启后安装`,
+      updateDisabled: "开发环境不检查更新，请在安装版中测试",
+      updateError: (message: string) => `检查更新失败：${message}`
     },
     dialog: {
       scrollSelectionTitle: "滚动截图选区",
@@ -283,7 +308,11 @@ const mainMessages = {
       pinTitle: "贴图",
       savePin: "保存贴图",
       imageFilter: "图片",
-      chooseScreenshotDir: "选择截图保存目录"
+      chooseScreenshotDir: "选择截图保存目录",
+      updateReadyTitle: "更新已准备好",
+      updateReadyMessage: (version: string) => `抓个屏 ${version} 已下载完成。现在重启并安装吗？`,
+      restartNow: "立即重启",
+      later: "稍后"
     },
     pinMenu: {
       unlock: "解除锁定",
@@ -314,6 +343,7 @@ const mainMessages = {
       switchPinGroup: "Switch Pin Group",
       clearHistory: "Clear Screenshot History",
       preferences: "Preferences...",
+      checkForUpdates: "Check for Updates...",
       help: "Help",
       restart: "Restart",
       quit: "Quit"
@@ -338,7 +368,14 @@ const mainMessages = {
       pinLockedResize: "Pin is locked and cannot be resized",
       pinLockedReset: "Pin is locked and cannot reset size",
       pinSaved: "Pin saved",
-      pinCopied: "Pin copied"
+      pinCopied: "Pin copied",
+      checkingUpdate: "Checking for updates...",
+      updateAvailable: (version: string) => `New version found: ${version}. Downloading...`,
+      updateNotAvailable: "You are on the latest version",
+      updateDownloading: (percent: number) => `Downloading update: ${percent}%`,
+      updateDownloaded: (version: string) => `Version ${version} downloaded. Restart to install`,
+      updateDisabled: "Update checks run in packaged builds only",
+      updateError: (message: string) => `Update check failed: ${message}`
     },
     dialog: {
       scrollSelectionTitle: "Scrolling Capture Region",
@@ -346,7 +383,11 @@ const mainMessages = {
       pinTitle: "Pin",
       savePin: "Save Pin",
       imageFilter: "Images",
-      chooseScreenshotDir: "Choose Screenshot Folder"
+      chooseScreenshotDir: "Choose Screenshot Folder",
+      updateReadyTitle: "Update Ready",
+      updateReadyMessage: (version: string) => `Zhuageping ${version} has been downloaded. Restart and install now?`,
+      restartNow: "Restart Now",
+      later: "Later"
     },
     pinMenu: {
       unlock: "Unlock Pin",
@@ -586,6 +627,12 @@ function updateTrayMenu() {
           mainWindow?.webContents.send("app:open-preferences");
         }
       },
+      {
+        label: mt().tray.checkForUpdates,
+        click: () => {
+          void checkForAppUpdates(true);
+        }
+      },
       { label: mt().tray.help, enabled: false },
       { type: "separator" },
       {
@@ -658,6 +705,123 @@ async function writeSettings(settings: AppSettings) {
   registerGlobalShortcuts();
   startHotkeyGuard();
   updateTrayMenu();
+}
+
+function sendUpdateStatus(status: AppUpdateStatus) {
+  mainWindow?.webContents.send("app:update-status", status);
+  mainWindow?.webContents.send("app:status", status.message);
+}
+
+function buildUpdateStatus(
+  state: AppUpdateStatus["state"],
+  message: string,
+  details: Omit<AppUpdateStatus, "state" | "message" | "currentVersion"> = {}
+): AppUpdateStatus {
+  return {
+    state,
+    message,
+    currentVersion: app.getVersion(),
+    ...details
+  };
+}
+
+function showDownloadedUpdateDialog(version: string) {
+  const options: Electron.MessageBoxOptions = {
+    type: "info",
+    buttons: [mt().dialog.restartNow, mt().dialog.later],
+    defaultId: 0,
+    cancelId: 1,
+    title: mt().dialog.updateReadyTitle,
+    message: mt().dialog.updateReadyMessage(version)
+  };
+  const owner = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+  const prompt = owner ? dialog.showMessageBox(owner, options) : dialog.showMessageBox(options);
+  void prompt.then(({ response }) => {
+    if (response === 0) {
+      installDownloadedUpdate();
+    }
+  });
+}
+
+function setupAutoUpdater() {
+  if (updaterReady) {
+    return;
+  }
+  updaterReady = true;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on("checking-for-update", () => {
+    updateCheckInProgress = true;
+    sendUpdateStatus(buildUpdateStatus("checking", mt().status.checkingUpdate));
+  });
+  autoUpdater.on("update-available", (info) => {
+    updateDownloaded = false;
+    downloadedUpdateVersion = "";
+    sendUpdateStatus(buildUpdateStatus("available", mt().status.updateAvailable(info.version), { latestVersion: info.version }));
+  });
+  autoUpdater.on("download-progress", (progress) => {
+    const percent = Math.max(0, Math.min(100, Math.round(progress.percent || 0)));
+    sendUpdateStatus(buildUpdateStatus("downloading", mt().status.updateDownloading(percent), { percent }));
+  });
+  autoUpdater.on("update-not-available", (info) => {
+    updateCheckInProgress = false;
+    sendUpdateStatus(buildUpdateStatus("not-available", mt().status.updateNotAvailable, { latestVersion: info.version }));
+  });
+  autoUpdater.on("update-downloaded", (info) => {
+    updateCheckInProgress = false;
+    updateDownloaded = true;
+    downloadedUpdateVersion = info.version;
+    sendUpdateStatus(buildUpdateStatus("downloaded", mt().status.updateDownloaded(info.version), { latestVersion: info.version }));
+    showDownloadedUpdateDialog(info.version);
+  });
+  autoUpdater.on("error", (error) => {
+    updateCheckInProgress = false;
+    const message = error instanceof Error ? error.message : String(error);
+    sendUpdateStatus(buildUpdateStatus("error", mt().status.updateError(message)));
+  });
+}
+
+async function checkForAppUpdates(manual = false): Promise<AppUpdateStatus> {
+  if (!app.isPackaged) {
+    const status = buildUpdateStatus("disabled", mt().status.updateDisabled);
+    if (manual) {
+      sendUpdateStatus(status);
+    }
+    return status;
+  }
+  setupAutoUpdater();
+  if (updateDownloaded) {
+    const version = downloadedUpdateVersion || app.getVersion();
+    const status = buildUpdateStatus("downloaded", mt().status.updateDownloaded(version), { latestVersion: version });
+    sendUpdateStatus(status);
+    return status;
+  }
+  if (updateCheckInProgress) {
+    const status = buildUpdateStatus("checking", mt().status.checkingUpdate);
+    sendUpdateStatus(status);
+    return status;
+  }
+  try {
+    updateCheckInProgress = true;
+    const result = await autoUpdater.checkForUpdates();
+    const latestVersion = result?.updateInfo.version;
+    return buildUpdateStatus("checking", mt().status.checkingUpdate, latestVersion ? { latestVersion } : {});
+  } catch (error) {
+    updateCheckInProgress = false;
+    const message = error instanceof Error ? error.message : String(error);
+    const status = buildUpdateStatus("error", mt().status.updateError(message));
+    sendUpdateStatus(status);
+    return status;
+  }
+}
+
+function installDownloadedUpdate() {
+  if (!updateDownloaded) {
+    sendUpdateStatus(buildUpdateStatus("idle", mt().status.updateNotAvailable));
+    return;
+  }
+  isQuitting = true;
+  autoUpdater.quitAndInstall(false, true);
 }
 
 function normalizeWindowsShortcut(accelerator: string) {
@@ -1461,7 +1625,7 @@ async function recognizeOcrFromInlinePayload(payload: InlineCapturePayload): Pro
 async function selectScreenRegionOnly(selectionHint: string): Promise<CaptureRegion | null> {
   return new Promise((resolve) => {
     const editorPath = overlayEditorHtmlPath();
-    const displays = screen.getAllDisplays();
+    const displays = [getCursorDisplay()];
     const selectionChannel = `scroll-region-selected-${crypto.randomUUID()}`;
     const overlays = displays.map((display) => {
       const overlay = new BrowserWindow({
@@ -1587,7 +1751,7 @@ async function selectScreenRegionOnly(selectionHint: string): Promise<CaptureReg
 async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
   return new Promise((resolve) => {
     const editorPath = overlayEditorHtmlPath();
-    const displays = screen.getAllDisplays();
+    const displays = [getCursorDisplay()];
     const captureDisplayDataUrl = async (display: DisplayLike) => {
       const displayScaleFactor = display.scaleFactor || 1;
       const width = Math.round(display.size.width * displayScaleFactor);
@@ -2813,6 +2977,10 @@ app.whenReady().then(async () => {
   registerGlobalShortcuts();
   startHotkeyGuard();
   registerPinWindowIpc();
+  setupAutoUpdater();
+  setTimeout(() => {
+    void checkForAppUpdates(false);
+  }, 2500);
   const initialProtocolUrl = process.argv.find((argument) => argument.toLowerCase().startsWith(`${APP_PROTOCOL}://`));
   if (initialProtocolUrl) {
     handleProtocolUrl(initialProtocolUrl);
@@ -2820,6 +2988,9 @@ app.whenReady().then(async () => {
 
   ipcMain.handle("app:get-history", async () => readHistory());
   ipcMain.handle("app:get-settings", async () => readSettings());
+  ipcMain.handle("app:get-version", async () => app.getVersion());
+  ipcMain.handle("app:check-for-updates", async () => checkForAppUpdates(true));
+  ipcMain.handle("app:install-update", async () => installDownloadedUpdate());
   ipcMain.handle("app:update-settings", async (_event, settings: AppSettings) => {
     await writeSettings(settings);
     mainWindow?.webContents.send("app:settings-updated", appSettings);

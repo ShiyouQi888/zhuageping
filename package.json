@@ -1,10 +1,17 @@
 {
   "name": "zhua-ge-ping",
   "productName": "抓个屏",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "private": true,
   "description": "抓个屏：Windows 本地截图、贴图与水印工具。",
   "homepage": "https://local.zhuageping.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ShiyouQi888/zhuageping.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ShiyouQi888/zhuageping/issues"
+  },
   "author": {
     "name": "齐世有",
     "email": "blacklaw@foxmail.com"
@@ -18,6 +25,7 @@
     "prepare:ocr": "node scripts/prepare-ocr-engine.js",
     "prepare:hotkey": "node scripts/build-hotkey-guard.js",
     "dist": "npm run build:icons && npm run build && npm run prepare:ocr && npm run prepare:hotkey && electron-builder --win",
+    "dist:github": "npm run build:icons && npm run build && npm run prepare:ocr && npm run prepare:hotkey && electron-builder --win --publish always",
     "dist:dir": "npm run build:icons && npm run build && npm run prepare:ocr && npm run prepare:hotkey && electron-builder --dir",
     "typecheck": "tsc --noEmit",
     "test": "node --test src/main/overlay/*.test.js",
@@ -25,6 +33,7 @@
     "start": "electron ."
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "lucide-react": "^0.468.0",
     "rapidocrjson": "^0.1.1",
     "react": "^18.3.1",
@@ -54,6 +63,14 @@
       "buildResources": "build"
     },
     "artifactName": "zhuageping-Setup-${version}-${arch}.${ext}",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ShiyouQi888",
+        "repo": "zhuageping",
+        "releaseType": "release"
+      }
+    ],
     "files": [
       "dist/**/*",
       "package.json"

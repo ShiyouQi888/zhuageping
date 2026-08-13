@@ -13,6 +13,9 @@ type CaptureOptions = {
 contextBridge.exposeInMainWorld("screenshotApp", {
   getHistory: () => ipcRenderer.invoke("app:get-history"),
   getSettings: () => ipcRenderer.invoke("app:get-settings"),
+  getVersion: () => ipcRenderer.invoke("app:get-version"),
+  checkForUpdates: () => ipcRenderer.invoke("app:check-for-updates"),
+  installUpdate: () => ipcRenderer.invoke("app:install-update"),
   updateSettings: (settings: unknown) => ipcRenderer.invoke("app:update-settings", settings),
   chooseScreenshotDir: () => ipcRenderer.invoke("app:choose-screenshot-dir"),
   captureFullscreen: (options: CaptureOptions, copyAfterCapture?: boolean) =>
@@ -56,5 +59,10 @@ contextBridge.exposeInMainWorld("screenshotApp", {
     const listener = (_event: Electron.IpcRendererEvent, message: string) => callback(message);
     ipcRenderer.on("app:status", listener);
     return () => ipcRenderer.removeListener("app:status", listener);
+  },
+  onUpdateStatus: (callback: (status: unknown) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, status: unknown) => callback(status);
+    ipcRenderer.on("app:update-status", listener);
+    return () => ipcRenderer.removeListener("app:update-status", listener);
   }
 });

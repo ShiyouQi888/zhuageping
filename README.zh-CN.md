@@ -37,18 +37,23 @@
 
 当前版本：
 
-- 版本：`0.1.7`
+- 版本：`0.1.8`
 - 平台：Windows x64
-- 安装包：`zhuageping-Setup-0.1.7-x64.exe`
-- SHA256：`1AE01791278233718116CBA3DD59BDACFC547DEF772E90921CBF30CCBA1313ED`
-- Release：[抓个屏 v0.1.7](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.7)
+- 安装包：`zhuageping-Setup-0.1.8-x64.exe`
+- SHA256：`85967BED47FD9D07064B0F20062E79358F7897B4177371D961A4FA3DBDF4AE5E`
+- Release：[抓个屏 v0.1.8](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.8)
 
 说明：当前安装包暂未购买商业代码签名证书。安装时 Windows 可能提示未知发布者，这是未签名安装包的正常现象，不代表软件连接云端或上传数据。
 
 ## 最新功能
 
-`v0.1.7` 重点更新：
+`v0.1.8` 重点更新：
 
+- GitHub Releases 自动更新：安装版可检查、下载并安装新版本。
+- 首选项新增软件更新面板：显示当前版本、最新版本、更新源、下载进度和重启安装入口。
+- 托盘新增检查更新入口：首选项窗口隐藏时也能手动检查。
+- 多屏截图隔离：按 F1 后只影响鼠标所在屏幕，不再同时影响另一块屏幕。
+- 截图工具栏视觉优化：使用更贴近品牌色的暖橙风格和更清晰的标注图标。
 - 安装器新增语言选择：安装开始前可选择简体中文或 English。
 - 安装协议多语言：许可协议会跟随安装语言显示中文或英文。
 - 英文界面适配：优化首选项窗口尺寸、标签栏、按钮、状态栏和长文本显示，减少英文截断。
@@ -381,8 +386,8 @@ npm run dist
 生成文件示例：
 
 ```text
-release/zhuageping-Setup-0.1.7-x64.exe
-release/zhuageping-Setup-0.1.7-x64.exe.blockmap
+release/zhuageping-Setup-0.1.8-x64.exe
+release/zhuageping-Setup-0.1.8-x64.exe.blockmap
 release/win-unpacked/
 ```
 

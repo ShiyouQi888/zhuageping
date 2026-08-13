@@ -32,17 +32,17 @@
 
     <div id="toolbar" role="toolbar" aria-label="截图编辑工具">
       <div class="toolbar-section primary-tools" aria-label="绘制工具">
-        <button data-tool="select" title="选择/移动 V"><svg viewBox="0 0 24 24"><path d="M5 4l11 8-5 1.4L8.8 19z"/></svg></button>
-        <button data-tool="rect" title="矩形 R"><svg viewBox="0 0 24 24"><rect x="5" y="6" width="14" height="12" rx="2"/></svg></button>
-        <button data-tool="ellipse" title="圆形 O"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5"/></svg></button>
+        <button data-tool="select" title="选择/移动 V"><svg class="icon-pointer" viewBox="0 0 24 24"><path d="M5.8 4.6l11.8 7.1-5.2 1.5 3.1 4.8-2.4 1.5-3-4.8-3.5 4.1z"/></svg></button>
+        <button data-tool="rect" title="矩形 R"><svg viewBox="0 0 24 24"><rect x="5.5" y="6" width="13" height="12" rx="1.6"/></svg></button>
+        <button data-tool="ellipse" title="圆形 O"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.6"/></svg></button>
         <button data-tool="line" title="直线 L"><svg viewBox="0 0 24 24"><path d="M6 18L18 6"/></svg></button>
-        <button data-tool="arrow" title="箭头 A"><svg viewBox="0 0 24 24"><path d="M6 18L18 6"/><path d="M11 6h7v7"/></svg></button>
-        <button data-tool="brush" title="画笔 B"><svg viewBox="0 0 24 24"><path d="M7 19c2.8 0 3.5-1.8 4.7-4"/><path d="M13.5 4.5l6 6-6.8 6.8-6-6z"/></svg></button>
-        <button data-tool="text" title="文字 T"><svg viewBox="0 0 24 24"><path d="M5 6h14"/><path d="M12 6v12"/><path d="M8.5 18h7"/></svg></button>
-        <button data-tool="mosaic" title="马赛克 M"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg></button>
-        <button data-tool="blur" title="模糊块 U"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3"/><path d="M8 9h8M8 12h8M8 15h8"/></svg></button>
-        <button data-tool="eraser" title="橡皮擦 E"><svg viewBox="0 0 24 24"><path d="M4 16l8.5-8.5a3 3 0 0 1 4.2 0l2.8 2.8a3 3 0 0 1 0 4.2L14 20H8z"/><path d="M9 11l6 6"/></svg></button>
-        <button id="scrollCapture" title="滚动截图 Ctrl+Shift+F1"><svg viewBox="0 0 24 24"><path d="M8 4h8a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3z"/><path d="M9 8h6"/><path d="M9 12h6"/><path d="M12 15v4"/><path d="M9.5 16.5L12 19l2.5-2.5"/></svg></button>
+        <button data-tool="arrow" title="箭头 A"><svg viewBox="0 0 24 24"><path d="M6 18L18 6"/><path d="M10.8 6H18v7.2"/></svg></button>
+        <button data-tool="brush" title="画笔 B"><svg viewBox="0 0 24 24"><path d="M4.8 18.8l3.9-.9 9.4-9.4a2 2 0 0 0-2.8-2.8l-9.4 9.4z"/><path d="M13.8 7.2l3 3"/><path d="M4.5 20h15"/></svg></button>
+        <button data-tool="text" title="文字 T"><svg class="icon-letter" viewBox="0 0 24 24"><text x="12" y="17.2" text-anchor="middle">A</text></svg></button>
+        <button data-tool="mosaic" title="马赛克 M"><svg class="icon-mosaic" viewBox="0 0 24 24"><rect x="5" y="5" width="4" height="4"/><rect x="9" y="9" width="4" height="4"/><rect x="13" y="5" width="4" height="4"/><rect x="17" y="9" width="2" height="4"/><rect x="5" y="13" width="4" height="4"/><rect x="13" y="13" width="4" height="4"/><rect x="9" y="17" width="4" height="2"/><rect x="17" y="17" width="2" height="2"/></svg></button>
+        <button data-tool="blur" title="模糊块 U"><svg viewBox="0 0 24 24"><path d="M12 4.6c2.6 3.1 5.1 6.1 5.1 9.1a5.1 5.1 0 0 1-10.2 0c0-3 2.5-6 5.1-9.1z"/><path d="M8.2 17.6c2.2-1 5.4-1 7.6 0"/></svg></button>
+        <button data-tool="eraser" title="橡皮擦 E"><svg viewBox="0 0 24 24"><path d="M5 15.4l7.8-7.8a2.6 2.6 0 0 1 3.7 0l2.1 2.1a2.6 2.6 0 0 1 0 3.7l-5.6 5.6H8.2z"/><path d="M10.2 10.2l5.6 5.6"/><path d="M4.5 20h14.5"/></svg></button>
+        <button id="scrollCapture" title="滚动截图 Ctrl+Shift+F1"><svg viewBox="0 0 24 24"><rect x="6.5" y="4.5" width="11" height="15" rx="2"/><path d="M9.5 8h5"/><path d="M9.5 11h5"/><path d="M12 13.5v4"/><path d="M9.8 15.6L12 17.8l2.2-2.2"/></svg></button>
       </div>
 
       <div class="toolbar-section style-tools" aria-label="样式">
@@ -64,9 +64,9 @@
       </div>
 
       <div class="toolbar-section object-tools" aria-label="对象操作">
-        <button id="duplicateObject" title="复制对象 Ctrl+D"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg></button>
-        <button id="bringForward" title="上移一层 Ctrl+]"><svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M7 10l5-5 5 5"/><path d="M5 19h14"/></svg></button>
-        <button id="sendBackward" title="下移一层 Ctrl+["><svg viewBox="0 0 24 24"><path d="M12 19V5"/><path d="M7 14l5 5 5-5"/><path d="M5 5h14"/></svg></button>
+        <button id="duplicateObject" title="复制对象 Ctrl+D"><svg viewBox="0 0 24 24"><rect x="9" y="8" width="9.5" height="9.5" rx="1.8"/><rect x="5.5" y="5" width="9.5" height="9.5" rx="1.8"/></svg></button>
+        <button id="bringForward" title="上移一层 Ctrl+]"><svg viewBox="0 0 24 24"><path d="M12 17V6"/><path d="M8.2 9.8L12 6l3.8 3.8"/><path d="M6 18.5h12"/></svg></button>
+        <button id="sendBackward" title="下移一层 Ctrl+["><svg viewBox="0 0 24 24"><path d="M12 7v11"/><path d="M8.2 14.2L12 18l3.8-3.8"/><path d="M6 5.5h12"/></svg></button>
         <select id="alignMenu" title="对齐选中对象">
           <option value="">对齐</option>
           <option value="left">左对齐</option>
@@ -79,11 +79,11 @@
       </div>
 
       <div class="toolbar-section output-tools" aria-label="完成操作">
-        <button id="undo" title="撤销 Ctrl+Z"><svg viewBox="0 0 24 24"><path d="M9 7H4v5"/><path d="M4 12a8 8 0 1 0 3-6"/></svg></button>
-        <button id="ocrCapture" title="OCR 识别并复制 Ctrl+Shift+O"><svg viewBox="0 0 24 24"><path d="M5 8V6a1 1 0 0 1 1-1h2"/><path d="M16 5h2a1 1 0 0 1 1 1v2"/><path d="M19 16v2a1 1 0 0 1-1 1h-2"/><path d="M8 19H6a1 1 0 0 1-1-1v-2"/><path d="M8 10h8"/><path d="M10 10v6"/><path d="M14 10v6"/><path d="M8 16h8"/></svg></button>
-        <button id="copy" title="复制 Ctrl+C"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg></button>
-        <button id="pin" title="贴图 F3"><svg viewBox="0 0 24 24"><path d="M9 4h6"/><path d="M12 4v7"/><path d="M7 11h10l-2 5H9z"/><path d="M12 16v5"/></svg></button>
-        <button id="save" title="保存 Ctrl+S"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></button>
+        <button id="undo" title="撤销 Ctrl+Z"><svg viewBox="0 0 24 24"><path d="M9 7H5v4"/><path d="M5.2 11A7.5 7.5 0 1 0 8 5.6"/></svg></button>
+        <button id="ocrCapture" title="OCR 识别并复制 Ctrl+Shift+O"><svg class="icon-ocr" viewBox="0 0 24 24"><path d="M5 8V6a1 1 0 0 1 1-1h2"/><path d="M16 5h2a1 1 0 0 1 1 1v2"/><path d="M19 16v2a1 1 0 0 1-1 1h-2"/><path d="M8 19H6a1 1 0 0 1-1-1v-2"/><text x="12" y="14.6" text-anchor="middle">OCR</text></svg></button>
+        <button id="copy" title="复制 Ctrl+C"><svg viewBox="0 0 24 24"><rect x="9" y="8" width="9.5" height="9.5" rx="1.8"/><rect x="5.5" y="5" width="9.5" height="9.5" rx="1.8"/></svg></button>
+        <button id="pin" title="贴图 F3"><svg viewBox="0 0 24 24"><path d="M9 5h6"/><path d="M10 5l.8 6.2L8 14h8l-2.8-2.8L14 5"/><path d="M12 14v5"/></svg></button>
+        <button id="save" class="primary-action" title="保存 Ctrl+S"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg><span>保存</span></button>
         <button id="cancel" class="danger" title="取消 Esc"><svg viewBox="0 0 24 24"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg></button>
         <button id="ok" class="success" title="完成 Enter"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></button>
       </div>

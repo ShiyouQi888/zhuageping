@@ -47,7 +47,9 @@ export const messages = {
       openFolder: "打开所在文件夹",
       change: "更改",
       restoreDefaults: "恢复默认",
-      help: "帮助"
+      help: "帮助",
+      checkForUpdates: "检查更新",
+      restartInstall: "重启安装"
     },
     status: {
       ready: "准备就绪",
@@ -68,7 +70,8 @@ export const messages = {
       pinned: "已执行贴图",
       pathMissing: "路径还没有准备好",
       screenshotDirUpdated: "截图保存目录已更新",
-      restartingAsAdmin: "正在请求管理员权限重启..."
+      restartingAsAdmin: "正在请求管理员权限重启...",
+      checkingUpdate: "正在检查更新..."
     },
     general: {
       language: "显示语言:",
@@ -86,6 +89,20 @@ export const messages = {
       configLocation: "配置文件存储位置",
       path: "路径:",
       restartAsAdmin: "以管理员身份重启"
+    },
+    update: {
+      title: "软件更新",
+      currentVersion: "当前版本",
+      latestVersion: "最新版本",
+      source: "更新源：GitHub Releases",
+      idle: "可手动检查新版本，正式安装版启动后也会自动静默检查。",
+      disabled: "开发环境不检查更新，请在安装版中测试。",
+      checking: "正在检查 GitHub Releases...",
+      available: "发现新版本，正在自动下载。",
+      notAvailable: "当前已是最新版本。",
+      downloading: "正在下载更新",
+      downloaded: "更新已下载完成，重启后自动安装。",
+      error: "更新检查失败，请稍后再试。"
     },
     interface: {
       windowMode: "窗口模式:",
@@ -174,7 +191,9 @@ export const messages = {
       openFolder: "Open Folder",
       change: "Change",
       restoreDefaults: "Reset",
-      help: "Help"
+      help: "Help",
+      checkForUpdates: "Check for Updates",
+      restartInstall: "Restart to Install"
     },
     status: {
       ready: "Ready",
@@ -195,7 +214,8 @@ export const messages = {
       pinned: "Pin action completed",
       pathMissing: "Path is not ready yet",
       screenshotDirUpdated: "Screenshot folder updated",
-      restartingAsAdmin: "Requesting administrator restart..."
+      restartingAsAdmin: "Requesting administrator restart...",
+      checkingUpdate: "Checking for updates..."
     },
     general: {
       language: "Language:",
@@ -213,6 +233,20 @@ export const messages = {
       configLocation: "Configuration Storage Location",
       path: "Path:",
       restartAsAdmin: "Restart as administrator"
+    },
+    update: {
+      title: "Software Update",
+      currentVersion: "Current version",
+      latestVersion: "Latest version",
+      source: "Update source: GitHub Releases",
+      idle: "You can check manually. Packaged builds also check quietly after launch.",
+      disabled: "Update checks run in packaged builds only.",
+      checking: "Checking GitHub Releases...",
+      available: "A new version is available and downloading.",
+      notAvailable: "You are on the latest version.",
+      downloading: "Downloading update",
+      downloaded: "Update downloaded. Restart to install.",
+      error: "Update check failed. Please try again later."
     },
     interface: {
       windowMode: "Window mode:",

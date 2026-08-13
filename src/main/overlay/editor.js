@@ -259,6 +259,8 @@ function applyEditorLanguage() {
   ocrTip.textContent = ui.ocr.tip;
   ocrCopyButton.textContent = ui.ocr.copyButton;
   ocrCloseButton.title = ui.ocr.close;
+  const saveLabel = document.querySelector("#save span");
+  if (saveLabel) saveLabel.textContent = overlayLanguage === "en-US" ? "Save" : "保存";
   Object.entries(ui.titles).forEach(([idOrTool, title]) => {
     const target = document.getElementById(idOrTool) || document.querySelector(`[data-tool="${idOrTool}"]`);
     if (target) target.title = title;

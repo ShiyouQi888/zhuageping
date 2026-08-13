@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Camera, FolderOpen, HelpCircle, Minus, Pin, RotateCcw, ScrollText, Shield, X } from "lucide-react";
+import { Camera, FolderOpen, HelpCircle, Minus, Pin, RefreshCw, RotateCcw, ScrollText, Shield, X } from "lucide-react";
 import appLogoUrl from "./assets/app-logo.png";
 import wechatQrUrl from "./assets/weichat-qr.svg";
 import { fallbackLanguage, formatShortcutForWindows, languageOptions, messages, normalizeLanguage, tabKeys, type TabKey } from "./i18n";
-import type { AppLanguage, AppSettings, ScreenshotRecord, StoragePaths, WatermarkPosition } from "./types";
+import type { AppLanguage, AppSettings, AppUpdateStatus, ScreenshotRecord, StoragePaths, WatermarkPosition } from "./types";
 
 const shortcutKeys: Array<keyof AppSettings> = [
   "shortcutCapture",
@@ -47,8 +47,15 @@ export function App() {
   const [history, setHistory] = useState<ScreenshotRecord[]>([]);
   const [status, setStatus] = useState<string>(messages[fallbackLanguage].status.ready);
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
+  const [appVersion, setAppVersion] = useState("");
+  const [updateStatus, setUpdateStatus] = useState<AppUpdateStatus | null>(null);
   const language = normalizeLanguage(settings.language);
   const t = messages[language];
+  const updateState = updateStatus?.state ?? "idle";
+  const updateBusy = updateState === "checking" || updateState === "available" || updateState === "downloading";
+  const updateMessage =
+    updateStatus?.message ||
+    (updateState === "idle" ? t.update.idle : t.update[updateState as keyof typeof t.update] || t.update.idle);
 
   useEffect(() => {
     document.documentElement.lang = language;
@@ -58,11 +65,14 @@ export function App() {
     void Promise.all([
       window.screenshotApp.getStoragePaths(),
       window.screenshotApp.getHistory(),
-      window.screenshotApp.getSettings()
-    ]).then(([paths, records, loadedSettings]) => {
+      window.screenshotApp.getSettings(),
+      window.screenshotApp.getVersion()
+    ]).then(([paths, records, loadedSettings, version]) => {
       setStoragePaths(paths);
       setHistory(records);
       setSettings({ ...loadedSettings, language: normalizeLanguage(loadedSettings.language) });
+      setAppVersion(version);
+      setUpdateStatus((current) => current ?? { state: "idle", message: "", currentVersion: version });
     });
   }, []);
 
@@ -84,6 +94,10 @@ export function App() {
       setStatus(t.status.settingsUpdated);
     });
     const removeStatusListener = window.screenshotApp.onStatus((message) => setStatus(message));
+    const removeUpdateStatusListener = window.screenshotApp.onUpdateStatus((nextUpdateStatus) => {
+      setUpdateStatus(nextUpdateStatus);
+      setStatus(nextUpdateStatus.message);
+    });
 
     return () => {
       removeOpenPreferencesListener();
@@ -91,6 +105,7 @@ export function App() {
       removeHistoryClearedListener();
       removeSettingsUpdatedListener();
       removeStatusListener();
+      removeUpdateStatusListener();
     };
   }, [t]);
 
@@ -183,6 +198,16 @@ export function App() {
     await window.screenshotApp.restartAsAdmin();
   }
 
+  async function checkForUpdates() {
+    setStatus(t.status.checkingUpdate);
+    const nextUpdateStatus = await window.screenshotApp.checkForUpdates();
+    setUpdateStatus(nextUpdateStatus);
+  }
+
+  async function installUpdate() {
+    await window.screenshotApp.installUpdate();
+  }
+
   return (
     <main className="prefs-window">
       <header className="titlebar">
@@ -250,6 +275,35 @@ export function App() {
                 <option value="silent">{t.general.logLevelOptions.silent}</option>
               </select>
             </label>
+            <section className="update-panel" aria-live="polite">
+              <div className="update-panel-header">
+                <strong>{t.update.title}</strong>
+                <span>{t.update.source}</span>
+              </div>
+              <div className="update-meta">
+                <span>{t.update.currentVersion}</span>
+                <strong>{updateStatus?.currentVersion || appVersion || "-"}</strong>
+                <span>{t.update.latestVersion}</span>
+                <strong>{updateStatus?.latestVersion || "-"}</strong>
+              </div>
+              <p>{updateMessage}</p>
+              {typeof updateStatus?.percent === "number" ? (
+                <div className="update-progress" aria-label={t.update.downloading}>
+                  <span style={{ width: `${Math.max(0, Math.min(100, updateStatus.percent))}%` }} />
+                </div>
+              ) : null}
+              <div className="button-row compact">
+                <button disabled={updateBusy} onClick={() => void checkForUpdates()}>
+                  <RefreshCw size={16} aria-hidden="true" />
+                  {t.common.checkForUpdates}
+                </button>
+                {updateState === "downloaded" ? (
+                  <button className="primary" onClick={() => void installUpdate()}>
+                    {t.common.restartInstall}
+                  </button>
+                ) : null}
+              </div>
+            </section>
             <fieldset>
               <legend>{t.general.configLocation}</legend>
               <label className="field-row stacked">

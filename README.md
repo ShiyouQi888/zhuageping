@@ -37,18 +37,23 @@ Download the latest installer from GitHub Releases:
 
 Current version:
 
-- Version: `0.1.7`
+- Version: `0.1.8`
 - Platform: Windows x64
-- Installer: `zhuageping-Setup-0.1.7-x64.exe`
-- SHA256: `1AE01791278233718116CBA3DD59BDACFC547DEF772E90921CBF30CCBA1313ED`
-- Release: [Zhuageping v0.1.7](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.7)
+- Installer: `zhuageping-Setup-0.1.8-x64.exe`
+- SHA256: `85967BED47FD9D07064B0F20062E79358F7897B4177371D961A4FA3DBDF4AE5E`
+- Release: [Zhuageping v0.1.8](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.8)
 
 Note: the current installer is not signed with a commercial code-signing certificate. Windows may show an unknown publisher warning during installation. This is expected for an unsigned installer and does not mean the app connects to the cloud or uploads your data.
 
 ## Latest Updates
 
-Highlights in `v0.1.7`:
+Highlights in `v0.1.8`:
 
+- GitHub Releases auto-update: packaged builds can check, download, and install new versions.
+- Preferences update panel: shows the current version, latest version, update source, download progress, and restart-to-install action.
+- Tray update entry: check for updates even when the preferences window is hidden.
+- Multi-monitor capture isolation: pressing F1 only affects the display where the cursor is located.
+- Capture toolbar polish: warmer brand styling and refined icons for a cleaner annotation workflow.
 - Multilingual installer: choose Simplified Chinese or English before installation starts.
 - Multilingual license agreement: the installer license follows the selected language.
 - English UI layout improvements: preferences window, tabs, buttons, status bar, and long text are optimized to avoid truncation.
@@ -381,8 +386,8 @@ npm run dist
 Generated files:
 
 ```text
-release/zhuageping-Setup-0.1.7-x64.exe
-release/zhuageping-Setup-0.1.7-x64.exe.blockmap
+release/zhuageping-Setup-0.1.8-x64.exe
+release/zhuageping-Setup-0.1.8-x64.exe.blockmap
 release/win-unpacked/
 ```
 

@@ -48,11 +48,22 @@ export type StoragePaths = {
   backupDir: string;
 };
 
+export type AppUpdateStatus = {
+  state: "idle" | "checking" | "available" | "not-available" | "downloading" | "downloaded" | "error" | "disabled";
+  message: string;
+  currentVersion: string;
+  latestVersion?: string;
+  percent?: number;
+};
+
 declare global {
   interface Window {
     screenshotApp: {
       getHistory: () => Promise<ScreenshotRecord[]>;
       getSettings: () => Promise<AppSettings>;
+      getVersion: () => Promise<string>;
+      checkForUpdates: () => Promise<AppUpdateStatus>;
+      installUpdate: () => Promise<void>;
       updateSettings: (settings: AppSettings) => Promise<AppSettings>;
       chooseScreenshotDir: () => Promise<AppSettings>;
       captureFullscreen: (options: CaptureOptions, copyAfterCapture?: boolean) => Promise<ScreenshotRecord | null>;
@@ -74,6 +85,7 @@ declare global {
       onHistoryCleared: (callback: () => void) => () => void;
       onSettingsUpdated: (callback: (settings: AppSettings) => void) => () => void;
       onStatus: (callback: (message: string) => void) => () => void;
+      onUpdateStatus: (callback: (status: AppUpdateStatus) => void) => () => void;
     };
   }
 }
