@@ -10,6 +10,7 @@ export type CaptureOptions = {
 
 export type OutputFormat = "png" | "jpg";
 export type AppLanguage = "zh-CN" | "en-US";
+export type AppTheme = "system" | "light" | "dark";
 
 export type AppSettings = CaptureOptions & {
   launchAtStartup: boolean;
@@ -21,6 +22,7 @@ export type AppSettings = CaptureOptions & {
   autoPinAfterCapture: boolean;
   outputFormat: OutputFormat;
   language: AppLanguage;
+  theme: AppTheme;
   logLevel: "normal" | "verbose" | "silent";
   screenshotDir: string;
   shortcutCapture: string;

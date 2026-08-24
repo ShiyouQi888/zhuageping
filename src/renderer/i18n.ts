@@ -110,7 +110,8 @@ export const messages = {
       trayOnly: "仅托盘",
       theme: "主题:",
       systemTheme: "跟随系统",
-      lightTheme: "浅色"
+      lightTheme: "浅色",
+      darkTheme: "深色"
     },
     capture: {
       regionCapture: "区域截图",
@@ -254,7 +255,8 @@ export const messages = {
       trayOnly: "Tray only",
       theme: "Theme:",
       systemTheme: "Follow system",
-      lightTheme: "Light"
+      lightTheme: "Light",
+      darkTheme: "Dark"
     },
     capture: {
       regionCapture: "Region Capture",

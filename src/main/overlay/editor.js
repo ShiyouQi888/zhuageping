@@ -85,7 +85,8 @@ const editorMessages = {
       "inline-capture-copy": "正在复制...",
       "inline-capture-pin": "正在贴图...",
       "inline-capture-scroll": "正在滚动截图...",
-      "inline-capture-complete": "正在保存..."
+      "inline-capture-complete": "正在保存...",
+      "inline-capture-save-as": "请选择保存位置..."
     },
     processing: "正在处理...",
     captureError: "截图失败，请按 Esc 退出后重试",
@@ -111,7 +112,7 @@ const editorMessages = {
       ocrCapture: "OCR 识别并复制 Ctrl+Shift+O",
       copy: "复制 Ctrl+C",
       pin: "贴图 F3",
-      save: "保存 Ctrl+S",
+      save: "保存到... Ctrl+S",
       cancel: "取消 Esc",
       ok: "完成 Enter",
       fontSize: "文字大小",
@@ -156,7 +157,8 @@ const editorMessages = {
       "inline-capture-copy": "Copying...",
       "inline-capture-pin": "Pinning...",
       "inline-capture-scroll": "Capturing scroll...",
-      "inline-capture-complete": "Saving..."
+      "inline-capture-complete": "Saving...",
+      "inline-capture-save-as": "Choose a save location..."
     },
     processing: "Processing...",
     captureError: "Capture failed. Press Esc and try again.",
@@ -182,7 +184,7 @@ const editorMessages = {
       ocrCapture: "OCR and Copy Ctrl+Shift+O",
       copy: "Copy Ctrl+C",
       pin: "Pin F3",
-      save: "Save Ctrl+S",
+      save: "Save as... Ctrl+S",
       cancel: "Cancel Esc",
       ok: "Done Enter",
       fontSize: "Font size",
@@ -1451,7 +1453,7 @@ ocrCaptureButton.addEventListener("click", requestOcr);
 document.getElementById("copy").addEventListener("click", () => complete("inline-capture-copy"));
 document.getElementById("pin").addEventListener("click", () => complete("inline-capture-pin"));
 scrollCaptureButton.addEventListener("click", () => complete("inline-capture-scroll"));
-document.getElementById("save").addEventListener("click", () => complete("inline-capture-complete"));
+document.getElementById("save").addEventListener("click", () => complete("inline-capture-save-as"));
 document.getElementById("ok").addEventListener("click", () => complete("inline-capture-complete"));
 document.getElementById("cancel").addEventListener("click", () => ipcRenderer.send("inline-capture-cancel"));
 ocrCloseButton.addEventListener("click", closeOcrDialog);
@@ -1518,7 +1520,7 @@ window.addEventListener("keydown", (event) => {
   }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
     event.preventDefault();
-    complete("inline-capture-complete");
+    complete("inline-capture-save-as");
   }
   if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "o") {
     event.preventDefault();
@@ -1539,6 +1541,10 @@ ipcRenderer.on("inline-region-ready", (_event, rect) => enterEditMode(rect));
 ipcRenderer.on("inline-capture-error", () => {
   setStatus(ui.captureError);
   document.body.style.cursor = "default";
+});
+ipcRenderer.on("inline-capture-save-canceled", () => {
+  setStatus(ui.editableStatus);
+  document.body.style.cursor = tool === "select" ? "default" : "crosshair";
 });
 ipcRenderer.on("inline-ocr-result", (_event, result) => {
   ocrInFlight = false;

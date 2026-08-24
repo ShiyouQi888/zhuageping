@@ -4,6 +4,7 @@
   dialog,
   globalShortcut,
   Menu,
+  nativeTheme,
   Tray,
   clipboard,
   desktopCapturer,
@@ -88,6 +89,7 @@ type CaptureOptions = {
 
 type OutputFormat = "png" | "jpg";
 type AppLanguage = "zh-CN" | "en-US";
+type AppTheme = "system" | "light" | "dark";
 
 type AppSettings = CaptureOptions & {
   launchAtStartup: boolean;
@@ -99,6 +101,7 @@ type AppSettings = CaptureOptions & {
   autoPinAfterCapture: boolean;
   outputFormat: OutputFormat;
   language: AppLanguage;
+  theme: AppTheme;
   logLevel: "normal" | "verbose" | "silent";
   screenshotDir: string;
   shortcutCapture: string;
@@ -147,7 +150,8 @@ type InlineCapturePayload = {
 
 type InlineCaptureResult = {
   buffer: Buffer;
-  action: "save" | "copy" | "pin";
+  action: "save" | "save-as" | "copy" | "pin";
+  savePath?: string;
 };
 
 type AppUpdateStatus = {
@@ -244,6 +248,7 @@ let appSettings: AppSettings = {
   autoPinAfterCapture: false,
   outputFormat: "png",
   language: "zh-CN",
+  theme: "system",
   logLevel: "normal",
   screenshotDir: defaultScreenshotDir,
   shortcutCapture: "F1",
@@ -268,6 +273,10 @@ const mainMessages = {
       switchPinGroup: "切换到另一贴图组",
       clearHistory: "清空截屏历史",
       preferences: "首选项...",
+      theme: "主题",
+      themeSystem: "跟随系统",
+      themeLight: "浅色",
+      themeDark: "深色",
       checkForUpdates: "检查更新...",
       help: "帮助",
       restart: "重新启动",
@@ -294,6 +303,7 @@ const mainMessages = {
       pinLockedReset: "贴图已锁定，无法重置大小",
       pinSaved: "贴图已保存",
       pinCopied: "贴图已复制",
+      themeUpdated: "主题已更新",
       checkingUpdate: "正在检查更新...",
       updateAvailable: (version: string) => `发现新版本：${version}，正在下载`,
       updateNotAvailable: "当前已是最新版本",
@@ -307,6 +317,7 @@ const mainMessages = {
       captureTitle: "截图",
       pinTitle: "贴图",
       savePin: "保存贴图",
+      saveScreenshot: "保存截图",
       imageFilter: "图片",
       chooseScreenshotDir: "选择截图保存目录",
       updateReadyTitle: "更新已准备好",
@@ -343,6 +354,10 @@ const mainMessages = {
       switchPinGroup: "Switch Pin Group",
       clearHistory: "Clear Screenshot History",
       preferences: "Preferences...",
+      theme: "Theme",
+      themeSystem: "Follow System",
+      themeLight: "Light",
+      themeDark: "Dark",
       checkForUpdates: "Check for Updates...",
       help: "Help",
       restart: "Restart",
@@ -369,6 +384,7 @@ const mainMessages = {
       pinLockedReset: "Pin is locked and cannot reset size",
       pinSaved: "Pin saved",
       pinCopied: "Pin copied",
+      themeUpdated: "Theme updated",
       checkingUpdate: "Checking for updates...",
       updateAvailable: (version: string) => `New version found: ${version}. Downloading...`,
       updateNotAvailable: "You are on the latest version",
@@ -382,6 +398,7 @@ const mainMessages = {
       captureTitle: "Capture",
       pinTitle: "Pin",
       savePin: "Save Pin",
+      saveScreenshot: "Save Screenshot",
       imageFilter: "Images",
       chooseScreenshotDir: "Choose Screenshot Folder",
       updateReadyTitle: "Update Ready",
@@ -628,6 +645,35 @@ function updateTrayMenu() {
         }
       },
       {
+        label: mt().tray.theme,
+        submenu: [
+          {
+            label: mt().tray.themeSystem,
+            type: "radio",
+            checked: appSettings.theme === "system",
+            click: () => {
+              void updateAppTheme("system");
+            }
+          },
+          {
+            label: mt().tray.themeLight,
+            type: "radio",
+            checked: appSettings.theme === "light",
+            click: () => {
+              void updateAppTheme("light");
+            }
+          },
+          {
+            label: mt().tray.themeDark,
+            type: "radio",
+            checked: appSettings.theme === "dark",
+            click: () => {
+              void updateAppTheme("dark");
+            }
+          }
+        ]
+      },
+      {
         label: mt().tray.checkForUpdates,
         click: () => {
           void checkForAppUpdates(true);
@@ -686,6 +732,7 @@ async function readSettings(): Promise<AppSettings> {
       screenshotDir: stored.screenshotDir || defaultScreenshotDir
     };
     normalizeSettings(appSettings);
+    nativeTheme.themeSource = appSettings.theme;
     await fs.writeFile(settingsPath, JSON.stringify(appSettings, null, 2), "utf8");
   } catch {
     await writeSettings(appSettings);
@@ -697,6 +744,7 @@ async function readSettings(): Promise<AppSettings> {
 async function writeSettings(settings: AppSettings) {
   appSettings = settings;
   normalizeSettings(appSettings);
+  nativeTheme.themeSource = appSettings.theme;
   await fs.mkdir(dataDir, { recursive: true });
   await fs.mkdir(appSettings.screenshotDir, { recursive: true });
   await fs.writeFile(settingsPath, JSON.stringify(appSettings, null, 2), "utf8");
@@ -847,9 +895,20 @@ function normalizeLanguageSetting(settings: AppSettings) {
   settings.language = settings.language === "en-US" ? "en-US" : "zh-CN";
 }
 
+function normalizeThemeSetting(settings: AppSettings) {
+  settings.theme = settings.theme === "dark" || settings.theme === "light" ? settings.theme : "system";
+}
+
 function normalizeSettings(settings: AppSettings) {
   normalizeLanguageSetting(settings);
+  normalizeThemeSetting(settings);
   normalizeShortcutSettings(settings);
+}
+
+async function updateAppTheme(theme: AppTheme) {
+  await writeSettings({ ...appSettings, theme });
+  mainWindow?.webContents.send("app:settings-updated", appSettings);
+  mainWindow?.webContents.send("app:status", mt().status.themeUpdated);
 }
 
 function syncLoginItemSettings() {
@@ -1136,6 +1195,39 @@ async function buildScreenshotFilePath(date: Date, extension: string) {
   }
 
   return filePath;
+}
+
+function outputExtensionFromPath(filePath: string, fallback: OutputFormat) {
+  const extension = path.extname(filePath).replace(".", "").toLowerCase();
+  if (extension === "jpg" || extension === "jpeg") return "jpg";
+  if (extension === "png") return "png";
+  return fallback;
+}
+
+function ensureImageFileExtension(filePath: string, extension: OutputFormat) {
+  const currentExtension = path.extname(filePath).toLowerCase();
+  if (currentExtension === ".png" || currentExtension === ".jpg" || currentExtension === ".jpeg") {
+    return filePath;
+  }
+  return `${filePath}.${extension}`;
+}
+
+async function showScreenshotSaveDialog() {
+  const extension = appSettings.outputFormat === "jpg" ? "jpg" : "png";
+  const defaultPath = await buildScreenshotFilePath(new Date(), extension);
+  const result = await dialog.showSaveDialog({
+    title: mt().dialog.saveScreenshot,
+    defaultPath,
+    filters: [
+      { name: "PNG", extensions: ["png"] },
+      { name: "JPG", extensions: ["jpg", "jpeg"] },
+      { name: mt().dialog.imageFilter, extensions: ["png", "jpg", "jpeg"] }
+    ]
+  });
+  if (result.canceled || !result.filePath) {
+    return null;
+  }
+  return ensureImageFileExtension(result.filePath, extension);
 }
 
 function escapeXml(value: string) {
@@ -1955,6 +2047,7 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
       }
       resolved = true;
       ipcMain.removeListener("inline-capture-complete", onComplete);
+      ipcMain.removeListener("inline-capture-save-as", onSaveAs);
       ipcMain.removeListener("inline-capture-copy", onCopy);
       ipcMain.removeListener("inline-capture-pin", onPin);
       ipcMain.removeListener("inline-capture-scroll", onScroll);
@@ -1978,6 +2071,31 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
         finish({ buffer: await buildCompositeBuffer(payload), action: "save" });
       } catch (error) {
         console.error("Inline capture failed.", error);
+        showActiveOverlays();
+        notifyCaptureError();
+        preparingCapture = false;
+      }
+    };
+
+    const onSaveAs = async (_event: Electron.IpcMainEvent, payload: InlineCapturePayload) => {
+      if (preparingCapture || resolved) {
+        return;
+      }
+      preparingCapture = true;
+      try {
+        const buffer = await buildCompositeBuffer(payload);
+        const savePath = await showScreenshotSaveDialog();
+        if (!savePath) {
+          showActiveOverlays();
+          if (!_event.sender.isDestroyed()) {
+            _event.sender.send("inline-capture-save-canceled");
+          }
+          preparingCapture = false;
+          return;
+        }
+        finish({ buffer, action: "save-as", savePath });
+      } catch (error) {
+        console.error("Inline save as failed.", error);
         showActiveOverlays();
         notifyCaptureError();
         preparingCapture = false;
@@ -2156,6 +2274,7 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
     };
 
     ipcMain.once("inline-capture-complete", onComplete);
+    ipcMain.on("inline-capture-save-as", onSaveAs);
     ipcMain.once("inline-capture-copy", onCopy);
     ipcMain.once("inline-capture-pin", onPin);
     ipcMain.on("inline-capture-scroll", onScroll);
@@ -2413,15 +2532,19 @@ async function saveCapturedBuffer(
   capturedBuffer: Buffer,
   options: CaptureOptions,
   copyAfterCapture = false,
-  forcePin = false
+  forcePin = false,
+  savePath?: string
 ): Promise<ScreenshotRecord> {
   const metadata = await sharp(capturedBuffer).metadata();
   const imageWidth = metadata.width ?? 1;
   const imageHeight = metadata.height ?? 1;
   const now = new Date();
   const timestamp = formatTimestamp(now);
-  const extension = appSettings.outputFormat === "jpg" ? "jpg" : "png";
-  const filePath = await buildScreenshotFilePath(now, extension);
+  const defaultExtension = appSettings.outputFormat === "jpg" ? "jpg" : "png";
+  const filePath = savePath
+    ? ensureImageFileExtension(savePath, outputExtensionFromPath(savePath, defaultExtension))
+    : await buildScreenshotFilePath(now, defaultExtension);
+  const extension = outputExtensionFromPath(filePath, defaultExtension);
   const imagePipeline = options.watermarkEnabled === false
     ? sharp(capturedBuffer)
     : sharp(capturedBuffer).composite([buildWatermarkSvg(options, timestamp, imageWidth, imageHeight)]);
@@ -2430,6 +2553,7 @@ async function saveCapturedBuffer(
       ? await imagePipeline.jpeg({ quality: 92 }).toBuffer()
       : await imagePipeline.png().toBuffer();
 
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, outputBuffer);
 
   const record: ScreenshotRecord = {
@@ -2470,7 +2594,8 @@ async function capturePrimaryScreen(options: CaptureOptions, copyAfterCapture = 
       captureResult.buffer,
       options,
       copyAfterCapture || captureResult.action === "copy",
-      captureResult.action === "pin"
+      captureResult.action === "pin",
+      captureResult.savePath
     );
   } finally {
     if (mainWindow && shouldRestoreWindow) {
@@ -2495,7 +2620,8 @@ async function captureSelectedRegion(options: CaptureOptions, copyAfterCapture =
       captureResult.buffer,
       options,
       copyAfterCapture || captureResult.action === "copy",
-      captureResult.action === "pin"
+      captureResult.action === "pin",
+      captureResult.savePath
     );
   } finally {
     if (shouldRestoreWindow) {

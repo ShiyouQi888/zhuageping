@@ -19,6 +19,8 @@
   ·
   <a href="#core-features">Features</a>
   ·
+  <a href="#screenshots">Screenshots</a>
+  ·
   <a href="#default-shortcuts">Shortcuts</a>
   ·
   <a href="#privacy">Privacy</a>
@@ -37,17 +39,17 @@ Download the latest installer from GitHub Releases:
 
 Current version:
 
-- Version: `0.1.8`
+- Version: `0.1.9`
 - Platform: Windows x64
-- Installer: `zhuageping-Setup-0.1.8-x64.exe`
-- SHA256: `85967BED47FD9D07064B0F20062E79358F7897B4177371D961A4FA3DBDF4AE5E`
-- Release: [Zhuageping v0.1.8](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.8)
+- Installer: `zhuageping-Setup-0.1.9-x64.exe`
+- SHA256: `D01852CB248F16C90CA4713E188A300A6993ACC15BE4991F601A76CFC858A2D6`
+- Release: [Zhuageping v0.1.9](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.9)
 
 Note: the current installer is not signed with a commercial code-signing certificate. Windows may show an unknown publisher warning during installation. This is expected for an unsigned installer and does not mean the app connects to the cloud or uploads your data.
 
 ## Latest Updates
 
-Highlights in `v0.1.8`:
+Highlights in `v0.1.9`:
 
 - GitHub Releases auto-update: packaged builds can check, download, and install new versions.
 - Preferences update panel: shows the current version, latest version, update source, download progress, and restart-to-install action.
@@ -60,6 +62,45 @@ Highlights in `v0.1.8`:
 - F1 shortcut enhancement: a Windows hotkey guard gives Zhuageping priority over browser F1 help shortcuts.
 - Packaging improvements: releases include OCR resources and the hotkey guard component.
 - Existing OCR features remain available: current capture region OCR, auto-copy, result dialog, and bundled local models.
+
+## Screenshots
+
+### Preferences
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/readme-assets/preferences-general.png" alt="General preferences with software update settings" /></td>
+    <td width="50%"><img src="docs/readme-assets/preferences-interface.png" alt="Interface preferences with window mode and theme settings" /></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>General and software update</strong></td>
+    <td align="center"><strong>Interface and theme</strong></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/readme-assets/preferences-capture.png" alt="Capture preferences with watermark and auto-copy settings" /></td>
+    <td width="50%"><img src="docs/readme-assets/preferences-pin.png" alt="Pin preferences with pin controls" /></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Capture settings</strong></td>
+    <td align="center"><strong>Pin settings</strong></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/readme-assets/preferences-output.png" alt="Output preferences with screenshot storage location" /></td>
+    <td width="50%"><img src="docs/readme-assets/preferences-controls.png" alt="Controls preferences with shortcut settings" /></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Output settings</strong></td>
+    <td align="center"><strong>Shortcut controls</strong></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/readme-assets/preferences-about.png" alt="About page with author information and QR code" /></td>
+    <td width="50%"><img src="docs/readme-assets/capture-editor-toolbar.png" alt="In-place screenshot editor with annotation toolbar" /></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>About</strong></td>
+    <td align="center"><strong>In-place capture editor</strong></td>
+  </tr>
+</table>
 
 ## Core Features
 
@@ -386,8 +427,8 @@ npm run dist
 Generated files:
 
 ```text
-release/zhuageping-Setup-0.1.8-x64.exe
-release/zhuageping-Setup-0.1.8-x64.exe.blockmap
+release/zhuageping-Setup-0.1.9-x64.exe
+release/zhuageping-Setup-0.1.9-x64.exe.blockmap
 release/win-unpacked/
 ```
 

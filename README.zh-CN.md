@@ -19,6 +19,8 @@
   ·
   <a href="#核心功能">功能</a>
   ·
+  <a href="#界面截图">截图</a>
+  ·
   <a href="#默认快捷键">快捷键</a>
   ·
   <a href="#隐私说明">隐私说明</a>
@@ -37,17 +39,17 @@
 
 当前版本：
 
-- 版本：`0.1.8`
+- 版本：`0.1.9`
 - 平台：Windows x64
-- 安装包：`zhuageping-Setup-0.1.8-x64.exe`
-- SHA256：`85967BED47FD9D07064B0F20062E79358F7897B4177371D961A4FA3DBDF4AE5E`
-- Release：[抓个屏 v0.1.8](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.8)
+- 安装包：`zhuageping-Setup-0.1.9-x64.exe`
+- SHA256：`D01852CB248F16C90CA4713E188A300A6993ACC15BE4991F601A76CFC858A2D6`
+- Release：[抓个屏 v0.1.9](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.9)
 
 说明：当前安装包暂未购买商业代码签名证书。安装时 Windows 可能提示未知发布者，这是未签名安装包的正常现象，不代表软件连接云端或上传数据。
 
 ## 最新功能
 
-`v0.1.8` 重点更新：
+`v0.1.9` 重点更新：
 
 - GitHub Releases 自动更新：安装版可检查、下载并安装新版本。
 - 首选项新增软件更新面板：显示当前版本、最新版本、更新源、下载进度和重启安装入口。
@@ -60,6 +62,45 @@
 - F1 快捷键增强：新增 Windows 热键守护，优先拦截 F1 触发截图，降低与浏览器 F1 帮助冲突。
 - 打包流程增强：发行版会自动携带 OCR 资源和热键守护组件。
 - 继续保留当前截图区域 OCR、自动复制、结果弹窗和本地模型内置能力。
+
+## 界面截图
+
+### 首选项
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/readme-assets/preferences-general.png" alt="常规设置与软件更新" /></td>
+    <td width="50%"><img src="docs/readme-assets/preferences-interface.png" alt="界面设置与主题设置" /></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>常规与软件更新</strong></td>
+    <td align="center"><strong>界面与主题</strong></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/readme-assets/preferences-capture.png" alt="截图设置与水印设置" /></td>
+    <td width="50%"><img src="docs/readme-assets/preferences-pin.png" alt="贴图设置" /></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>截图设置</strong></td>
+    <td align="center"><strong>贴图设置</strong></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/readme-assets/preferences-output.png" alt="输出设置与截图存储位置" /></td>
+    <td width="50%"><img src="docs/readme-assets/preferences-controls.png" alt="控制设置与快捷键设置" /></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>输出设置</strong></td>
+    <td align="center"><strong>快捷键控制</strong></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/readme-assets/preferences-about.png" alt="关于页面、作者信息和二维码" /></td>
+    <td width="50%"><img src="docs/readme-assets/capture-editor-toolbar.png" alt="原地截图编辑器与标注工具栏" /></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>关于</strong></td>
+    <td align="center"><strong>原地截图编辑器</strong></td>
+  </tr>
+</table>
 
 ## 核心功能
 
@@ -386,8 +427,8 @@ npm run dist
 生成文件示例：
 
 ```text
-release/zhuageping-Setup-0.1.8-x64.exe
-release/zhuageping-Setup-0.1.8-x64.exe.blockmap
+release/zhuageping-Setup-0.1.9-x64.exe
+release/zhuageping-Setup-0.1.9-x64.exe.blockmap
 release/win-unpacked/
 ```
 

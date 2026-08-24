@@ -3,7 +3,7 @@ import { Camera, FolderOpen, HelpCircle, Minus, Pin, RefreshCw, RotateCcw, Scrol
 import appLogoUrl from "./assets/app-logo.png";
 import wechatQrUrl from "./assets/weichat-qr.svg";
 import { fallbackLanguage, formatShortcutForWindows, languageOptions, messages, normalizeLanguage, tabKeys, type TabKey } from "./i18n";
-import type { AppLanguage, AppSettings, AppUpdateStatus, ScreenshotRecord, StoragePaths, WatermarkPosition } from "./types";
+import type { AppLanguage, AppSettings, AppTheme, AppUpdateStatus, ScreenshotRecord, StoragePaths, WatermarkPosition } from "./types";
 
 const shortcutKeys: Array<keyof AppSettings> = [
   "shortcutCapture",
@@ -15,6 +15,10 @@ const shortcutKeys: Array<keyof AppSettings> = [
 ];
 
 const watermarkValues: WatermarkPosition[] = ["top-left", "top-right", "bottom-left", "bottom-right", "bottom-bar"];
+
+function normalizeTheme(theme: string | undefined): AppTheme {
+  return theme === "dark" || theme === "light" ? theme : "system";
+}
 
 const defaultSettings: AppSettings = {
   location: "上海市",
@@ -31,6 +35,7 @@ const defaultSettings: AppSettings = {
   autoPinAfterCapture: false,
   outputFormat: "png",
   language: fallbackLanguage,
+  theme: "system",
   logLevel: "normal",
   screenshotDir: "",
   shortcutCapture: "F1",
@@ -62,6 +67,10 @@ export function App() {
   }, [language]);
 
   useEffect(() => {
+    document.documentElement.dataset.theme = settings.theme || "system";
+  }, [settings.theme]);
+
+  useEffect(() => {
     void Promise.all([
       window.screenshotApp.getStoragePaths(),
       window.screenshotApp.getHistory(),
@@ -70,7 +79,7 @@ export function App() {
     ]).then(([paths, records, loadedSettings, version]) => {
       setStoragePaths(paths);
       setHistory(records);
-      setSettings({ ...loadedSettings, language: normalizeLanguage(loadedSettings.language) });
+      setSettings({ ...loadedSettings, language: normalizeLanguage(loadedSettings.language), theme: normalizeTheme(loadedSettings.theme) });
       setAppVersion(version);
       setUpdateStatus((current) => current ?? { state: "idle", message: "", currentVersion: version });
     });
@@ -87,7 +96,7 @@ export function App() {
       setStatus(t.status.historyCleared);
     });
     const removeSettingsUpdatedListener = window.screenshotApp.onSettingsUpdated((updatedSettings) => {
-      setSettings({ ...updatedSettings, language: normalizeLanguage(updatedSettings.language) });
+      setSettings({ ...updatedSettings, language: normalizeLanguage(updatedSettings.language), theme: normalizeTheme(updatedSettings.theme) });
       setStoragePaths((current) =>
         current ? { ...current, screenshotDir: updatedSettings.screenshotDir } : current
       );
@@ -113,7 +122,7 @@ export function App() {
     setSettings(nextSettings);
     const savedSettings = await window.screenshotApp.updateSettings(nextSettings);
     const savedLanguage = normalizeLanguage(savedSettings.language);
-    setSettings({ ...savedSettings, language: savedLanguage });
+    setSettings({ ...savedSettings, language: savedLanguage, theme: normalizeTheme(savedSettings.theme) });
     setStoragePaths((current) => (current ? { ...current, screenshotDir: savedSettings.screenshotDir } : current));
     setStatus(messages[savedLanguage].status.settingsSaved);
   }
@@ -183,7 +192,7 @@ export function App() {
 
   async function chooseScreenshotDir() {
     const updatedSettings = await window.screenshotApp.chooseScreenshotDir();
-    setSettings({ ...updatedSettings, language: normalizeLanguage(updatedSettings.language) });
+    setSettings({ ...updatedSettings, language: normalizeLanguage(updatedSettings.language), theme: normalizeTheme(updatedSettings.theme) });
     setStoragePaths((current) => (current ? { ...current, screenshotDir: updatedSettings.screenshotDir } : current));
     setStatus(t.status.screenshotDirUpdated);
   }
@@ -335,9 +344,10 @@ export function App() {
             </label>
             <label className="field-row">
               <span>{t.interface.theme}</span>
-              <select defaultValue="system">
+              <select value={settings.theme} onChange={(event) => updateSetting("theme", event.target.value as AppTheme)}>
                 <option value="system">{t.interface.systemTheme}</option>
                 <option value="light">{t.interface.lightTheme}</option>
+                <option value="dark">{t.interface.darkTheme}</option>
               </select>
             </label>
           </>
