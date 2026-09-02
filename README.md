@@ -39,18 +39,20 @@ Download the latest installer from GitHub Releases:
 
 Current version:
 
-- Version: `0.1.9`
+- Version: `0.1.10`
 - Platform: Windows x64
-- Installer: `zhuageping-Setup-0.1.9-x64.exe`
-- SHA256: `D01852CB248F16C90CA4713E188A300A6993ACC15BE4991F601A76CFC858A2D6`
-- Release: [Zhuageping v0.1.9](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.9)
+- Installer: `zhuageping-Setup-0.1.10-x64.exe`
+- SHA256: `3FC6901D2DE08AFA6F4712E817960EF9A1E3F138396AE12C89841A5A170685B9`
+- Release: [Zhuageping v0.1.10](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.10)
 
 Note: the current installer is not signed with a commercial code-signing certificate. Windows may show an unknown publisher warning during installation. This is expected for an unsigned installer and does not mean the app connects to the cloud or uploads your data.
 
 ## Latest Updates
 
-Highlights in `v0.1.9`:
+Highlights in `v0.1.10`:
 
+- Pinned image toolbar redesign: grouped controls, translucent glass styling, clearer icons, active states, and opacity percentage feedback.
+- Shortcut responsiveness improvements: faster F1 overlay startup, reduced pre-capture work, and higher priority for the hotkey guard process.
 - GitHub Releases auto-update: packaged builds can check, download, and install new versions.
 - Preferences update panel: shows the current version, latest version, update source, download progress, and restart-to-install action.
 - Tray update entry: check for updates even when the preferences window is hidden.
@@ -427,8 +429,8 @@ npm run dist
 Generated files:
 
 ```text
-release/zhuageping-Setup-0.1.9-x64.exe
-release/zhuageping-Setup-0.1.9-x64.exe.blockmap
+release/zhuageping-Setup-0.1.10-x64.exe
+release/zhuageping-Setup-0.1.10-x64.exe.blockmap
 release/win-unpacked/
 ```
 

@@ -41,6 +41,7 @@ internal static class Program
             }
 
             using var currentProcess = Process.GetCurrentProcess();
+            TryRaiseProcessPriority(currentProcess);
             using var currentModule = currentProcess.MainModule;
             hookId = SetWindowsHookEx(
                 WhKeyboardLl,
@@ -125,6 +126,25 @@ internal static class Program
             .Where(hotkey => hotkey is not null)
             .Select(hotkey => hotkey!)
             .ToArray();
+    }
+
+    private static void TryRaiseProcessPriority(Process currentProcess)
+    {
+        try
+        {
+            currentProcess.PriorityClass = ProcessPriorityClass.High;
+        }
+        catch
+        {
+            try
+            {
+                currentProcess.PriorityClass = ProcessPriorityClass.AboveNormal;
+            }
+            catch
+            {
+                // Keep the hook running even when Windows denies priority changes.
+            }
+        }
     }
 
     private static Hotkey? ParseHotkey(string action, string? accelerator)

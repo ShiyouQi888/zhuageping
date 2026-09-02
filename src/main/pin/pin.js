@@ -7,6 +7,7 @@ const opacityInput = document.getElementById("opacity");
 const lockButton = document.getElementById("lock");
 const topLevelButton = document.getElementById("topLevel");
 const clickThroughButton = document.getElementById("clickThrough");
+const opacityValue = document.getElementById("opacityValue");
 
 let currentFilePath = "";
 let locked = false;
@@ -20,10 +21,11 @@ function syncState() {
   document.body.classList.toggle("is-click-through", clickThrough);
   lockButton.classList.toggle("active", locked);
   clickThroughButton.classList.toggle("active", clickThrough);
-  lockButton.textContent = locked ? "解锁" : "锁定";
-  clickThroughButton.textContent = clickThrough ? "取消穿透" : "穿透";
+  lockButton.querySelector("span").textContent = locked ? "解锁" : "锁定";
+  clickThroughButton.querySelector("span").textContent = clickThrough ? "关闭穿透" : "穿透";
   topLevelButton.classList.toggle("active", topLevel !== "normal");
-  topLevelButton.textContent = topLevel === "normal" ? "置顶" : "取消置顶";
+  topLevelButton.querySelector("span").textContent = topLevel === "normal" ? "置顶" : "取消置顶";
+  opacityValue.textContent = `${opacityInput.value}%`;
 }
 
 ipcRenderer.on("pin:init", (_event, payload) => {
@@ -46,6 +48,7 @@ topLevelButton.addEventListener("click", () => {
 clickThroughButton.addEventListener("click", () => ipcRenderer.send("pin:click-through", !clickThrough));
 
 opacityInput.addEventListener("input", () => {
+  opacityValue.textContent = `${opacityInput.value}%`;
   ipcRenderer.send("pin:opacity", Number(opacityInput.value) / 100);
 });
 

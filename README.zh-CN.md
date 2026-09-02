@@ -39,18 +39,20 @@
 
 当前版本：
 
-- 版本：`0.1.9`
+- 版本：`0.1.10`
 - 平台：Windows x64
-- 安装包：`zhuageping-Setup-0.1.9-x64.exe`
-- SHA256：`D01852CB248F16C90CA4713E188A300A6993ACC15BE4991F601A76CFC858A2D6`
-- Release：[抓个屏 v0.1.9](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.9)
+- 安装包：`zhuageping-Setup-0.1.10-x64.exe`
+- SHA256：`3FC6901D2DE08AFA6F4712E817960EF9A1E3F138396AE12C89841A5A170685B9`
+- Release：[抓个屏 v0.1.10](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.10)
 
 说明：当前安装包暂未购买商业代码签名证书。安装时 Windows 可能提示未知发布者，这是未签名安装包的正常现象，不代表软件连接云端或上传数据。
 
 ## 最新功能
 
-`v0.1.9` 重点更新：
+`v0.1.10` 重点更新：
 
+- 贴图工具栏重设计：分组控制、半透明玻璃质感、更清晰的图标、状态高亮和透明度百分比反馈。
+- 快捷键响应优化：F1 遮罩启动更快，减少截图前置工作，并提高热键守护进程优先级。
 - GitHub Releases 自动更新：安装版可检查、下载并安装新版本。
 - 首选项新增软件更新面板：显示当前版本、最新版本、更新源、下载进度和重启安装入口。
 - 托盘新增检查更新入口：首选项窗口隐藏时也能手动检查。
@@ -427,8 +429,8 @@ npm run dist
 生成文件示例：
 
 ```text
-release/zhuageping-Setup-0.1.9-x64.exe
-release/zhuageping-Setup-0.1.9-x64.exe.blockmap
+release/zhuageping-Setup-0.1.10-x64.exe
+release/zhuageping-Setup-0.1.10-x64.exe.blockmap
 release/win-unpacked/
 ```
 

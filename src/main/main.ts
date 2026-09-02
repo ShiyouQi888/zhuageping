@@ -76,6 +76,13 @@ app.setPath("userData", appProfileDir);
 app.setName(APP_NAME);
 app.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
 app.commandLine.appendSwitch("disk-cache-dir", path.join(appRuntimeDir, "chromium-cache"));
+try {
+  os.setPriority(os.constants.priority.PRIORITY_ABOVE_NORMAL);
+} catch (error) {
+  if (!app.isPackaged) {
+    console.warn("Unable to raise main process priority.", error);
+  }
+}
 
 type WatermarkPosition = "top-left" | "top-right" | "bottom-left" | "bottom-right" | "bottom-bar";
 
@@ -1738,7 +1745,8 @@ async function selectScreenRegionOnly(selectionHint: string): Promise<CaptureReg
         title: mt().dialog.scrollSelectionTitle,
         webPreferences: {
           nodeIntegration: true,
-          contextIsolation: false
+          contextIsolation: false,
+          backgroundThrottling: false
         }
       });
       overlay.setMenu(null);
@@ -1852,16 +1860,6 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
       return `data:image/png;base64,${capturedBuffer.toString("base64")}`;
     };
 
-    const previewCache = new Map<number, Promise<string | undefined>>(
-      displays.map((display) => [
-        display.id,
-        captureDisplayDataUrl(display).catch((error) => {
-          console.warn("Inline preview prewarm failed.", error);
-          return undefined;
-        })
-      ])
-    );
-
     const overlays = displays.map((display) => {
       const overlay = new BrowserWindow({
         x: display.bounds.x,
@@ -1881,7 +1879,8 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
         title: mt().dialog.captureTitle,
         webPreferences: {
           nodeIntegration: true,
-          contextIsolation: false
+          contextIsolation: false,
+          backgroundThrottling: false
         }
       });
       overlay.setMenu(null);
@@ -2251,10 +2250,7 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
       preparingPreview = true;
       let backgroundDataUrl: string | undefined;
       try {
-        backgroundDataUrl = await previewCache.get(display.id);
-        if (!backgroundDataUrl) {
-          backgroundDataUrl = await captureDisplayPreviewDataUrl(display);
-        }
+        backgroundDataUrl = await captureDisplayPreviewDataUrl(display);
       } catch (error) {
         console.warn("Inline preview capture failed.", error);
       } finally {
@@ -2577,12 +2573,10 @@ async function saveCapturedBuffer(
 }
 
 async function capturePrimaryScreen(options: CaptureOptions, copyAfterCapture = false): Promise<ScreenshotRecord | null> {
-  await ensureStorage();
-
   const shouldRestoreWindow = Boolean(mainWindow?.isVisible());
   if (mainWindow) {
     mainWindow.hide();
-    await delay(32);
+    await delay(16);
   }
 
   try {
@@ -2606,10 +2600,11 @@ async function capturePrimaryScreen(options: CaptureOptions, copyAfterCapture = 
 }
 
 async function captureSelectedRegion(options: CaptureOptions, copyAfterCapture = false): Promise<ScreenshotRecord | null> {
-  await ensureStorage();
   const shouldRestoreWindow = Boolean(mainWindow?.isVisible());
   mainWindow?.hide();
-  await delay(32);
+  if (shouldRestoreWindow) {
+    await delay(16);
+  }
 
   try {
     const captureResult = await selectAndEditRegion();

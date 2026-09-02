@@ -13,21 +13,51 @@
     <main id="pinSurface">
       <img id="pinImage" alt="贴图截图" draggable="false" />
       <div id="toolbarDock" aria-label="贴图菜单区域">
-        <div id="toolbarTrigger" aria-hidden="true"></div>
+        <div id="toolbarTrigger" aria-hidden="true">
+          <span></span>
+        </div>
         <div id="toolbar" aria-label="贴图工具栏">
-          <button id="zoomOut" title="缩小">-</button>
-          <button id="zoomReset" title="原始比例">1:1</button>
-          <button id="zoomIn" title="放大">+</button>
-          <button id="lock" title="锁定移动和缩放">锁定</button>
-          <button id="topLevel" title="置顶级别">置顶</button>
-          <button id="clickThrough" title="鼠标穿透">穿透</button>
-          <label title="透明度">
-            <span>透明</span>
+          <div class="toolbar-group zoom-group" aria-label="缩放">
+            <button id="zoomOut" class="icon-button" title="缩小">
+              <svg viewBox="0 0 24 24"><path d="M5 12h14" /></svg>
+            </button>
+            <button id="zoomReset" class="text-button" title="原始比例">1:1</button>
+            <button id="zoomIn" class="icon-button" title="放大">
+              <svg viewBox="0 0 24 24"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
+            </button>
+          </div>
+
+          <div class="toolbar-group state-group" aria-label="贴图状态">
+            <button id="lock" class="state-button" title="锁定移动和缩放">
+              <svg viewBox="0 0 24 24"><rect x="6" y="10" width="12" height="10" rx="2" /><path d="M8 10V8a4 4 0 0 1 8 0v2" /></svg>
+              <span>锁定</span>
+            </button>
+            <button id="topLevel" class="state-button" title="置顶级别">
+              <svg viewBox="0 0 24 24"><path d="M12 4v12" /><path d="m7 9 5-5 5 5" /><path d="M5 20h14" /></svg>
+              <span>置顶</span>
+            </button>
+            <button id="clickThrough" class="state-button" title="鼠标穿透">
+              <svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z" /><path d="m8 8 8 8" /><path d="m16 8-8 8" /></svg>
+              <span>穿透</span>
+            </button>
+          </div>
+
+          <label class="opacity-control" title="透明度">
+            <span id="opacityValue">100%</span>
             <input id="opacity" type="range" min="35" max="100" value="100" />
           </label>
-          <button id="copy" title="复制图片">复制</button>
-          <button id="open" title="打开文件">打开</button>
-          <button id="close" class="danger" title="关闭 Esc">×</button>
+
+          <div class="toolbar-group action-group" aria-label="贴图操作">
+            <button id="copy" class="icon-button" title="复制图片 Ctrl+C">
+              <svg viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" /></svg>
+            </button>
+            <button id="open" class="icon-button" title="打开文件">
+              <svg viewBox="0 0 24 24"><path d="M4 20h16" /><path d="M6 20V6a2 2 0 0 1 2-2h5l5 5v11" /><path d="M13 4v5h5" /></svg>
+            </button>
+            <button id="close" class="icon-button danger" title="关闭 Esc">
+              <svg viewBox="0 0 24 24"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+            </button>
+          </div>
         </div>
       </div>
     </main>
