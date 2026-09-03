@@ -14,6 +14,7 @@ const ctx = canvas.getContext("2d");
 const shade = document.getElementById("shade");
 const selectionEl = document.getElementById("selection");
 const objectBox = document.getElementById("objectBox");
+const ocrLayer = document.getElementById("ocrLayer");
 const toolbar = document.getElementById("toolbar");
 const statusEl = document.getElementById("status");
 const helpEl = document.getElementById("help");
@@ -243,12 +244,10 @@ let backgroundMode = "selection";
 let baseImageDataUrl = null;
 let ocrDialogOpen = false;
 let ocrInFlight = false;
+let ocrLocationLines = [];
 let textBold = false;
 let textBackground = false;
 let textOutline = false;
-let windowProbeSeq = 0;
-let lastWindowProbeAt = 0;
-let windowProbeInFlight = false;
 let contextualVisible = false;
 const history = [];
 
@@ -499,38 +498,53 @@ function setHoverSelection(rect) {
   }
 }
 
-function probeWindowSelectionAt(clientX, clientY, options = {}) {
-  if (phase !== "selecting" || selecting || pendingAutoSelection || windowProbeInFlight) return;
-  if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) return;
-  if (clientX < 0 || clientY < 0 || clientX > window.innerWidth || clientY > window.innerHeight) {
-    setHoverSelection(null);
-    return;
-  }
-  const now = performance.now();
-  if (!options.force && now - lastWindowProbeAt < 120) return;
-  lastWindowProbeAt = now;
-  const seq = ++windowProbeSeq;
-  windowProbeInFlight = true;
-  ipcRenderer
-    .invoke("overlay:window-at-point", {
-      x: clientX + overlayOffset.x,
-      y: clientY + overlayOffset.y
-    })
-    .then((rect) => {
-      if (seq !== windowProbeSeq || phase !== "selecting" || selecting || pendingAutoSelection) return;
-      setHoverSelection(rect && rect.width >= minSelectionSize && rect.height >= minSelectionSize ? rect : null);
-    })
-    .catch(() => {
-      if (seq === windowProbeSeq) setHoverSelection(null);
-    })
-    .finally(() => {
-      if (seq === windowProbeSeq) windowProbeInFlight = false;
-    });
+function clearOcrLocations() {
+  ocrLocationLines = [];
+  ocrLayer.replaceChildren();
+  ocrLayer.style.display = "none";
 }
 
-function probeWindowSelection(event, options = {}) {
-  if (event.buttons && !options.force) return;
-  probeWindowSelectionAt(event.clientX, event.clientY, options);
+function ocrLineBounds(line) {
+  if (!line?.box || line.box.length < 4) return null;
+  const xs = line.box.map((point) => Number(point[0])).filter(Number.isFinite);
+  const ys = line.box.map((point) => Number(point[1])).filter(Number.isFinite);
+  if (xs.length < 4 || ys.length < 4) return null;
+  const left = Math.max(0, Math.min(...xs));
+  const top = Math.max(0, Math.min(...ys));
+  const right = Math.min(canvas.width, Math.max(...xs));
+  const bottom = Math.min(canvas.height, Math.max(...ys));
+  if (right - left < 3 || bottom - top < 3) return null;
+  return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
+function renderOcrLocations() {
+  ocrLayer.replaceChildren();
+  if (!canvasRect || !ocrLocationLines.length) {
+    ocrLayer.style.display = "none";
+    return;
+  }
+
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = rect.width / canvas.width;
+  const scaleY = rect.height / canvas.height;
+  ocrLayer.style.display = "block";
+  ocrLayer.style.left = `${rect.left}px`;
+  ocrLayer.style.top = `${rect.top}px`;
+  ocrLayer.style.width = `${rect.width}px`;
+  ocrLayer.style.height = `${rect.height}px`;
+
+  ocrLocationLines.slice(0, 120).forEach((line) => {
+    const bounds = ocrLineBounds(line);
+    if (!bounds) return;
+    const item = document.createElement("div");
+    item.className = "ocr-location";
+    item.dataset.text = line.text || "";
+    item.style.left = `${Math.round(bounds.x * scaleX)}px`;
+    item.style.top = `${Math.round(bounds.y * scaleY)}px`;
+    item.style.width = `${Math.max(8, Math.round(bounds.width * scaleX))}px`;
+    item.style.height = `${Math.max(8, Math.round(bounds.height * scaleY))}px`;
+    ocrLayer.appendChild(item);
+  });
 }
 
 function positionToolbarNearSelection() {
@@ -598,6 +612,7 @@ function configureCanvas(rect) {
   activeScaleFactor = rect.scaleFactor || pixelRatio;
   canvasRect = rect;
   captureRegion = rect.captureRegion || screenSelectionToCaptureRegion(rect);
+  clearOcrLocations();
   canvas.width = Math.max(1, Math.round(rect.pixelWidth || rect.width * activeScaleFactor));
   canvas.height = Math.max(1, Math.round(rect.pixelHeight || rect.height * activeScaleFactor));
   canvas.style.display = "block";
@@ -646,6 +661,7 @@ function resizeCrop(nextRect) {
   pushHistory();
   renderSelection();
   renderObjectBox();
+  renderOcrLocations();
 }
 
 function moveCrop(nextRect) {
@@ -656,6 +672,7 @@ function moveCrop(nextRect) {
   canvas.style.top = `${nextRect.y}px`;
   renderSelection();
   renderObjectBox();
+  renderOcrLocations();
 }
 
 function enterEditMode(rect) {
@@ -672,7 +689,7 @@ function enterEditMode(rect) {
   setTool("rect");
 }
 
-function drawPrivacyObject(targetCtx, object, options = { includeOutline: true }) {
+function drawPrivacyObject(targetCtx, object) {
   if (!backgroundImage) {
     targetCtx.save();
     targetCtx.fillStyle = object.type === "mosaic" ? "rgba(30,41,59,.92)" : "rgba(226,232,240,.9)";
@@ -696,11 +713,6 @@ function drawPrivacyObject(targetCtx, object, options = { includeOutline: true }
     targetCtx.save();
     targetCtx.imageSmoothingEnabled = false;
     targetCtx.drawImage(pixelCanvas, 0, 0, sampleWidth, sampleHeight, object.x, object.y, object.width, object.height);
-    if (options.includeOutline) {
-      targetCtx.strokeStyle = "rgba(15,23,42,.58)";
-      targetCtx.lineWidth = 1;
-      targetCtx.strokeRect(object.x + 0.5, object.y + 0.5, object.width - 1, object.height - 1);
-    }
     targetCtx.restore();
   }
 
@@ -713,11 +725,6 @@ function drawPrivacyObject(targetCtx, object, options = { includeOutline: true }
     targetCtx.filter = `blur(${Math.max(8, 6 + strength * 4)}px)`;
     drawBackgroundPreview(targetCtx);
     targetCtx.filter = "none";
-    if (options.includeOutline) {
-      targetCtx.strokeStyle = "rgba(37,99,235,.58)";
-      targetCtx.lineWidth = 1;
-      targetCtx.strokeRect(object.x + 0.5, object.y + 0.5, object.width - 1, object.height - 1);
-    }
     targetCtx.restore();
   }
 }
@@ -1136,7 +1143,7 @@ function privacyDataUrl() {
   output.width = canvas.width;
   output.height = canvas.height;
   const outputCtx = output.getContext("2d");
-  privacyObjects.forEach((object) => drawPrivacyObject(outputCtx, object, { includeOutline: false }));
+  privacyObjects.forEach((object) => drawPrivacyObject(outputCtx, object));
   return output.toDataURL("image/png");
 }
 
@@ -1149,7 +1156,7 @@ function ocrDataUrl() {
   drawBackgroundPreview(outputCtx);
   objects
     .filter((object) => object.type === "mosaic" || object.type === "blur")
-    .forEach((object) => drawPrivacyObject(outputCtx, object, { includeOutline: false }));
+    .forEach((object) => drawPrivacyObject(outputCtx, object));
   return output.toDataURL("image/png");
 }
 
@@ -1185,6 +1192,8 @@ function openOcrDialog(result) {
   ocrDialog.classList.add("is-open");
   ocrText.value = result.text || "";
   ocrText.placeholder = result.ok ? ui.ocr.empty : ui.ocr.failed;
+  ocrLocationLines = result.ok ? (result.lines || []).filter((line) => line.box) : [];
+  renderOcrLocations();
   const countText = result.ok ? ui.ocr.lines(result.lines?.length || 0) : ui.ocr.failed;
   ocrMeta.textContent = `${countText} · ${Math.max(0, Math.round(result.elapsedMs || 0))} ms`;
   ocrTip.textContent = result.ok
@@ -1416,7 +1425,6 @@ window.addEventListener("mousemove", (event) => {
     return;
   }
   if (!drawingObject || !startPoint) {
-    probeWindowSelection(event);
     return;
   }
   const current = eventPoint(event);
@@ -1427,10 +1435,6 @@ window.addEventListener("mousemove", (event) => {
   }
   renderObjects();
   drawObject(ctx, drawingObject);
-});
-
-window.addEventListener("mouseenter", (event) => {
-  probeWindowSelection(event, { force: true });
 });
 
 window.addEventListener("mouseup", () => {
@@ -1596,13 +1600,6 @@ ipcRenderer.on("inline-ocr-result", (_event, result) => {
   setStatus(result.ok ? ui.ocr.doneStatus : ui.ocr.failed);
   openOcrDialog(result);
 });
-ipcRenderer.on("overlay:cursor-point", (_event, point) => {
-  if (phase !== "selecting") return;
-  const clientX = point.x - overlayOffset.x;
-  const clientY = point.y - overlayOffset.y;
-  requestAnimationFrame(() => probeWindowSelectionAt(clientX, clientY, { force: true }));
-});
-
 applyEditorLanguage();
 setStatus(selectionHint);
 setTool("rect", false);

@@ -136,11 +136,6 @@ type CaptureRegion = {
   height: number;
 };
 
-type WindowProbeRect = CaptureRegion & {
-  title?: string;
-  className?: string;
-};
-
 type PrivacyRegion = CaptureRegion & {
   strength?: number;
 };
@@ -1361,120 +1356,6 @@ function captureCropFromDisplay(region: CaptureRegion, display: DisplayLike) {
   };
 }
 
-function nativeWindowHandleId(window: BrowserWindow) {
-  const handle = window.getNativeWindowHandle();
-  return handle.length >= 8 ? handle.readBigUInt64LE(0).toString() : String(handle.readUInt32LE(0));
-}
-
-async function queryWindowAtPoint(point: { x: number; y: number }, ignoredWindowIds: string[]): Promise<WindowProbeRect | null> {
-  if (process.platform !== "win32") return null;
-  const ignoredList = ignoredWindowIds.map((id) => `[UInt64]${id}`).join(",");
-  const script = `
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-using System.Text;
-public static class WinProbe {
-  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
-  public delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
-  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc enumProc, IntPtr lParam);
-  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
-  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
-  [DllImport("user32.dll")] public static extern IntPtr GetShellWindow();
-  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int count);
-  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr hwnd, StringBuilder text, int count);
-}
-"@
-$pointX = ${Math.round(point.x)}
-$pointY = ${Math.round(point.y)}
-$ignored = New-Object 'System.Collections.Generic.HashSet[UInt64]'
-@(${ignoredList}) | ForEach-Object { if ($_ -ne $null) { [void]$ignored.Add([UInt64]$_) } }
-$classesToSkip = @("Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd")
-$shell = [WinProbe]::GetShellWindow()
-$result = $null
-$callback = [WinProbe+EnumWindowsProc]{
-  param([IntPtr]$hwnd, [IntPtr]$lParam)
-  if ($hwnd -eq [IntPtr]::Zero -or $hwnd -eq $shell -or $ignored.Contains($hwnd.ToUInt64())) { return $true }
-  if (-not [WinProbe]::IsWindowVisible($hwnd)) { return $true }
-  $classBuilder = New-Object System.Text.StringBuilder 256
-  [void][WinProbe]::GetClassName($hwnd, $classBuilder, $classBuilder.Capacity)
-  $className = $classBuilder.ToString()
-  if ($classesToSkip -contains $className) { return $true }
-  $rect = New-Object WinProbe+RECT
-  $hasRect = [WinProbe]::GetWindowRect($hwnd, [ref]$rect)
-  if (-not $hasRect) { return $true }
-  $width = $rect.Right - $rect.Left
-  $height = $rect.Bottom - $rect.Top
-  $containsPoint = $pointX -ge $rect.Left -and $pointX -le $rect.Right -and $pointY -ge $rect.Top -and $pointY -le $rect.Bottom
-  if (-not $containsPoint -or $width -lt 40 -or $height -lt 40) { return $true }
-  $titleBuilder = New-Object System.Text.StringBuilder 512
-  [void][WinProbe]::GetWindowText($hwnd, $titleBuilder, $titleBuilder.Capacity)
-  $script:result = [PSCustomObject]@{
-    x = $rect.Left
-    y = $rect.Top
-    width = $width
-    height = $height
-    title = $titleBuilder.ToString()
-    className = $className
-  }
-  return $false
-}
-[void][WinProbe]::EnumWindows($callback, [IntPtr]::Zero)
-if ($null -eq $result) { "null" } else { $result | ConvertTo-Json -Compress }
-`;
-  try {
-    const { stdout } = await execFileAsync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
-      windowsHide: true,
-      timeout: 1800,
-      maxBuffer: 64 * 1024
-    });
-    const trimmed = stdout.trim();
-    if (!trimmed || trimmed === "null") return null;
-    const parsed = JSON.parse(trimmed) as WindowProbeRect;
-    if (!Number.isFinite(parsed.x) || !Number.isFinite(parsed.y) || parsed.width < 40 || parsed.height < 40) return null;
-    return parsed;
-  } catch (error) {
-    console.warn("Window auto-detect failed.", error);
-    return null;
-  }
-}
-
-function intersectCaptureRect(a: CaptureRegion, b: CaptureRegion): CaptureRegion | null {
-  const left = Math.max(a.x, b.x);
-  const top = Math.max(a.y, b.y);
-  const right = Math.min(a.x + a.width, b.x + b.width);
-  const bottom = Math.min(a.y + a.height, b.y + b.height);
-  if (right - left < 40 || bottom - top < 40) return null;
-  return { x: left, y: top, width: right - left, height: bottom - top };
-}
-
-function windowRectForDisplay(rect: WindowProbeRect, display: DisplayLike, point: { x: number; y: number }): CaptureRegion | null {
-  const displayBounds = display.bounds;
-  const scaleFactor = display.scaleFactor || 1;
-  const variants: CaptureRegion[] = [
-    { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
-  ];
-  if (scaleFactor !== 1) {
-    variants.push({
-      x: rect.x / scaleFactor,
-      y: rect.y / scaleFactor,
-      width: rect.width / scaleFactor,
-      height: rect.height / scaleFactor
-    });
-  }
-  const matchingVariant = variants.find((variant) =>
-    point.x >= variant.x && point.x <= variant.x + variant.width && point.y >= variant.y && point.y <= variant.y + variant.height
-  );
-  const clipped = intersectCaptureRect(matchingVariant || variants[0], displayBounds);
-  if (!clipped) return null;
-  return {
-    x: clipped.x - displayBounds.x,
-    y: clipped.y - displayBounds.y,
-    width: clipped.width,
-    height: clipped.height
-  };
-}
-
 async function captureWithElectron(width: number, height: number, display?: DisplayLike): Promise<Buffer> {
   const sources = await desktopCapturer.getSources({
     types: ["screen"],
@@ -1652,6 +1533,7 @@ async function recognizeOcrFromInlinePayload(payload: InlineCapturePayload): Pro
     const inputBuffer = await prepareOcrImageBuffer(payload);
     const metadata = await sharp(inputBuffer).metadata();
     const sourceWidth = metadata.width ?? Math.round(payload.region.width);
+    const sourceHeight = metadata.height ?? Math.round(payload.region.height);
     const resizeWidth = sourceWidth > 0 && sourceWidth < 1400 ? Math.min(2200, sourceWidth * 2) : undefined;
     const preparedBuffer = await sharp(inputBuffer)
       .resize(resizeWidth ? { width: resizeWidth, withoutEnlargement: false } : undefined)
@@ -1659,6 +1541,9 @@ async function recognizeOcrFromInlinePayload(payload: InlineCapturePayload): Pro
       .sharpen()
       .png()
       .toBuffer();
+    const preparedMetadata = await sharp(preparedBuffer).metadata();
+    const ocrScaleX = sourceWidth > 0 ? (preparedMetadata.width ?? sourceWidth) / sourceWidth : 1;
+    const ocrScaleY = sourceHeight > 0 ? (preparedMetadata.height ?? sourceHeight) / sourceHeight : 1;
     await fs.writeFile(tempPath, preparedBuffer);
 
     const worker = getOcrWorker(enginePath);
@@ -1679,7 +1564,7 @@ async function recognizeOcrFromInlinePayload(payload: InlineCapturePayload): Pro
     }
 
     const lines = [...(result.data ?? [])]
-      .filter((line) => line.text?.trim())
+      .filter((line) => line.text?.trim() && line.box?.length >= 4)
       .sort((a, b) => {
         const ay = a.box.reduce((sum, point) => sum + point[1], 0) / 4;
         const by = b.box.reduce((sum, point) => sum + point[1], 0) / 4;
@@ -1691,7 +1576,10 @@ async function recognizeOcrFromInlinePayload(payload: InlineCapturePayload): Pro
       .map((line) => ({
         text: line.text.trim(),
         confidence: line.score,
-        box: line.box
+        box: line.box.slice(0, 4).map((point) => [
+          Math.max(0, Math.min(sourceWidth, point[0] / ocrScaleX)),
+          Math.max(0, Math.min(sourceHeight, point[1] / ocrScaleY))
+        ]) as [[number, number], [number, number], [number, number], [number, number]]
       }));
     const text = lines.map((line) => line.text).join("\n");
     if (text) {
@@ -1776,8 +1664,6 @@ async function selectScreenRegionOnly(selectionHint: string): Promise<CaptureReg
       });
       return { display, overlay };
     });
-    const overlayWindowIds = overlays.map(({ overlay }) => nativeWindowHandleId(overlay));
-    const overlayDisplays = new Map(overlays.map(({ display, overlay }) => [overlay.webContents.id, display]));
     let resolved = false;
 
     const showActiveOverlays = () => {
@@ -1797,7 +1683,6 @@ async function selectScreenRegionOnly(selectionHint: string): Promise<CaptureReg
       ipcMain.removeListener(selectionChannel, onRegionSelected);
       ipcMain.removeListener("inline-capture-cancel", onCancel);
       ipcMain.removeListener("overlay:ready", onOverlayReady);
-      ipcMain.removeHandler("overlay:window-at-point");
       overlays.forEach(({ overlay }) => {
         if (!overlay.isDestroyed()) overlay.close();
       });
@@ -1816,27 +1701,7 @@ async function selectScreenRegionOnly(selectionHint: string): Promise<CaptureReg
       const readyEntry = overlays.find(({ overlay }) => !overlay.isDestroyed() && overlay.webContents.id === event.sender.id);
       if (!readyEntry || readyEntry.overlay.isDestroyed()) return;
       readyEntry.overlay.focus();
-      const cursorPoint = screen.getCursorScreenPoint();
-      const displayBounds = readyEntry.display.bounds;
-      const cursorInDisplay =
-        cursorPoint.x >= displayBounds.x &&
-        cursorPoint.x <= displayBounds.x + displayBounds.width &&
-        cursorPoint.y >= displayBounds.y &&
-        cursorPoint.y <= displayBounds.y + displayBounds.height;
-      if (cursorInDisplay) {
-        readyEntry.overlay.webContents.send("overlay:cursor-point", cursorPoint);
-      }
     };
-
-    ipcMain.removeHandler("overlay:window-at-point");
-    ipcMain.handle("overlay:window-at-point", async (event, point: { x: number; y: number }) => {
-      if (resolved || event.sender.isDestroyed()) return null;
-      const display = overlayDisplays.get(event.sender.id);
-      if (!display || !Number.isFinite(point?.x) || !Number.isFinite(point?.y)) return null;
-      const rect = await queryWindowAtPoint(point, overlayWindowIds);
-      if (!rect) return null;
-      return windowRectForDisplay(rect, display, point);
-    });
 
     ipcMain.once("inline-capture-cancel", onCancel);
     ipcMain.on(selectionChannel, onRegionSelected);
@@ -1909,7 +1774,6 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
       return { display, overlay };
     });
     const overlayDisplays = new Map(overlays.map(({ display, overlay }) => [overlay.webContents.id, display]));
-    const overlayWindowIds = overlays.map(({ overlay }) => nativeWindowHandleId(overlay));
     let resolved = false;
     let preparingCapture = false;
     let preparingPreview = false;
@@ -2054,7 +1918,6 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
       ipcMain.removeListener("inline-capture-cancel", onCancel);
       ipcMain.removeListener("inline-region-selected", onRegionSelected);
       ipcMain.removeListener("overlay:ready", onOverlayReady);
-      ipcMain.removeHandler("overlay:window-at-point");
       overlays.forEach(({ overlay }) => {
         if (!overlay.isDestroyed()) overlay.close();
       });
@@ -2218,28 +2081,8 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
       const readyOverlay = readyEntry?.overlay;
       if (readyEntry && readyOverlay && !readyOverlay.isDestroyed()) {
         readyOverlay.focus();
-        const cursorPoint = screen.getCursorScreenPoint();
-        const displayBounds = readyEntry.display.bounds;
-        const cursorInDisplay =
-          cursorPoint.x >= displayBounds.x &&
-          cursorPoint.x <= displayBounds.x + displayBounds.width &&
-          cursorPoint.y >= displayBounds.y &&
-          cursorPoint.y <= displayBounds.y + displayBounds.height;
-        if (cursorInDisplay) {
-          readyOverlay.webContents.send("overlay:cursor-point", cursorPoint);
-        }
       }
     };
-
-    ipcMain.removeHandler("overlay:window-at-point");
-    ipcMain.handle("overlay:window-at-point", async (event, point: { x: number; y: number }) => {
-      if (resolved || preparingPreview || preparingCapture || event.sender.isDestroyed()) return null;
-      const display = overlayDisplays.get(event.sender.id);
-      if (!display || !Number.isFinite(point?.x) || !Number.isFinite(point?.y)) return null;
-      const rect = await queryWindowAtPoint(point, overlayWindowIds);
-      if (!rect) return null;
-      return windowRectForDisplay(rect, display, point);
-    });
 
     const onRegionSelected = async (event: Electron.IpcMainEvent, region: CaptureRegion) => {
       if (preparingCapture || preparingPreview || resolved || event.sender.isDestroyed()) {
