@@ -39,18 +39,21 @@ Download the latest installer from GitHub Releases:
 
 Current version:
 
-- Version: `0.1.10`
+- Version: `0.1.11`
 - Platform: Windows x64
-- Installer: `zhuageping-Setup-0.1.10-x64.exe`
-- SHA256: `3FC6901D2DE08AFA6F4712E817960EF9A1E3F138396AE12C89841A5A170685B9`
-- Release: [Zhuageping v0.1.10](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.10)
+- Installer: `zhuageping-Setup-0.1.11-x64.exe`
+- SHA256: `FF82FF69CF87A5DFBB62DE89AECC77C29035B65892C1D9CEE2FBCCC600CAAA7F`
+- Release: [Zhuageping v0.1.11](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.11)
 
 Note: the current installer is not signed with a commercial code-signing certificate. Windows may show an unknown publisher warning during installation. This is expected for an unsigned installer and does not mean the app connects to the cloud or uploads your data.
 
 ## Latest Updates
 
-Highlights in `v0.1.10`:
+Highlights in `v0.1.11`:
 
+- Capture editor toolbar cleanup: the main toolbar is now slimmer, lighter, and focused on frequent actions.
+- Contextual option panels: color, stroke width, text styles, privacy strength, and object actions now appear only when needed.
+- Selected object styling: color and stroke width changes can apply directly to selected drawing objects.
 - Pinned image toolbar redesign: grouped controls, translucent glass styling, clearer icons, active states, and opacity percentage feedback.
 - Shortcut responsiveness improvements: faster F1 overlay startup, reduced pre-capture work, and higher priority for the hotkey guard process.
 - GitHub Releases auto-update: packaged builds can check, download, and install new versions.
@@ -429,8 +432,8 @@ npm run dist
 Generated files:
 
 ```text
-release/zhuageping-Setup-0.1.10-x64.exe
-release/zhuageping-Setup-0.1.10-x64.exe.blockmap
+release/zhuageping-Setup-0.1.11-x64.exe
+release/zhuageping-Setup-0.1.11-x64.exe.blockmap
 release/win-unpacked/
 ```
 

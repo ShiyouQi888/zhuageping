@@ -54,6 +54,7 @@ const toolHotkeys = {
   u: "blur",
   e: "eraser"
 };
+const styledTools = new Set(["rect", "ellipse", "line", "arrow", "brush", "eraser"]);
 
 const params = new URLSearchParams(window.location.search);
 const overlayLanguage = params.get("language") === "en-US" ? "en-US" : "zh-CN";
@@ -248,6 +249,7 @@ let textOutline = false;
 let windowProbeSeq = 0;
 let lastWindowProbeAt = 0;
 let windowProbeInFlight = false;
+let contextualVisible = false;
 const history = [];
 
 function applyEditorLanguage() {
@@ -287,9 +289,10 @@ function sendSelectedRegion(rect) {
   ipcRenderer.send(selectionChannel, screenSelectionToCaptureRegion(rect));
 }
 
-function setTool(nextTool) {
+function setTool(nextTool, revealContext = true) {
   commitTextEditor();
   tool = nextTool;
+  contextualVisible = revealContext && nextTool !== "select";
   document.body.style.cursor = nextTool === "select" ? "default" : "crosshair";
   toolButtons.forEach((button) => button.classList.toggle("active", button.dataset.tool === nextTool));
   syncToolbarContext();
@@ -306,7 +309,7 @@ function syncActiveSwatch() {
 function syncToolbarContext() {
   const items = selectedObjects();
   const hasSelected = items.length > 0;
-  const activeContext = activeToolbarContext(items);
+  const activeContext = contextualVisible || hasSelected ? activeToolbarContext(items) : "";
 
   contextualGroups.forEach((group) => {
     group.classList.toggle("is-hidden", group.dataset.context !== activeContext);
@@ -320,10 +323,15 @@ function syncToolbarContext() {
 function activeToolbarContext(items = selectedObjects()) {
   const textContext = tool === "text" || items.some((object) => object.type === "text");
   const privacyContext = tool === "mosaic" || tool === "blur" || items.some((object) => object.type === "mosaic" || object.type === "blur");
-  return privacyContext ? "privacy" : textContext ? "text" : "";
+  if (privacyContext) return "privacy";
+  if (textContext) return "text";
+  if (items.length) return "object";
+  return styledTools.has(tool) ? "style" : "";
 }
 
 function contextAnchorTool(activeContext, items) {
+  if (activeContext === "style") return styledTools.has(tool) ? tool : "rect";
+  if (activeContext === "object") return "select";
   if (activeContext === "text") return "text";
   if (activeContext !== "privacy") return "";
   if (tool === "mosaic" || tool === "blur") return tool;
@@ -382,6 +390,7 @@ function selectedObjects() {
 function setSelectedObjects(ids) {
   selectedObjectIds = [...new Set(ids)].filter((id) => objects.some((object) => object.id === id));
   selectedObjectId = selectedObjectIds[selectedObjectIds.length - 1] || null;
+  if (selectedObjectIds.length) contextualVisible = true;
 }
 
 function selectObject(objectId, additive = false) {
@@ -983,16 +992,39 @@ function applyTextStyleToSelected(commit = false) {
   if (!selectedTextIds.length) return;
   const ids = new Set(selectedTextIds);
   const fontSize = Number(fontSizeInput.value) || 24;
+  const color = colorInput.value;
   objects = objects.map((object) => {
     if (!ids.has(object.id)) return object;
     const lineHeight = Math.max(24, fontSize * 1.25);
     return {
       ...object,
+      color,
       fontSize,
       lineHeight,
       bold: textBold,
       background: textBackground,
       outline: textOutline
+    };
+  });
+  renderObjects();
+  renderObjectBox();
+  if (commit) pushHistory();
+}
+
+function applyPaintStyleToSelected(commit = false) {
+  const paintIds = selectedObjects()
+    .filter((object) => ["rect", "ellipse", "line", "arrow", "brush", "eraser"].includes(object.type))
+    .map((object) => object.id);
+  if (!paintIds.length) return;
+  const ids = new Set(paintIds);
+  const color = colorInput.value;
+  const size = Number(strokeSize.value) || 5;
+  objects = objects.map((object) => {
+    if (!ids.has(object.id)) return object;
+    return {
+      ...object,
+      color,
+      size
     };
   });
   renderObjects();
@@ -1190,14 +1222,25 @@ function complete(channel) {
   ipcRenderer.send(channel, capturePayload());
 }
 
-toolButtons.forEach((button) => button.addEventListener("click", () => setTool(button.dataset.tool)));
+toolButtons.forEach((button) => button.addEventListener("click", () => setTool(button.dataset.tool, true)));
 document.querySelectorAll(".swatch").forEach((button) => {
   button.addEventListener("click", () => {
     colorInput.value = button.dataset.color;
     syncActiveSwatch();
+    applyPaintStyleToSelected(true);
+    applyTextStyleToSelected(true);
   });
 });
-colorInput.addEventListener("input", syncActiveSwatch);
+colorInput.addEventListener("input", () => {
+  syncActiveSwatch();
+  applyPaintStyleToSelected();
+  applyTextStyleToSelected();
+});
+colorInput.addEventListener("change", () => {
+  applyPaintStyleToSelected(true);
+  applyTextStyleToSelected(true);
+});
+strokeSize.addEventListener("change", () => applyPaintStyleToSelected(true));
 boldTextButton.addEventListener("click", () => {
   textBold = !textBold;
   syncTextButtons();
@@ -1562,5 +1605,5 @@ ipcRenderer.on("overlay:cursor-point", (_event, point) => {
 
 applyEditorLanguage();
 setStatus(selectionHint);
-setTool("rect");
+setTool("rect", false);
 requestAnimationFrame(() => ipcRenderer.send("overlay:ready"));

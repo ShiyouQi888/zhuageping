@@ -45,7 +45,19 @@
         <button id="scrollCapture" title="滚动截图 Ctrl+Shift+F1"><svg viewBox="0 0 24 24"><rect x="6.5" y="4.5" width="11" height="15" rx="2"/><path d="M9.5 8h5"/><path d="M9.5 11h5"/><path d="M12 13.5v4"/><path d="M9.8 15.6L12 17.8l2.2-2.2"/></svg></button>
       </div>
 
-      <div class="toolbar-section style-tools" aria-label="样式">
+      <div class="toolbar-section output-tools" aria-label="完成操作">
+        <button id="undo" title="撤销 Ctrl+Z"><svg viewBox="0 0 24 24"><path d="M9 7H5v4"/><path d="M5.2 11A7.5 7.5 0 1 0 8 5.6"/></svg></button>
+        <button id="ocrCapture" title="OCR 识别并复制 Ctrl+Shift+O"><svg class="icon-ocr" viewBox="0 0 24 24"><path d="M5 8V6a1 1 0 0 1 1-1h2"/><path d="M16 5h2a1 1 0 0 1 1 1v2"/><path d="M19 16v2a1 1 0 0 1-1 1h-2"/><path d="M8 19H6a1 1 0 0 1-1-1v-2"/><text x="12" y="14.6" text-anchor="middle">OCR</text></svg></button>
+        <button id="copy" title="复制 Ctrl+C"><svg viewBox="0 0 24 24"><rect x="9" y="8" width="9.5" height="9.5" rx="1.8"/><rect x="5.5" y="5" width="9.5" height="9.5" rx="1.8"/></svg></button>
+        <button id="pin" title="贴图 F3"><svg viewBox="0 0 24 24"><path d="M9 5h6"/><path d="M10 5l.8 6.2L8 14h8l-2.8-2.8L14 5"/><path d="M12 14v5"/></svg></button>
+        <button id="save" class="primary-action" title="保存 Ctrl+S"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg><span>保存</span></button>
+        <button id="cancel" class="danger" title="取消 Esc"><svg viewBox="0 0 24 24"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg></button>
+        <button id="ok" class="success" title="完成 Enter"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></button>
+      </div>
+    </div>
+
+    <div id="optionLayer" aria-label="工具参数">
+      <div class="toolbar-section style-tools contextual is-hidden" data-context="style" aria-label="样式">
         <input id="color" type="color" value="#ef4444" title="自定义颜色" />
         <div id="swatches" aria-label="颜色预设">
           <button class="swatch swatch-red active" data-color="#ef4444" title="红色"></button>
@@ -63,34 +75,15 @@
         </select>
       </div>
 
-      <div class="toolbar-section object-tools" aria-label="对象操作">
-        <button id="duplicateObject" title="复制对象 Ctrl+D"><svg viewBox="0 0 24 24"><rect x="9" y="8" width="9.5" height="9.5" rx="1.8"/><rect x="5.5" y="5" width="9.5" height="9.5" rx="1.8"/></svg></button>
-        <button id="bringForward" title="上移一层 Ctrl+]"><svg viewBox="0 0 24 24"><path d="M12 17V6"/><path d="M8.2 9.8L12 6l3.8 3.8"/><path d="M6 18.5h12"/></svg></button>
-        <button id="sendBackward" title="下移一层 Ctrl+["><svg viewBox="0 0 24 24"><path d="M12 7v11"/><path d="M8.2 14.2L12 18l3.8-3.8"/><path d="M6 5.5h12"/></svg></button>
-        <select id="alignMenu" title="对齐选中对象">
-          <option value="">对齐</option>
-          <option value="left">左对齐</option>
-          <option value="center">水平居中</option>
-          <option value="right">右对齐</option>
-          <option value="top">顶对齐</option>
-          <option value="middle">垂直居中</option>
-          <option value="bottom">底对齐</option>
-        </select>
-      </div>
-
-      <div class="toolbar-section output-tools" aria-label="完成操作">
-        <button id="undo" title="撤销 Ctrl+Z"><svg viewBox="0 0 24 24"><path d="M9 7H5v4"/><path d="M5.2 11A7.5 7.5 0 1 0 8 5.6"/></svg></button>
-        <button id="ocrCapture" title="OCR 识别并复制 Ctrl+Shift+O"><svg class="icon-ocr" viewBox="0 0 24 24"><path d="M5 8V6a1 1 0 0 1 1-1h2"/><path d="M16 5h2a1 1 0 0 1 1 1v2"/><path d="M19 16v2a1 1 0 0 1-1 1h-2"/><path d="M8 19H6a1 1 0 0 1-1-1v-2"/><text x="12" y="14.6" text-anchor="middle">OCR</text></svg></button>
-        <button id="copy" title="复制 Ctrl+C"><svg viewBox="0 0 24 24"><rect x="9" y="8" width="9.5" height="9.5" rx="1.8"/><rect x="5.5" y="5" width="9.5" height="9.5" rx="1.8"/></svg></button>
-        <button id="pin" title="贴图 F3"><svg viewBox="0 0 24 24"><path d="M9 5h6"/><path d="M10 5l.8 6.2L8 14h8l-2.8-2.8L14 5"/><path d="M12 14v5"/></svg></button>
-        <button id="save" class="primary-action" title="保存 Ctrl+S"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg><span>保存</span></button>
-        <button id="cancel" class="danger" title="取消 Esc"><svg viewBox="0 0 24 24"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg></button>
-        <button id="ok" class="success" title="完成 Enter"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></button>
-      </div>
-    </div>
-
-    <div id="optionLayer" aria-label="工具参数">
       <div class="toolbar-section text-tools contextual is-hidden" data-context="text" aria-label="文字样式">
+        <div id="textSwatches" aria-label="文字颜色预设">
+          <button class="swatch swatch-red active" data-color="#ef4444" title="红色"></button>
+          <button class="swatch swatch-blue" data-color="#2563eb" title="蓝色"></button>
+          <button class="swatch swatch-green" data-color="#16a34a" title="绿色"></button>
+          <button class="swatch swatch-amber" data-color="#f59e0b" title="黄色"></button>
+          <button class="swatch swatch-black" data-color="#111827" title="黑色"></button>
+          <button class="swatch swatch-white" data-color="#ffffff" title="白色"></button>
+        </div>
         <select id="fontSize" title="文字大小">
           <option value="18">18</option>
           <option value="24" selected>24</option>
@@ -108,6 +101,21 @@
           <span>强度</span>
           <input id="privacyStrength" type="range" min="1" max="10" value="5" />
         </label>
+      </div>
+
+      <div class="toolbar-section object-tools contextual is-hidden" data-context="object" aria-label="对象操作">
+        <button id="duplicateObject" title="复制对象 Ctrl+D"><svg viewBox="0 0 24 24"><rect x="9" y="8" width="9.5" height="9.5" rx="1.8"/><rect x="5.5" y="5" width="9.5" height="9.5" rx="1.8"/></svg></button>
+        <button id="bringForward" title="上移一层 Ctrl+]"><svg viewBox="0 0 24 24"><path d="M12 17V6"/><path d="M8.2 9.8L12 6l3.8 3.8"/><path d="M6 18.5h12"/></svg></button>
+        <button id="sendBackward" title="下移一层 Ctrl+["><svg viewBox="0 0 24 24"><path d="M12 7v11"/><path d="M8.2 14.2L12 18l3.8-3.8"/><path d="M6 5.5h12"/></svg></button>
+        <select id="alignMenu" title="对齐选中对象">
+          <option value="">对齐</option>
+          <option value="left">左对齐</option>
+          <option value="center">水平居中</option>
+          <option value="right">右对齐</option>
+          <option value="top">顶对齐</option>
+          <option value="middle">垂直居中</option>
+          <option value="bottom">底对齐</option>
+        </select>
       </div>
     </div>
 

@@ -39,18 +39,21 @@
 
 当前版本：
 
-- 版本：`0.1.10`
+- 版本：`0.1.11`
 - 平台：Windows x64
-- 安装包：`zhuageping-Setup-0.1.10-x64.exe`
-- SHA256：`3FC6901D2DE08AFA6F4712E817960EF9A1E3F138396AE12C89841A5A170685B9`
-- Release：[抓个屏 v0.1.10](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.10)
+- 安装包：`zhuageping-Setup-0.1.11-x64.exe`
+- SHA256：`FF82FF69CF87A5DFBB62DE89AECC77C29035B65892C1D9CEE2FBCCC600CAAA7F`
+- Release：[抓个屏 v0.1.11](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.11)
 
 说明：当前安装包暂未购买商业代码签名证书。安装时 Windows 可能提示未知发布者，这是未签名安装包的正常现象，不代表软件连接云端或上传数据。
 
 ## 最新功能
 
-`v0.1.10` 重点更新：
+`v0.1.11` 重点更新：
 
+- 截图编辑工具栏瘦身：主工具栏更轻、更窄，只保留高频操作。
+- 参数按需浮层：颜色、线宽、文字样式、隐私强度和对象操作只在需要时显示。
+- 选中对象样式联动：颜色和线宽调整可直接作用到已选中的绘制对象。
 - 贴图工具栏重设计：分组控制、半透明玻璃质感、更清晰的图标、状态高亮和透明度百分比反馈。
 - 快捷键响应优化：F1 遮罩启动更快，减少截图前置工作，并提高热键守护进程优先级。
 - GitHub Releases 自动更新：安装版可检查、下载并安装新版本。
@@ -429,8 +432,8 @@ npm run dist
 生成文件示例：
 
 ```text
-release/zhuageping-Setup-0.1.10-x64.exe
-release/zhuageping-Setup-0.1.10-x64.exe.blockmap
+release/zhuageping-Setup-0.1.11-x64.exe
+release/zhuageping-Setup-0.1.11-x64.exe.blockmap
 release/win-unpacked/
 ```
 
