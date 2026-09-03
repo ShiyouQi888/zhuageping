@@ -97,39 +97,6 @@ body {
   display: none;
 }
 
-#ocrLayer {
-  position: fixed;
-  z-index: 29;
-  display: none;
-  pointer-events: none;
-}
-
-.ocr-location {
-  position: absolute;
-  border: 1px solid rgba(244, 122, 69, 0.9);
-  border-radius: 4px;
-  background: rgba(244, 122, 69, 0.1);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.46),
-    0 6px 18px rgba(217, 75, 21, 0.16);
-}
-
-.ocr-location::after {
-  position: absolute;
-  left: -1px;
-  top: -22px;
-  max-width: 220px;
-  padding: 2px 6px;
-  overflow: hidden;
-  color: #fff;
-  content: attr(data-text);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  background: rgba(217, 75, 21, 0.94);
-  border-radius: 5px;
-  font: 700 11px/16px "Segoe UI", "Microsoft YaHei", sans-serif;
-}
-
 .handle {
   position: absolute;
   width: 10px;

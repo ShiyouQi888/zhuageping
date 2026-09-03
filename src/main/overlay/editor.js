@@ -14,7 +14,6 @@ const ctx = canvas.getContext("2d");
 const shade = document.getElementById("shade");
 const selectionEl = document.getElementById("selection");
 const objectBox = document.getElementById("objectBox");
-const ocrLayer = document.getElementById("ocrLayer");
 const toolbar = document.getElementById("toolbar");
 const statusEl = document.getElementById("status");
 const helpEl = document.getElementById("help");
@@ -244,7 +243,6 @@ let backgroundMode = "selection";
 let baseImageDataUrl = null;
 let ocrDialogOpen = false;
 let ocrInFlight = false;
-let ocrLocationLines = [];
 let textBold = false;
 let textBackground = false;
 let textOutline = false;
@@ -498,55 +496,6 @@ function setHoverSelection(rect) {
   }
 }
 
-function clearOcrLocations() {
-  ocrLocationLines = [];
-  ocrLayer.replaceChildren();
-  ocrLayer.style.display = "none";
-}
-
-function ocrLineBounds(line) {
-  if (!line?.box || line.box.length < 4) return null;
-  const xs = line.box.map((point) => Number(point[0])).filter(Number.isFinite);
-  const ys = line.box.map((point) => Number(point[1])).filter(Number.isFinite);
-  if (xs.length < 4 || ys.length < 4) return null;
-  const left = Math.max(0, Math.min(...xs));
-  const top = Math.max(0, Math.min(...ys));
-  const right = Math.min(canvas.width, Math.max(...xs));
-  const bottom = Math.min(canvas.height, Math.max(...ys));
-  if (right - left < 3 || bottom - top < 3) return null;
-  return { x: left, y: top, width: right - left, height: bottom - top };
-}
-
-function renderOcrLocations() {
-  ocrLayer.replaceChildren();
-  if (!canvasRect || !ocrLocationLines.length) {
-    ocrLayer.style.display = "none";
-    return;
-  }
-
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = rect.width / canvas.width;
-  const scaleY = rect.height / canvas.height;
-  ocrLayer.style.display = "block";
-  ocrLayer.style.left = `${rect.left}px`;
-  ocrLayer.style.top = `${rect.top}px`;
-  ocrLayer.style.width = `${rect.width}px`;
-  ocrLayer.style.height = `${rect.height}px`;
-
-  ocrLocationLines.slice(0, 120).forEach((line) => {
-    const bounds = ocrLineBounds(line);
-    if (!bounds) return;
-    const item = document.createElement("div");
-    item.className = "ocr-location";
-    item.dataset.text = line.text || "";
-    item.style.left = `${Math.round(bounds.x * scaleX)}px`;
-    item.style.top = `${Math.round(bounds.y * scaleY)}px`;
-    item.style.width = `${Math.max(8, Math.round(bounds.width * scaleX))}px`;
-    item.style.height = `${Math.max(8, Math.round(bounds.height * scaleY))}px`;
-    ocrLayer.appendChild(item);
-  });
-}
-
 function positionToolbarNearSelection() {
   if (!selection || toolbar.style.display === "none") return;
   const toolbarWidth = toolbar.offsetWidth || toolbar.scrollWidth;
@@ -612,7 +561,6 @@ function configureCanvas(rect) {
   activeScaleFactor = rect.scaleFactor || pixelRatio;
   canvasRect = rect;
   captureRegion = rect.captureRegion || screenSelectionToCaptureRegion(rect);
-  clearOcrLocations();
   canvas.width = Math.max(1, Math.round(rect.pixelWidth || rect.width * activeScaleFactor));
   canvas.height = Math.max(1, Math.round(rect.pixelHeight || rect.height * activeScaleFactor));
   canvas.style.display = "block";
@@ -661,7 +609,6 @@ function resizeCrop(nextRect) {
   pushHistory();
   renderSelection();
   renderObjectBox();
-  renderOcrLocations();
 }
 
 function moveCrop(nextRect) {
@@ -672,7 +619,6 @@ function moveCrop(nextRect) {
   canvas.style.top = `${nextRect.y}px`;
   renderSelection();
   renderObjectBox();
-  renderOcrLocations();
 }
 
 function enterEditMode(rect) {
@@ -1192,8 +1138,6 @@ function openOcrDialog(result) {
   ocrDialog.classList.add("is-open");
   ocrText.value = result.text || "";
   ocrText.placeholder = result.ok ? ui.ocr.empty : ui.ocr.failed;
-  ocrLocationLines = result.ok ? (result.lines || []).filter((line) => line.box) : [];
-  renderOcrLocations();
   const countText = result.ok ? ui.ocr.lines(result.lines?.length || 0) : ui.ocr.failed;
   ocrMeta.textContent = `${countText} · ${Math.max(0, Math.round(result.elapsedMs || 0))} ms`;
   ocrTip.textContent = result.ok

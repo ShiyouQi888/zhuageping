@@ -1533,7 +1533,6 @@ async function recognizeOcrFromInlinePayload(payload: InlineCapturePayload): Pro
     const inputBuffer = await prepareOcrImageBuffer(payload);
     const metadata = await sharp(inputBuffer).metadata();
     const sourceWidth = metadata.width ?? Math.round(payload.region.width);
-    const sourceHeight = metadata.height ?? Math.round(payload.region.height);
     const resizeWidth = sourceWidth > 0 && sourceWidth < 1400 ? Math.min(2200, sourceWidth * 2) : undefined;
     const preparedBuffer = await sharp(inputBuffer)
       .resize(resizeWidth ? { width: resizeWidth, withoutEnlargement: false } : undefined)
@@ -1541,9 +1540,6 @@ async function recognizeOcrFromInlinePayload(payload: InlineCapturePayload): Pro
       .sharpen()
       .png()
       .toBuffer();
-    const preparedMetadata = await sharp(preparedBuffer).metadata();
-    const ocrScaleX = sourceWidth > 0 ? (preparedMetadata.width ?? sourceWidth) / sourceWidth : 1;
-    const ocrScaleY = sourceHeight > 0 ? (preparedMetadata.height ?? sourceHeight) / sourceHeight : 1;
     await fs.writeFile(tempPath, preparedBuffer);
 
     const worker = getOcrWorker(enginePath);
@@ -1564,7 +1560,7 @@ async function recognizeOcrFromInlinePayload(payload: InlineCapturePayload): Pro
     }
 
     const lines = [...(result.data ?? [])]
-      .filter((line) => line.text?.trim() && line.box?.length >= 4)
+      .filter((line) => line.text?.trim())
       .sort((a, b) => {
         const ay = a.box.reduce((sum, point) => sum + point[1], 0) / 4;
         const by = b.box.reduce((sum, point) => sum + point[1], 0) / 4;
@@ -1576,10 +1572,7 @@ async function recognizeOcrFromInlinePayload(payload: InlineCapturePayload): Pro
       .map((line) => ({
         text: line.text.trim(),
         confidence: line.score,
-        box: line.box.slice(0, 4).map((point) => [
-          Math.max(0, Math.min(sourceWidth, point[0] / ocrScaleX)),
-          Math.max(0, Math.min(sourceHeight, point[1] / ocrScaleY))
-        ]) as [[number, number], [number, number], [number, number], [number, number]]
+        box: line.box
       }));
     const text = lines.map((line) => line.text).join("\n");
     if (text) {
