@@ -39,18 +39,22 @@
 
 当前版本：
 
-- 版本：`0.1.11`
+- 版本：`0.1.12`
 - 平台：Windows x64
-- 安装包：`zhuageping-Setup-0.1.11-x64.exe`
-- SHA256：`FF82FF69CF87A5DFBB62DE89AECC77C29035B65892C1D9CEE2FBCCC600CAAA7F`
-- Release：[抓个屏 v0.1.11](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.11)
+- 安装包：`zhuageping-Setup-0.1.12-x64.exe`
+- SHA256：`10474C607113E7C09BA500D81C78F4597CA61815D47166071D1780F276485740`
+- Release：[抓个屏 v0.1.12](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.12)
 
 说明：当前安装包暂未购买商业代码签名证书。安装时 Windows 可能提示未知发布者，这是未签名安装包的正常现象，不代表软件连接云端或上传数据。
 
 ## 最新功能
 
-`v0.1.11` 重点更新：
+`v0.1.12` 重点更新：
 
+- 对齐体验优化：单个对象对齐到截图区域，多个对象对齐到选中对象的整体边界。
+- 模糊合成优化：先外扩采样再裁回原区域，强度拉高后边缘不再出现明显虚化。
+- 快捷键守护增强：Windows 偶发丢失按键抬起事件时可自动恢复，连续触发更稳定。
+- 贴图滚轮缩放取消最大尺寸限制。
 - 截图编辑工具栏瘦身：主工具栏更轻、更窄，只保留高频操作。
 - 参数按需浮层：颜色、线宽、文字样式、隐私强度和对象操作只在需要时显示。
 - 选中对象样式联动：颜色和线宽调整可直接作用到已选中的绘制对象。
@@ -432,8 +436,8 @@ npm run dist
 生成文件示例：
 
 ```text
-release/zhuageping-Setup-0.1.11-x64.exe
-release/zhuageping-Setup-0.1.11-x64.exe.blockmap
+release/zhuageping-Setup-0.1.12-x64.exe
+release/zhuageping-Setup-0.1.12-x64.exe.blockmap
 release/win-unpacked/
 ```
 

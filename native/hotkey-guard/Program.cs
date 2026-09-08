@@ -23,9 +23,11 @@ internal static class Program
     private const int WmKeyup = 0x0101;
     private const int WmSyskeydown = 0x0104;
     private const int WmSyskeyup = 0x0105;
+    private const long StuckKeyRecoveryMilliseconds = 1200;
 
     private static readonly LowLevelKeyboardProc HookCallback = HookProc;
     private static readonly HashSet<int> SuppressedKeys = [];
+    private static readonly Dictionary<int, long> LastTriggerByKey = [];
     private static IReadOnlyList<Hotkey> hotkeys = [];
     private static IntPtr hookId = IntPtr.Zero;
 
@@ -253,8 +255,14 @@ internal static class Program
             {
                 if (isKeyDown)
                 {
-                    if (SuppressedKeys.Add(virtualKey))
+                    var now = Environment.TickCount64;
+                    var keyWasFresh = SuppressedKeys.Add(virtualKey);
+                    var canRecoverStuckKey = !keyWasFresh
+                        && LastTriggerByKey.TryGetValue(virtualKey, out var lastTrigger)
+                        && now - lastTrigger > StuckKeyRecoveryMilliseconds;
+                    if (keyWasFresh || canRecoverStuckKey)
                     {
+                        LastTriggerByKey[virtualKey] = now;
                         Console.WriteLine(matchedHotkey.Action);
                         Console.Out.Flush();
                     }

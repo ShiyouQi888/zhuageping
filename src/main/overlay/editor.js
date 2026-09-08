@@ -663,14 +663,63 @@ function drawPrivacyObject(targetCtx, object) {
   }
 
   if (object.type === "blur") {
+    const strength = object.strength || Number(privacyStrengthInput.value) || 5;
+    const radius = Math.max(8, 6 + strength * 4);
+    const padding = Math.ceil(radius * 2);
+    const objectRect = {
+      x: Math.max(0, Math.floor(object.x)),
+      y: Math.max(0, Math.floor(object.y)),
+      width: Math.max(1, Math.ceil(object.width)),
+      height: Math.max(1, Math.ceil(object.height))
+    };
+    const sampleRect = {
+      x: Math.max(0, objectRect.x - padding),
+      y: Math.max(0, objectRect.y - padding),
+      width: 0,
+      height: 0
+    };
+    sampleRect.width = Math.max(1, Math.min(canvas.width - sampleRect.x, objectRect.width + (objectRect.x - sampleRect.x) + padding));
+    sampleRect.height = Math.max(1, Math.min(canvas.height - sampleRect.y, objectRect.height + (objectRect.y - sampleRect.y) + padding));
+    const sampleCanvas = document.createElement("canvas");
+    sampleCanvas.width = sampleRect.width;
+    sampleCanvas.height = sampleRect.height;
+    const sampleCtx = sampleCanvas.getContext("2d");
+    const source = backgroundSourceRect();
+    sampleCtx.drawImage(
+      backgroundImage,
+      source.x + sampleRect.x,
+      source.y + sampleRect.y,
+      sampleRect.width,
+      sampleRect.height,
+      0,
+      0,
+      sampleRect.width,
+      sampleRect.height
+    );
+
+    const blurCanvas = document.createElement("canvas");
+    blurCanvas.width = sampleRect.width;
+    blurCanvas.height = sampleRect.height;
+    const blurCtx = blurCanvas.getContext("2d");
+    blurCtx.filter = `blur(${radius}px)`;
+    blurCtx.drawImage(sampleCanvas, 0, 0);
+    blurCtx.filter = "none";
+
     targetCtx.save();
     targetCtx.beginPath();
-    targetCtx.rect(object.x, object.y, object.width, object.height);
+    targetCtx.rect(objectRect.x, objectRect.y, objectRect.width, objectRect.height);
     targetCtx.clip();
-    const strength = object.strength || Number(privacyStrengthInput.value) || 5;
-    targetCtx.filter = `blur(${Math.max(8, 6 + strength * 4)}px)`;
-    drawBackgroundPreview(targetCtx);
-    targetCtx.filter = "none";
+    targetCtx.drawImage(
+      blurCanvas,
+      objectRect.x - sampleRect.x,
+      objectRect.y - sampleRect.y,
+      objectRect.width,
+      objectRect.height,
+      objectRect.x,
+      objectRect.y,
+      objectRect.width,
+      objectRect.height
+    );
     targetCtx.restore();
   }
 }
@@ -913,7 +962,20 @@ function moveSelectedLayer(direction, toEdge = false) {
 function alignSelectedObjects(mode) {
   const items = selectedObjects();
   if (!items.length || !mode) return;
-  const target = canvasPixelBounds();
+  const itemBounds = items.map(objectBounds);
+  const target =
+    items.length === 1
+      ? canvasPixelBounds()
+      : {
+          x: Math.min(...itemBounds.map((bounds) => bounds.x)),
+          y: Math.min(...itemBounds.map((bounds) => bounds.y)),
+          width:
+            Math.max(...itemBounds.map((bounds) => bounds.x + bounds.width)) -
+            Math.min(...itemBounds.map((bounds) => bounds.x)),
+          height:
+            Math.max(...itemBounds.map((bounds) => bounds.y + bounds.height)) -
+            Math.min(...itemBounds.map((bounds) => bounds.y))
+        };
   const nextById = new Map();
   items.forEach((object) => {
     const bounds = objectBounds(object);

@@ -39,18 +39,22 @@ Download the latest installer from GitHub Releases:
 
 Current version:
 
-- Version: `0.1.11`
+- Version: `0.1.12`
 - Platform: Windows x64
-- Installer: `zhuageping-Setup-0.1.11-x64.exe`
-- SHA256: `FF82FF69CF87A5DFBB62DE89AECC77C29035B65892C1D9CEE2FBCCC600CAAA7F`
-- Release: [Zhuageping v0.1.11](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.11)
+- Installer: `zhuageping-Setup-0.1.12-x64.exe`
+- SHA256: `10474C607113E7C09BA500D81C78F4597CA61815D47166071D1780F276485740`
+- Release: [Zhuageping v0.1.12](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.12)
 
 Note: the current installer is not signed with a commercial code-signing certificate. Windows may show an unknown publisher warning during installation. This is expected for an unsigned installer and does not mean the app connects to the cloud or uploads your data.
 
 ## Latest Updates
 
-Highlights in `v0.1.11`:
+Highlights in `v0.1.12`:
 
+- Object alignment now works more naturally: single objects align to the capture area, while multiple selected objects align against the selected group bounds.
+- Blur rendering now uses expanded source sampling and crops back to the original region, reducing soft or feathered edges at high strength.
+- Shortcut guard recovery is more resilient when Windows misses a key-up event, improving wake reliability for repeated shortcuts.
+- Pinned image mouse-wheel zoom no longer has the previous maximum size limit.
 - Capture editor toolbar cleanup: the main toolbar is now slimmer, lighter, and focused on frequent actions.
 - Contextual option panels: color, stroke width, text styles, privacy strength, and object actions now appear only when needed.
 - Selected object styling: color and stroke width changes can apply directly to selected drawing objects.
@@ -432,8 +436,8 @@ npm run dist
 Generated files:
 
 ```text
-release/zhuageping-Setup-0.1.11-x64.exe
-release/zhuageping-Setup-0.1.11-x64.exe.blockmap
+release/zhuageping-Setup-0.1.12-x64.exe
+release/zhuageping-Setup-0.1.12-x64.exe.blockmap
 release/win-unpacked/
 ```
 

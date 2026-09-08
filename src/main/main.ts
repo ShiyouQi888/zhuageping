@@ -1113,9 +1113,8 @@ function startHotkeyGuard() {
   });
 
   child.on("exit", (code, signal) => {
-    if (hotkeyGuardProcess === child) {
-      hotkeyGuardProcess = null;
-    }
+    if (hotkeyGuardProcess !== child) return;
+    hotkeyGuardProcess = null;
     if (hotkeyGuardIntentionalStop || isQuitting) {
       return;
     }
@@ -1853,9 +1852,31 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
 
         for (const region of payload.blurRegions ?? []) {
           const blur = clampPrivacyRegion(region);
+          const radius = Math.max(8, 6 + (region.strength || 5) * 4);
+          const padding = Math.ceil(radius * 2);
+          const expanded = {
+            left: Math.max(0, blur.left - padding),
+            top: Math.max(0, blur.top - padding),
+            width: 0,
+            height: 0
+          };
+          expanded.width = Math.max(
+            1,
+            Math.min(extractWidth - expanded.left, blur.width + (blur.left - expanded.left) + padding)
+          );
+          expanded.height = Math.max(
+            1,
+            Math.min(extractHeight - expanded.top, blur.height + (blur.top - expanded.top) + padding)
+          );
           const blurred = await sharp(baseBuffer)
-            .extract(blur)
-            .blur(Math.max(8, 6 + (region.strength || 5) * 4))
+            .extract(expanded)
+            .blur(radius)
+            .extract({
+              left: blur.left - expanded.left,
+              top: blur.top - expanded.top,
+              width: blur.width,
+              height: blur.height
+            })
             .png()
             .toBuffer();
           baseBuffer = await sharp(baseBuffer)
@@ -2635,8 +2656,8 @@ function resizePinWindow(pinWindow: BrowserWindow, ratio: number) {
     return;
   }
   const bounds = pinWindow.getBounds();
-  const nextWidth = Math.max(120, Math.min(1400, Math.round(bounds.width * ratio)));
-  const nextHeight = Math.max(80, Math.min(1000, Math.round(bounds.height * ratio)));
+  const nextWidth = Math.max(120, Math.round(bounds.width * ratio));
+  const nextHeight = Math.max(80, Math.round(bounds.height * ratio));
   pinWindow.setBounds({
     x: Math.round(bounds.x + (bounds.width - nextWidth) / 2),
     y: Math.round(bounds.y + (bounds.height - nextHeight) / 2),
