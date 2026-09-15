@@ -39,18 +39,20 @@ Download the latest installer from GitHub Releases:
 
 Current version:
 
-- Version: `0.1.12`
+- Version: `0.1.13`
 - Platform: Windows x64
-- Installer: `zhuageping-Setup-0.1.12-x64.exe`
-- SHA256: `10474C607113E7C09BA500D81C78F4597CA61815D47166071D1780F276485740`
-- Release: [Zhuageping v0.1.12](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.12)
+- Installer: `zhuageping-Setup-0.1.13-x64.exe`
+- SHA256: `264FDBF9E791A757480B169A40DDC1D3FCD823A993D0534C6FEAAA8CAD292281`
+- Release: [Zhuageping v0.1.13](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.13)
 
 Note: the current installer is not signed with a commercial code-signing certificate. Windows may show an unknown publisher warning during installation. This is expected for an unsigned installer and does not mean the app connects to the cloud or uploads your data.
 
 ## Latest Updates
 
-Highlights in `v0.1.12`:
+Highlights in `v0.1.13`:
 
+- Startup reliability fix: launch-at-startup now syncs both Electron login items and the Windows current-user Run registry key.
+- Startup self-healing: when the app opens and startup is enabled in settings, it refreshes the Windows startup registration automatically.
 - Object alignment now works more naturally: single objects align to the capture area, while multiple selected objects align against the selected group bounds.
 - Blur rendering now uses expanded source sampling and crops back to the original region, reducing soft or feathered edges at high strength.
 - Shortcut guard recovery is more resilient when Windows misses a key-up event, improving wake reliability for repeated shortcuts.
@@ -436,8 +438,8 @@ npm run dist
 Generated files:
 
 ```text
-release/zhuageping-Setup-0.1.12-x64.exe
-release/zhuageping-Setup-0.1.12-x64.exe.blockmap
+release/zhuageping-Setup-0.1.13-x64.exe
+release/zhuageping-Setup-0.1.13-x64.exe.blockmap
 release/win-unpacked/
 ```
 

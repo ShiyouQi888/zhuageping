@@ -39,18 +39,20 @@
 
 当前版本：
 
-- 版本：`0.1.12`
+- 版本：`0.1.13`
 - 平台：Windows x64
-- 安装包：`zhuageping-Setup-0.1.12-x64.exe`
-- SHA256：`10474C607113E7C09BA500D81C78F4597CA61815D47166071D1780F276485740`
-- Release：[抓个屏 v0.1.12](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.12)
+- 安装包：`zhuageping-Setup-0.1.13-x64.exe`
+- SHA256：`264FDBF9E791A757480B169A40DDC1D3FCD823A993D0534C6FEAAA8CAD292281`
+- Release：[抓个屏 v0.1.13](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.13)
 
 说明：当前安装包暂未购买商业代码签名证书。安装时 Windows 可能提示未知发布者，这是未签名安装包的正常现象，不代表软件连接云端或上传数据。
 
 ## 最新功能
 
-`v0.1.12` 重点更新：
+`v0.1.13` 重点更新：
 
+- 开机启动可靠性修复：同时同步 Electron 登录项和 Windows 当前用户 Run 注册表启动项。
+- 开机启动自修复：设置中已开启开机启动时，软件打开后会自动刷新 Windows 自启注册。
 - 对齐体验优化：单个对象对齐到截图区域，多个对象对齐到选中对象的整体边界。
 - 模糊合成优化：先外扩采样再裁回原区域，强度拉高后边缘不再出现明显虚化。
 - 快捷键守护增强：Windows 偶发丢失按键抬起事件时可自动恢复，连续触发更稳定。
@@ -436,8 +438,8 @@ npm run dist
 生成文件示例：
 
 ```text
-release/zhuageping-Setup-0.1.12-x64.exe
-release/zhuageping-Setup-0.1.12-x64.exe.blockmap
+release/zhuageping-Setup-0.1.13-x64.exe
+release/zhuageping-Setup-0.1.13-x64.exe.blockmap
 release/win-unpacked/
 ```
 

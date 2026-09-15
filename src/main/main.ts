@@ -27,6 +27,8 @@ import { autoUpdater } from "electron-updater";
 const execFileAsync = promisify(execFile);
 const APP_NAME = "抓个屏";
 const APP_PROTOCOL = "zhuageping";
+const WINDOWS_STARTUP_VALUE_NAME = "Zhuageping";
+const WINDOWS_RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const packagedDataDir = process.env.APPDATA ? path.join(process.env.APPDATA, APP_NAME) : path.join(os.homedir(), "AppData", "Roaming", APP_NAME);
 const appRuntimeDir = app.isPackaged ? packagedDataDir : path.join(process.cwd(), ".runtime");
 const appProfileDir = path.join(appRuntimeDir, "electron-profile");
@@ -923,6 +925,42 @@ function syncLoginItemSettings() {
     path: process.execPath,
     args: app.isPackaged ? [] : [process.cwd()]
   });
+
+  void syncWindowsRunStartup();
+}
+
+function startupCommandLine() {
+  const quotedExe = `"${process.execPath.replace(/"/g, "")}"`;
+  if (app.isPackaged) {
+    return quotedExe;
+  }
+  return `${quotedExe} "${process.cwd().replace(/"/g, "")}"`;
+}
+
+async function syncWindowsRunStartup() {
+  if (process.platform !== "win32") {
+    return;
+  }
+
+  try {
+    if (appSettings.launchAtStartup) {
+      await execFileAsync("reg.exe", [
+        "add",
+        WINDOWS_RUN_KEY,
+        "/v",
+        WINDOWS_STARTUP_VALUE_NAME,
+        "/t",
+        "REG_SZ",
+        "/d",
+        startupCommandLine(),
+        "/f"
+      ]);
+    } else {
+      await execFileAsync("reg.exe", ["delete", WINDOWS_RUN_KEY, "/v", WINDOWS_STARTUP_VALUE_NAME, "/f"]).catch(() => undefined);
+    }
+  } catch (error) {
+    console.warn(`Failed to sync Windows startup registry: ${(error as Error).message}`);
+  }
 }
 
 async function restartAsAdmin() {
@@ -2948,6 +2986,7 @@ app.whenReady().then(async () => {
     return;
   }
   await readSettings();
+  syncLoginItemSettings();
   await ensureStorage();
   registerProtocolHandler();
   createWindow();
