@@ -121,15 +121,33 @@ function renderSelection(rect) {
 function placeControlBar(rect) {
   if (recordingMode === "screen") {
     controlBar.style.display = "none";
-    return;
+    return false;
   }
+
+  controlBar.style.visibility = "hidden";
   controlBar.style.display = "flex";
-  const barWidth = 245;
+  const barWidth = Math.max(260, controlBar.offsetWidth);
+  const barHeight = Math.max(44, controlBar.offsetHeight);
+  const gap = 12;
   const left = clamp(rect.x + rect.width / 2 - barWidth / 2, 12, window.innerWidth - barWidth - 12);
-  const below = rect.y + rect.height + 14;
-  const top = below + 54 < window.innerHeight ? below : Math.max(12, rect.y - 58);
+  const above = rect.y - barHeight - gap;
+  const below = rect.y + rect.height + gap;
+  let top;
+
+  if (above >= 12) {
+    top = above;
+  } else if (below + barHeight <= window.innerHeight - 12) {
+    top = below;
+  } else {
+    controlBar.style.display = "none";
+    controlBar.style.visibility = "visible";
+    return false;
+  }
+
   controlBar.style.left = `${left}px`;
   controlBar.style.top = `${top}px`;
+  controlBar.style.visibility = "visible";
+  return true;
 }
 
 function formatDuration(ms) {
@@ -327,7 +345,10 @@ async function startRecording(rect) {
       nativeRecordingPaused = false;
       startedAt = Date.now();
       pausedMs = 0;
-      controlBar.style.display = "none";
+      if (controlBar.style.display !== "none") {
+        timerId = setInterval(updateTimer, 250);
+        updateTimer();
+      }
       ipcRenderer.send("recording-region-selected", {
         x: Math.round(rect.x),
         y: Math.round(rect.y),

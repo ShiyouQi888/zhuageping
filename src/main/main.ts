@@ -287,6 +287,8 @@ let recordingRunning = false;
 let activeRecordingOverlay: BrowserWindow | null = null;
 let activeNativeRecorderProcess: ChildProcess | null = null;
 let activeRecordingUsesNative = false;
+let nativeRecordingSelectionCommitted = false;
+let pendingNativeRecorderCommand: "stop" | "cancel" | null = null;
 let hotkeyGuardProcess: ChildProcess | null = null;
 let hotkeyGuardRestartTimer: NodeJS.Timeout | null = null;
 let hotkeyGuardOutputBuffer = "";
@@ -344,6 +346,7 @@ const mainMessages = {
       scrollCapture: "滚动截图（长图）",
       recordRegion: "区域录屏",
       recordScreen: "当前屏幕录屏",
+      stopRecording: "停止录屏",
       pinLatest: "贴最近截图",
       togglePins: "隐藏/显示所有贴图",
       switchPinGroup: "切换到另一贴图组",
@@ -433,6 +436,7 @@ const mainMessages = {
       scrollCapture: "Scrolling Capture",
       recordRegion: "Region Recording",
       recordScreen: "Current Screen Recording",
+      stopRecording: "Stop Recording",
       pinLatest: "Pin Latest Screenshot",
       togglePins: "Show/Hide All Pins",
       switchPinGroup: "Switch Pin Group",
@@ -701,7 +705,7 @@ function updateTrayMenu() {
           }
         },
         {
-          label: mt().tray.recordRegion,
+          label: recordingRunning ? mt().tray.stopRecording : mt().tray.recordRegion,
           accelerator: appSettings.shortcutRecord,
           click: () => {
             void runShortcutRecording();
@@ -709,6 +713,7 @@ function updateTrayMenu() {
         },
         {
           label: mt().tray.recordScreen,
+          enabled: !recordingRunning,
           click: () => {
             void startRegionRecording(appSettings, "screen");
           }
@@ -1139,7 +1144,9 @@ function runShortcutRecording() {
     return;
   }
   if (recordingRunning && activeRecordingOverlay && !activeRecordingOverlay.isDestroyed()) {
-    activeRecordingOverlay.webContents.send("recording-command", activeRecordingUsesNative ? "cancel" : "stop");
+    const command = activeRecordingUsesNative && !nativeRecordingSelectionCommitted ? "cancel" : "stop";
+    if (activeRecordingUsesNative && nativeRecordingSelectionCommitted) pendingNativeRecorderCommand = "stop";
+    activeRecordingOverlay.webContents.send("recording-command", command);
     return;
   }
   void startRegionRecording(appSettings).catch((error) => {
@@ -1152,8 +1159,14 @@ function startRegionRecording(settings: AppSettings, mode: RecordingMode = "regi
     return Promise.resolve(null);
   }
   recordingRunning = true;
+  pendingNativeRecorderCommand = null;
+  updateTrayMenu();
+  globalShortcut.register("Escape", () => runShortcutRecording());
   return recordSelectedRegion(settings, mode).finally(() => {
     recordingRunning = false;
+    pendingNativeRecorderCommand = null;
+    globalShortcut.unregister("Escape");
+    updateTrayMenu();
   });
 }
 
@@ -2996,6 +3009,7 @@ function closeRecordingOverlay(overlay: BrowserWindow) {
   }
   if (activeRecordingOverlay === overlay) activeRecordingOverlay = null;
   activeRecordingUsesNative = false;
+  nativeRecordingSelectionCommitted = false;
 }
 
 async function runNativeRecordingOverlay(settings: AppSettings, mode: RecordingMode): Promise<NativeRecordingSelection | null> {
@@ -3035,6 +3049,7 @@ async function runNativeRecordingOverlay(settings: AppSettings, mode: RecordingM
     });
     activeRecordingOverlay = overlay;
     activeRecordingUsesNative = true;
+    nativeRecordingSelectionCommitted = false;
     let settled = false;
 
     const removeSelectionListeners = () => {
@@ -3074,6 +3089,7 @@ async function runNativeRecordingOverlay(settings: AppSettings, mode: RecordingM
       const x = Math.max(0, Math.min(display.bounds.width - width, Math.round(region.x)));
       const y = Math.max(0, Math.min(display.bounds.height - height, Math.round(region.y)));
       settled = true;
+      nativeRecordingSelectionCommitted = true;
       removeSelectionListeners();
       resolve({ display, region: { x, y, width, height }, overlay });
     };
@@ -3091,6 +3107,7 @@ async function runNativeRecordingOverlay(settings: AppSettings, mode: RecordingM
       if (activeRecordingOverlay === overlay) {
         activeRecordingOverlay = null;
         activeRecordingUsesNative = false;
+        nativeRecordingSelectionCommitted = false;
       }
       if (activeNativeRecorderProcess?.stdin?.writable) activeNativeRecorderProcess.stdin.write("cancel\n");
     });
@@ -3178,6 +3195,10 @@ function runNativeRecorder(config: Record<string, unknown>): Promise<NativeRecor
       if (!settled) finish(new Error(stderrBuffer.trim() || `Native recorder exited with code ${code}.`));
     });
     child.stdin?.write(`${JSON.stringify(config)}\n`);
+    if (pendingNativeRecorderCommand) {
+      child.stdin?.write(`${pendingNativeRecorderCommand}\n`);
+      pendingNativeRecorderCommand = null;
+    }
   });
 }
 
@@ -3905,6 +3926,8 @@ app.whenReady().then(async () => {
     if (!["pause", "resume", "stop", "cancel"].includes(command)) return;
     if (activeNativeRecorderProcess?.stdin?.writable) {
       activeNativeRecorderProcess.stdin.write(`${command}\n`);
+    } else if (activeRecordingUsesNative && (command === "stop" || command === "cancel")) {
+      pendingNativeRecorderCommand = command;
     }
   });
   setupAutoUpdater();
