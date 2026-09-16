@@ -1,0 +1,182 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+  user-select: none;
+}
+
+body {
+  cursor: crosshair;
+  background: transparent;
+}
+
+#shade {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: rgba(15, 23, 42, 0.3);
+  pointer-events: none;
+}
+
+#selection {
+  position: fixed;
+  z-index: 2;
+  display: none;
+  border: 2px solid #f47a45;
+  border-radius: 4px;
+  box-shadow:
+    0 0 0 9999px rgba(0, 0, 0, 0.32),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+  pointer-events: none;
+}
+
+body.is-recording #shade,
+body.is-recording #selection,
+body.is-recording #sizeBadge,
+body.is-recording #selectionHint {
+  display: none !important;
+}
+
+#selectionHint {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 4px 5px 4px 14px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(20, 24, 31, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.24);
+  transform: translateX(-50%);
+}
+
+#selectionHint button {
+  min-width: 48px;
+  height: 28px;
+  padding: 0 10px;
+  color: #7b341e;
+  background: #fff7ed;
+  border-color: rgba(244, 122, 69, 0.42);
+}
+
+#sizeBadge {
+  position: fixed;
+  z-index: 4;
+  display: none;
+  padding: 4px 8px;
+  color: #fff7ed;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.24);
+}
+
+#countdown {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 8;
+  display: none;
+  width: 112px;
+  height: 112px;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 56px;
+  font-weight: 800;
+  transform: translate(-50%, -50%);
+  background: rgba(244, 122, 69, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 999px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.34);
+}
+
+#controlBar {
+  position: fixed;
+  z-index: 7;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 8px;
+  color: #64301f;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 246, 240, 0.86)),
+    rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 999px;
+  box-shadow:
+    0 16px 42px rgba(15, 23, 42, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(18px) saturate(1.12);
+  -webkit-backdrop-filter: blur(18px) saturate(1.12);
+}
+
+#statusDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #ef4444;
+  box-shadow: 0 0 0 5px rgba(239, 68, 68, 0.14);
+}
+
+body.is-paused #statusDot {
+  background: #f59e0b;
+  box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.14);
+}
+
+#timer {
+  min-width: 54px;
+  font-variant-numeric: tabular-nums;
+}
+
+button {
+  min-width: 48px;
+  height: 30px;
+  padding: 0 12px;
+  color: #6f3424;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(244, 122, 69, 0.34);
+  border-radius: 999px;
+}
+
+button:hover {
+  color: #d94b15;
+  background: #fff7ed;
+}
+
+button.danger {
+  color: #fff;
+  background: #f26522;
+  border-color: #f26522;
+}
+
+#screenVideo {
+  position: fixed;
+  left: -99999px;
+  top: -99999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}

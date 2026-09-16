@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline'; style-src 'self';" />
+    <title>抓个屏录屏</title>
+    <link rel="stylesheet" href="./recorder.css" />
+  </head>
+  <body>
+    <div id="shade"></div>
+    <div id="selection"></div>
+    <div id="sizeBadge">0 x 0</div>
+    <div id="selectionHint">
+      <span id="selectionHintText"></span>
+      <button id="selectionCancel" type="button">取消</button>
+    </div>
+    <div id="countdown" aria-live="assertive"></div>
+    <div id="controlBar" role="toolbar" aria-label="录屏控制">
+      <span id="statusDot"></span>
+      <strong id="timer">00:00</strong>
+      <button id="pause" type="button">暂停</button>
+      <button id="stop" class="danger" type="button">停止</button>
+      <button id="cancel" type="button">取消</button>
+    </div>
+    <video id="screenVideo" muted playsinline></video>
+    <script src="./recorder.js"></script>
+  </body>
+</html>

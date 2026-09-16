@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
-import { Camera, FolderOpen, HelpCircle, Minus, Pin, RefreshCw, RotateCcw, ScrollText, Shield, X } from "lucide-react";
+import { Camera, FolderOpen, HelpCircle, Minus, Pin, RefreshCw, RotateCcw, ScrollText, Shield, Video, X } from "lucide-react";
 import appLogoUrl from "./assets/app-logo.png";
 import wechatQrUrl from "./assets/weichat-qr.svg";
 import { fallbackLanguage, formatShortcutForWindows, languageOptions, messages, normalizeLanguage, tabKeys, type TabKey } from "./i18n";
-import type { AppLanguage, AppSettings, AppTheme, AppUpdateStatus, ScreenshotRecord, StoragePaths, WatermarkPosition } from "./types";
+import type { AppLanguage, AppSettings, AppTheme, AppUpdateStatus, RecordingQuality, RecordingRecord, ScreenshotRecord, StoragePaths, WatermarkPosition } from "./types";
 
 const shortcutKeys: Array<keyof AppSettings> = [
   "shortcutCapture",
   "shortcutCaptureCopy",
   "shortcutArea",
   "shortcutScrollCapture",
+  "shortcutRecord",
   "shortcutPin",
   "shortcutTogglePins"
 ];
@@ -21,6 +22,7 @@ function normalizeTheme(theme: string | undefined): AppTheme {
 }
 
 const defaultSettings: AppSettings = {
+  settingsSchemaVersion: 2,
   location: "上海市",
   project: "默认项目",
   note: "",
@@ -42,14 +44,23 @@ const defaultSettings: AppSettings = {
   shortcutCaptureCopy: "Ctrl+F1",
   shortcutArea: "Shift+F1",
   shortcutScrollCapture: "Ctrl+Shift+F1",
+  shortcutRecord: "F2",
   shortcutPin: "F3",
-  shortcutTogglePins: "Shift+F3"
+  shortcutTogglePins: "Shift+F3",
+  recordingFps: 30,
+  recordingFormat: "mp4",
+  recordingQuality: "standard",
+  recordingMic: false,
+  recordingCountdown: true,
+  recordingShowCursor: true,
+  recordingClickHighlight: true
 };
 
 export function App() {
   const [activeTab, setActiveTab] = useState<TabKey>("general");
   const [storagePaths, setStoragePaths] = useState<StoragePaths | null>(null);
   const [history, setHistory] = useState<ScreenshotRecord[]>([]);
+  const [recordings, setRecordings] = useState<RecordingRecord[]>([]);
   const [status, setStatus] = useState<string>(messages[fallbackLanguage].status.ready);
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [appVersion, setAppVersion] = useState("");
@@ -74,11 +85,13 @@ export function App() {
     void Promise.all([
       window.screenshotApp.getStoragePaths(),
       window.screenshotApp.getHistory(),
+      window.screenshotApp.getRecordingHistory(),
       window.screenshotApp.getSettings(),
       window.screenshotApp.getVersion()
-    ]).then(([paths, records, loadedSettings, version]) => {
+    ]).then(([paths, records, recordingRecords, loadedSettings, version]) => {
       setStoragePaths(paths);
       setHistory(records);
+      setRecordings(recordingRecords);
       setSettings({ ...loadedSettings, language: normalizeLanguage(loadedSettings.language), theme: normalizeTheme(loadedSettings.theme) });
       setAppVersion(version);
       setUpdateStatus((current) => current ?? { state: "idle", message: "", currentVersion: version });
@@ -90,6 +103,10 @@ export function App() {
     const removeCaptureCreatedListener = window.screenshotApp.onCaptureCreated((record) => {
       setHistory((current) => (current.some((item) => item.id === record.id) ? current : [record, ...current]));
       setStatus(t.status.saved(record.filePath));
+    });
+    const removeRecordingCreatedListener = window.screenshotApp.onRecordingCreated((record) => {
+      setRecordings((current) => (current.some((item) => item.id === record.id) ? current : [record, ...current]));
+      setStatus(t.status.recordingSaved(record.filePath));
     });
     const removeHistoryClearedListener = window.screenshotApp.onHistoryCleared(() => {
       setHistory([]);
@@ -111,6 +128,7 @@ export function App() {
     return () => {
       removeOpenPreferencesListener();
       removeCaptureCreatedListener();
+      removeRecordingCreatedListener();
       removeHistoryClearedListener();
       removeSettingsUpdatedListener();
       removeStatusListener();
@@ -169,6 +187,21 @@ export function App() {
     }
     setHistory((current) => (current.some((item) => item.id === record.id) ? current : [record, ...current]));
     setStatus(t.status.scrollSavedCopied);
+  }
+
+  async function recordRegion(mode: "region" | "screen" = "region") {
+    setStatus(mode === "screen" ? t.status.capturing : t.status.selectingRecording);
+    try {
+      const record = await window.screenshotApp.recordRegion(settings, mode);
+      if (!record) {
+        setStatus(t.status.recordingCanceled);
+        return;
+      }
+      setRecordings((current) => (current.some((item) => item.id === record.id) ? current : [record, ...current]));
+      setStatus(t.status.recordingSaved(record.filePath));
+    } catch {
+      setStatus(t.status.recordingCanceled);
+    }
   }
 
   async function pinLatest() {
@@ -409,6 +442,72 @@ export function App() {
               <input checked={settings.autoPinAfterCapture} onChange={() => toggleSetting("autoPinAfterCapture")} type="checkbox" />
               {t.capture.autoPin}
             </label>
+          </>
+        ) : null}
+
+        {activeTab === "recording" ? (
+          <>
+            <div className="note-box">
+              <strong>{t.tabs.recording}</strong>
+              <span>{t.recording.hint}</span>
+            </div>
+            <div className="action-grid">
+              <button className="primary" onClick={() => void recordRegion("region")}>
+                <Video size={16} aria-hidden="true" />
+                {t.recording.start}
+              </button>
+              <button onClick={() => void recordRegion("screen")}>{t.recording.screen}</button>
+              <button disabled={!recordings[0]} onClick={() => void openPath(recordings[0]?.filePath)}>
+                {t.recording.openLatest}
+              </button>
+              <button onClick={() => void window.screenshotApp.openRecordingFolder()}>
+                <FolderOpen size={16} aria-hidden="true" />
+                {t.recording.openFolder}
+              </button>
+            </div>
+            <label className="field-row">
+              <span>{t.recording.fps}</span>
+              <select value={settings.recordingFps} onChange={(event) => updateSetting("recordingFps", Number(event.target.value))}>
+                <option value={15}>15</option>
+                <option value={30}>30</option>
+                <option value={60}>60</option>
+              </select>
+            </label>
+            <label className="field-row">
+              <span>{t.recording.quality}</span>
+              <select value={settings.recordingQuality} onChange={(event) => updateSetting("recordingQuality", event.target.value as RecordingQuality)}>
+                <option value="standard">{t.recording.qualityOptions.standard}</option>
+                <option value="high">{t.recording.qualityOptions.high}</option>
+                <option value="compact">{t.recording.qualityOptions.compact}</option>
+              </select>
+            </label>
+            <label className="checkbox-line">
+              <input checked={settings.recordingMic} onChange={() => toggleSetting("recordingMic")} type="checkbox" />
+              {t.recording.mic}
+            </label>
+            <label className="checkbox-line">
+              <input checked={settings.recordingCountdown} onChange={() => toggleSetting("recordingCountdown")} type="checkbox" />
+              {t.recording.countdown}
+            </label>
+            <label className="checkbox-line">
+              <input checked={settings.recordingShowCursor} onChange={() => toggleSetting("recordingShowCursor")} type="checkbox" />
+              {t.recording.showCursor}
+            </label>
+            <label className="checkbox-line">
+              <input checked={settings.recordingClickHighlight} onChange={() => toggleSetting("recordingClickHighlight")} type="checkbox" />
+              {t.recording.clickHighlight}
+            </label>
+            <p className="subtle">{t.recording.historyCount(recordings.length)}</p>
+            {recordings.length ? (
+              <div className="recording-list" aria-label={t.recording.recent}>
+                {recordings.slice(0, 3).map((record) => (
+                  <button key={record.id} onClick={() => void openPath(record.filePath)} title={record.filePath}>
+                    <span>{new Date(record.createdAt).toLocaleString()}</span>
+                    <strong>{Math.round(record.durationMs / 1000)}s · {record.width}x{record.height}</strong>
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </>
         ) : null}
 

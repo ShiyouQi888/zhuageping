@@ -27,6 +27,7 @@ import { autoUpdater } from "electron-updater";
 const execFileAsync = promisify(execFile);
 const APP_NAME = "抓个屏";
 const APP_PROTOCOL = "zhuageping";
+const SETTINGS_SCHEMA_VERSION = 2;
 const WINDOWS_STARTUP_VALUE_NAME = "Zhuageping";
 const WINDOWS_RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const packagedDataDir = process.env.APPDATA ? path.join(process.env.APPDATA, APP_NAME) : path.join(os.homedir(), "AppData", "Roaming", APP_NAME);
@@ -44,6 +45,14 @@ function overlayEditorHtmlPath() {
     return builtPath;
   }
   return path.join(process.cwd(), "src", "main", "overlay", "editor.html");
+}
+
+function recorderHtmlPath() {
+  const builtPath = path.join(__dirname, "overlay", "recorder.html");
+  if (fsSync.existsSync(builtPath)) {
+    return builtPath;
+  }
+  return path.join(process.cwd(), "src", "main", "overlay", "recorder.html");
 }
 
 function pinViewerHtmlPath() {
@@ -78,6 +87,10 @@ app.setPath("userData", appProfileDir);
 app.setName(APP_NAME);
 app.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
 app.commandLine.appendSwitch("disk-cache-dir", path.join(appRuntimeDir, "chromium-cache"));
+if (process.platform === "win32") {
+  // WGC avoids recurring DXGI duplication stalls on some multi-GPU and multi-display systems.
+  app.commandLine.appendSwitch("enable-features", "AllowWgcScreenCapturer");
+}
 try {
   os.setPriority(os.constants.priority.PRIORITY_ABOVE_NORMAL);
 } catch (error) {
@@ -99,8 +112,11 @@ type CaptureOptions = {
 type OutputFormat = "png" | "jpg";
 type AppLanguage = "zh-CN" | "en-US";
 type AppTheme = "system" | "light" | "dark";
+type RecordingQuality = "standard" | "high" | "compact";
+type RecordingFormat = "mp4";
 
 type AppSettings = CaptureOptions & {
+  settingsSchemaVersion: number;
   launchAtStartup: boolean;
   runAsAdmin: boolean;
   autoBackup: boolean;
@@ -117,8 +133,16 @@ type AppSettings = CaptureOptions & {
   shortcutCaptureCopy: string;
   shortcutArea: string;
   shortcutScrollCapture: string;
+  shortcutRecord: string;
   shortcutPin: string;
   shortcutTogglePins: string;
+  recordingFps: number;
+  recordingFormat: RecordingFormat;
+  recordingQuality: RecordingQuality;
+  recordingMic: boolean;
+  recordingCountdown: boolean;
+  recordingShowCursor: boolean;
+  recordingClickHighlight: boolean;
 };
 
 type ScreenshotRecord = {
@@ -136,6 +160,16 @@ type CaptureRegion = {
   y: number;
   width: number;
   height: number;
+};
+
+type RecordingRecord = {
+  id: string;
+  filePath: string;
+  createdAt: string;
+  durationMs: number;
+  width: number;
+  height: number;
+  format: RecordingFormat;
 };
 
 type PrivacyRegion = CaptureRegion & {
@@ -156,6 +190,28 @@ type InlineCaptureResult = {
   buffer: Buffer;
   action: "save" | "save-as" | "copy" | "pin";
   savePath?: string;
+};
+
+type RecordingPayload = {
+  dataUrl?: string;
+  dataBuffer?: ArrayBuffer | Uint8Array | Buffer;
+  byteLength?: number;
+  mimeType?: string;
+  durationMs: number;
+  width: number;
+  height: number;
+  cropX?: number;
+  cropY?: number;
+  sourceWidth?: number;
+  sourceHeight?: number;
+};
+
+type RecordingMode = "region" | "screen";
+
+type NativeRecordingSelection = {
+  display: DisplayLike;
+  region: CaptureRegion;
+  overlay: BrowserWindow;
 };
 
 type AppUpdateStatus = {
@@ -189,7 +245,7 @@ type RegionFrame = {
   channels: number;
 };
 
-type DisplayLike = Pick<Electron.Display, "bounds" | "size" | "scaleFactor" | "id">;
+type DisplayLike = Pick<Electron.Display, "bounds" | "size" | "scaleFactor" | "id" | "label">;
 
 function getCursorDisplay() {
   return screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
@@ -217,6 +273,7 @@ const dataDir = path.join(rootDir, "data");
 const defaultScreenshotDir = path.join(rootDir, "screenshots");
 const backupDir = path.join(rootDir, "backups");
 const historyPath = path.join(dataDir, "history.json");
+const recordingHistoryPath = path.join(dataDir, "recordings.json");
 const settingsPath = path.join(dataDir, "settings.json");
 
 let mainWindow: BrowserWindow | null = null;
@@ -226,6 +283,10 @@ let pinWindows: BrowserWindow[] = [];
 let pinWindowStates = new Map<number, PinWindowState>();
 let pinsVisible = true;
 let shortcutCaptureRunning = false;
+let recordingRunning = false;
+let activeRecordingOverlay: BrowserWindow | null = null;
+let activeNativeRecorderProcess: ChildProcess | null = null;
+let activeRecordingUsesNative = false;
 let hotkeyGuardProcess: ChildProcess | null = null;
 let hotkeyGuardRestartTimer: NodeJS.Timeout | null = null;
 let hotkeyGuardOutputBuffer = "";
@@ -238,6 +299,7 @@ let updateDownloaded = false;
 let downloadedUpdateVersion = "";
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 let appSettings: AppSettings = {
+  settingsSchemaVersion: SETTINGS_SCHEMA_VERSION,
   location: "上海市",
   project: "默认项目",
   note: "",
@@ -259,8 +321,16 @@ let appSettings: AppSettings = {
   shortcutCaptureCopy: "Ctrl+F1",
   shortcutArea: "Shift+F1",
   shortcutScrollCapture: "Ctrl+Shift+F1",
+  shortcutRecord: "F2",
   shortcutPin: "F3",
-  shortcutTogglePins: "Shift+F3"
+  shortcutTogglePins: "Shift+F3",
+  recordingFps: 30,
+  recordingFormat: "mp4",
+  recordingQuality: "standard",
+  recordingMic: false,
+  recordingCountdown: true,
+  recordingShowCursor: true,
+  recordingClickHighlight: true
 };
 
 const mainMessages = {
@@ -272,6 +342,8 @@ const mainMessages = {
       regionCaptureCopy: "区域截图并自动复制",
       customCapture: "自定义截屏",
       scrollCapture: "滚动截图（长图）",
+      recordRegion: "区域录屏",
+      recordScreen: "当前屏幕录屏",
       pinLatest: "贴最近截图",
       togglePins: "隐藏/显示所有贴图",
       switchPinGroup: "切换到另一贴图组",
@@ -296,6 +368,11 @@ const mainMessages = {
       scrollPreparing: "正在准备滚动截图...",
       scrollMerged: (frames: number) => `长截图合成完成：${frames} 帧`,
       scrollMergedEditable: (frames: number) => `长截图已合成：${frames} 帧，可继续编辑`,
+      recordingSelect: "拖动选择录屏区域",
+      recordingPreparing: "正在准备录屏...",
+      recordingCanceled: "录屏已取消",
+      recordingSaved: (filePath: string) => `录屏已保存：${filePath}`,
+      recordingFailed: "录屏失败，请重试",
       ocrDone: "OCR 识别完成，文字已复制",
       ocrFailed: "OCR 识别失败",
       noPinSource: "暂无可贴图的截图",
@@ -318,6 +395,7 @@ const mainMessages = {
     },
     dialog: {
       scrollSelectionTitle: "滚动截图选区",
+      recordingTitle: "录屏",
       captureTitle: "截图",
       pinTitle: "贴图",
       savePin: "保存贴图",
@@ -353,6 +431,8 @@ const mainMessages = {
       regionCaptureCopy: "Capture and Auto Copy",
       customCapture: "Custom Capture",
       scrollCapture: "Scrolling Capture",
+      recordRegion: "Region Recording",
+      recordScreen: "Current Screen Recording",
       pinLatest: "Pin Latest Screenshot",
       togglePins: "Show/Hide All Pins",
       switchPinGroup: "Switch Pin Group",
@@ -377,6 +457,11 @@ const mainMessages = {
       scrollPreparing: "Preparing scrolling capture...",
       scrollMerged: (frames: number) => `Scrolling capture merged: ${frames} frames`,
       scrollMergedEditable: (frames: number) => `Long screenshot merged: ${frames} frames, ready to edit`,
+      recordingSelect: "Drag to select a recording region",
+      recordingPreparing: "Preparing recording...",
+      recordingCanceled: "Recording canceled",
+      recordingSaved: (filePath: string) => `Recording saved: ${filePath}`,
+      recordingFailed: "Recording failed. Please try again.",
       ocrDone: "OCR completed, text copied",
       ocrFailed: "OCR failed",
       noPinSource: "No screenshot available to pin",
@@ -399,6 +484,7 @@ const mainMessages = {
     },
     dialog: {
       scrollSelectionTitle: "Scrolling Capture Region",
+      recordingTitle: "Recording",
       captureTitle: "Capture",
       pinTitle: "Pin",
       savePin: "Save Pin",
@@ -436,11 +522,11 @@ function createWindow() {
   Menu.setApplicationMenu(null);
 
   mainWindow = new BrowserWindow({
-    width: 540,
+    width: 680,
     height: 500,
-    minWidth: 468,
+    minWidth: 600,
     minHeight: 476,
-    maxWidth: 620,
+    maxWidth: 760,
     maxHeight: 640,
     resizable: false,
     maximizable: false,
@@ -492,6 +578,10 @@ function createWindow() {
     if (input.key === "F1") {
       event.preventDefault();
       runShortcutCapture(Boolean(input.control || input.meta) || appSettings.autoCopy);
+    }
+    if (input.key === "F2" && !input.control && !input.meta && !input.shift) {
+      event.preventDefault();
+      void runShortcutRecording();
     }
     if (input.key === "F3" && !input.control && !input.meta) {
       event.preventDefault();
@@ -610,6 +700,19 @@ function updateTrayMenu() {
             void captureScrollingRegion(appSettings, appSettings.autoCopy);
           }
         },
+        {
+          label: mt().tray.recordRegion,
+          accelerator: appSettings.shortcutRecord,
+          click: () => {
+            void runShortcutRecording();
+          }
+        },
+        {
+          label: mt().tray.recordScreen,
+          click: () => {
+            void startRegionRecording(appSettings, "screen");
+          }
+        },
         { type: "separator" },
         {
           label: mt().tray.pinLatest,
@@ -704,18 +807,29 @@ function updateTrayMenu() {
   );
 }
 
+function recordingDir() {
+  return path.join(appSettings.screenshotDir || defaultScreenshotDir, "recordings");
+}
+
 async function ensureStorage() {
   await fs.mkdir(appRuntimeDir, { recursive: true });
   await fs.mkdir(appProfileDir, { recursive: true });
   await fs.mkdir(tempCaptureDir, { recursive: true });
   await fs.mkdir(dataDir, { recursive: true });
   await fs.mkdir(appSettings.screenshotDir, { recursive: true });
+  await fs.mkdir(recordingDir(), { recursive: true });
   await fs.mkdir(backupDir, { recursive: true });
 
   try {
     await fs.access(historyPath);
   } catch {
     await fs.writeFile(historyPath, "[]", "utf8");
+  }
+
+  try {
+    await fs.access(recordingHistoryPath);
+  } catch {
+    await fs.writeFile(recordingHistoryPath, "[]", "utf8");
   }
 
   try {
@@ -730,11 +844,15 @@ async function readSettings(): Promise<AppSettings> {
   try {
     const raw = await fs.readFile(settingsPath, "utf8");
     const stored = JSON.parse(raw) as Partial<AppSettings>;
+    const storedSchemaVersion = Number(stored.settingsSchemaVersion || 0);
     appSettings = {
       ...appSettings,
       ...stored,
       screenshotDir: stored.screenshotDir || defaultScreenshotDir
     };
+    if (storedSchemaVersion < SETTINGS_SCHEMA_VERSION) {
+      appSettings.recordingFormat = "mp4";
+    }
     normalizeSettings(appSettings);
     nativeTheme.themeSource = appSettings.theme;
     await fs.writeFile(settingsPath, JSON.stringify(appSettings, null, 2), "utf8");
@@ -742,6 +860,7 @@ async function readSettings(): Promise<AppSettings> {
     await writeSettings(appSettings);
   }
   await fs.mkdir(appSettings.screenshotDir, { recursive: true });
+  await fs.mkdir(recordingDir(), { recursive: true });
   return appSettings;
 }
 
@@ -751,6 +870,7 @@ async function writeSettings(settings: AppSettings) {
   nativeTheme.themeSource = appSettings.theme;
   await fs.mkdir(dataDir, { recursive: true });
   await fs.mkdir(appSettings.screenshotDir, { recursive: true });
+  await fs.mkdir(recordingDir(), { recursive: true });
   await fs.writeFile(settingsPath, JSON.stringify(appSettings, null, 2), "utf8");
   mainWindow?.setTitle(`${APP_NAME} ${mt().preferences}`);
   syncLoginItemSettings();
@@ -891,6 +1011,7 @@ function normalizeShortcutSettings(settings: AppSettings) {
   settings.shortcutCaptureCopy = normalizeWindowsShortcut(settings.shortcutCaptureCopy);
   settings.shortcutArea = normalizeWindowsShortcut(settings.shortcutArea);
   settings.shortcutScrollCapture = normalizeWindowsShortcut(settings.shortcutScrollCapture);
+  settings.shortcutRecord = normalizeWindowsShortcut(settings.shortcutRecord || "F2");
   settings.shortcutPin = normalizeWindowsShortcut(settings.shortcutPin);
   settings.shortcutTogglePins = normalizeWindowsShortcut(settings.shortcutTogglePins);
 }
@@ -904,9 +1025,17 @@ function normalizeThemeSetting(settings: AppSettings) {
 }
 
 function normalizeSettings(settings: AppSettings) {
+  settings.settingsSchemaVersion = SETTINGS_SCHEMA_VERSION;
   normalizeLanguageSetting(settings);
   normalizeThemeSetting(settings);
   normalizeShortcutSettings(settings);
+  settings.recordingFps = [15, 30, 60].includes(Number(settings.recordingFps)) ? Number(settings.recordingFps) : 30;
+  settings.recordingFormat = "mp4";
+  settings.recordingQuality = ["standard", "high", "compact"].includes(settings.recordingQuality) ? settings.recordingQuality : "standard";
+  settings.recordingMic = Boolean(settings.recordingMic);
+  settings.recordingCountdown = settings.recordingCountdown !== false;
+  settings.recordingShowCursor = settings.recordingShowCursor !== false;
+  settings.recordingClickHighlight = settings.recordingClickHighlight !== false;
 }
 
 async function updateAppTheme(theme: AppTheme) {
@@ -1004,6 +1133,30 @@ function runShortcutScrollCapture(copyAfterCapture = appSettings.autoCopy) {
   });
 }
 
+function runShortcutRecording() {
+  if (recordingRunning && activeNativeRecorderProcess?.stdin?.writable) {
+    activeNativeRecorderProcess.stdin.write("stop\n");
+    return;
+  }
+  if (recordingRunning && activeRecordingOverlay && !activeRecordingOverlay.isDestroyed()) {
+    activeRecordingOverlay.webContents.send("recording-command", activeRecordingUsesNative ? "cancel" : "stop");
+    return;
+  }
+  void startRegionRecording(appSettings).catch((error) => {
+    console.error("Recording shortcut failed.", error);
+  });
+}
+
+function startRegionRecording(settings: AppSettings, mode: RecordingMode = "region"): Promise<RecordingRecord | null> {
+  if (shortcutCaptureRunning || recordingRunning) {
+    return Promise.resolve(null);
+  }
+  recordingRunning = true;
+  return recordSelectedRegion(settings, mode).finally(() => {
+    recordingRunning = false;
+  });
+}
+
 function registerGlobalShortcuts() {
   globalShortcut.unregisterAll();
   const registrations: Array<[string, () => void]> = [
@@ -1011,6 +1164,7 @@ function registerGlobalShortcuts() {
     [appSettings.shortcutCaptureCopy, () => runShortcutCapture(true)],
     [appSettings.shortcutArea, () => runShortcutCapture(appSettings.autoCopy)],
     [appSettings.shortcutScrollCapture, () => runShortcutScrollCapture(appSettings.autoCopy)],
+    [appSettings.shortcutRecord, () => runShortcutRecording()],
     [appSettings.shortcutPin, () => void pinLatestScreenshot()],
     [appSettings.shortcutTogglePins, () => togglePinWindows()]
   ];
@@ -1049,6 +1203,7 @@ function hotkeyGuardConfigArg() {
     shortcutCaptureCopy: appSettings.shortcutCaptureCopy,
     shortcutArea: appSettings.shortcutArea,
     shortcutScrollCapture: appSettings.shortcutScrollCapture,
+    shortcutRecord: appSettings.shortcutRecord,
     shortcutPin: appSettings.shortcutPin,
     shortcutTogglePins: appSettings.shortcutTogglePins
   };
@@ -1066,6 +1221,9 @@ function handleHotkeyGuardAction(action: string) {
       break;
     case "scroll":
       runShortcutScrollCapture(appSettings.autoCopy);
+      break;
+    case "record":
+      runShortcutRecording();
       break;
     case "pin":
       void pinLatestScreenshot();
@@ -1173,6 +1331,7 @@ async function backupLocalData() {
   await fs.mkdir(backupDir, { recursive: true });
   const today = new Date().toISOString().slice(0, 10);
   await fs.copyFile(historyPath, path.join(backupDir, `history-${today}.json`));
+  await fs.copyFile(recordingHistoryPath, path.join(backupDir, `recordings-${today}.json`)).catch(() => undefined);
   await fs.copyFile(settingsPath, path.join(backupDir, `settings-${today}.json`));
 }
 
@@ -1184,6 +1343,17 @@ async function readHistory(): Promise<ScreenshotRecord[]> {
 
 async function writeHistory(records: ScreenshotRecord[]) {
   await fs.writeFile(historyPath, JSON.stringify(records, null, 2), "utf8");
+  await backupLocalData();
+}
+
+async function readRecordingHistory(): Promise<RecordingRecord[]> {
+  await ensureStorage();
+  const raw = await fs.readFile(recordingHistoryPath, "utf8");
+  return JSON.parse(raw) as RecordingRecord[];
+}
+
+async function writeRecordingHistory(records: RecordingRecord[]) {
+  await fs.writeFile(recordingHistoryPath, JSON.stringify(records, null, 2), "utf8");
   await backupLocalData();
 }
 
@@ -1223,6 +1393,18 @@ async function nextScreenshotSequence(datePart: string, extension: string) {
   return String(maxSequence + 1).padStart(3, "0");
 }
 
+async function nextRecordingSequence(datePart: string) {
+  const dir = recordingDir();
+  await fs.mkdir(dir, { recursive: true });
+  const files = await fs.readdir(dir).catch(() => []);
+  const pattern = new RegExp(`^Zhuageping-${datePart}-\\d{6}-(\\d{3})\\.mp4$`, "i");
+  const maxSequence = files.reduce((max, fileName) => {
+    const match = fileName.match(pattern);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+  return String(maxSequence + 1).padStart(3, "0");
+}
+
 async function buildScreenshotFilePath(date: Date, extension: string) {
   const { datePart, timePart } = formatScreenshotDateParts(date);
   let sequence = await nextScreenshotSequence(datePart, extension);
@@ -1231,6 +1413,20 @@ async function buildScreenshotFilePath(date: Date, extension: string) {
   while (fsSync.existsSync(filePath)) {
     sequence = String(Number(sequence) + 1).padStart(3, "0");
     filePath = path.join(appSettings.screenshotDir, `Zhuageping-${datePart}-${timePart}-${sequence}.${extension}`);
+  }
+
+  return filePath;
+}
+
+async function buildRecordingFilePath(date: Date, format: RecordingFormat) {
+  const dir = recordingDir();
+  const { datePart, timePart } = formatScreenshotDateParts(date);
+  let sequence = await nextRecordingSequence(datePart);
+  let filePath = path.join(dir, `Zhuageping-${datePart}-${timePart}-${sequence}.${format}`);
+
+  while (fsSync.existsSync(filePath)) {
+    sequence = String(Number(sequence) + 1).padStart(3, "0");
+    filePath = path.join(dir, `Zhuageping-${datePart}-${timePart}-${sequence}.${format}`);
   }
 
   return filePath;
@@ -1267,6 +1463,100 @@ async function showScreenshotSaveDialog() {
     return null;
   }
   return ensureImageFileExtension(result.filePath, extension);
+}
+
+async function desktopSourceIdForDisplay(display: DisplayLike) {
+  const sources = await desktopCapturer.getSources({
+    types: ["screen"],
+    thumbnailSize: { width: 0, height: 0 }
+  });
+  const source = sources.find((item) => item.display_id === String(display.id)) ?? sources[0];
+  if (!source) {
+    throw new Error("无法获取屏幕录制源。");
+  }
+  return source.id;
+}
+
+function recordingVideoBitsPerSecond(settings: AppSettings) {
+  if (settings.recordingQuality === "high") return 35_000_000;
+  if (settings.recordingQuality === "compact") return 8_000_000;
+  return 18_000_000;
+}
+
+function recordingMp4Crf(settings: AppSettings) {
+  if (settings.recordingQuality === "high") return "16";
+  if (settings.recordingQuality === "compact") return "26";
+  return "20";
+}
+
+function ffmpegExecutablePath() {
+  const executableName = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
+  const candidates = [
+    path.join(process.resourcesPath, "app.asar.unpacked", "node_modules", "ffmpeg-static", executableName),
+    path.join(process.cwd(), "node_modules", "ffmpeg-static", executableName)
+  ];
+  return candidates.find((candidate) => fsSync.existsSync(candidate)) ?? null;
+}
+
+function runFfmpeg(args: string[]) {
+  const executablePath = ffmpegExecutablePath();
+  if (!executablePath) {
+    return Promise.reject(new Error("ffmpeg executable was not found."));
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const child = spawn(executablePath, args, { windowsHide: true });
+    const stderr: Buffer[] = [];
+    child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(Buffer.concat(stderr).toString("utf8") || `ffmpeg exited with code ${code}`));
+    });
+  });
+}
+
+async function transcodeRecordingToMp4(
+  inputPath: string,
+  outputPath: string,
+  settings: AppSettings,
+  payload: RecordingPayload
+) {
+  const sourceWidth = Math.max(2, Math.floor(payload.sourceWidth ?? payload.width));
+  const sourceHeight = Math.max(2, Math.floor(payload.sourceHeight ?? payload.height));
+  const cropX = Math.max(0, Math.min(sourceWidth - 2, Math.floor((payload.cropX ?? 0) / 2) * 2));
+  const cropY = Math.max(0, Math.min(sourceHeight - 2, Math.floor((payload.cropY ?? 0) / 2) * 2));
+  const cropWidth = Math.max(2, Math.floor(Math.min(payload.width, sourceWidth - cropX) / 2) * 2);
+  const cropHeight = Math.max(2, Math.floor(Math.min(payload.height, sourceHeight - cropY) / 2) * 2);
+  await runFfmpeg([
+    "-y",
+    "-f",
+    "matroska",
+    "-i",
+    inputPath,
+    "-vf",
+    `crop=${cropWidth}:${cropHeight}:${cropX}:${cropY}`,
+    "-fps_mode",
+    "passthrough",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "fast",
+    "-crf",
+    recordingMp4Crf(settings),
+    "-pix_fmt",
+    "yuv420p",
+    "-movflags",
+    "+faststart",
+    "-c:a",
+    "aac",
+    "-b:a",
+    "128k",
+    outputPath
+  ]);
 }
 
 function escapeXml(value: string) {
@@ -1445,6 +1735,149 @@ async function captureScreenBuffer(width: number, height: number, display?: Disp
   } catch (error) {
     console.warn("Electron desktop capture failed, using Windows GDI fallback.", error);
     return captureWithWindowsGdi(width, height, display);
+  }
+}
+
+async function detectCursorWindowRegion(display: DisplayLike): Promise<CaptureRegion | null> {
+  if (process.platform !== "win32") {
+    return null;
+  }
+
+  const scaleFactor = display.scaleFactor || 1;
+  const cursorPoint = screen.getCursorScreenPoint();
+  const physicalX = Math.round(cursorPoint.x * scaleFactor);
+  const physicalY = Math.round(cursorPoint.y * scaleFactor);
+  const script = `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class WindowProbe {
+  [StructLayout(LayoutKind.Sequential)]
+  public struct POINT { public int X; public int Y; }
+
+  [StructLayout(LayoutKind.Sequential)]
+  public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+
+  [DllImport("user32.dll")]
+  public static extern IntPtr WindowFromPoint(POINT point);
+
+  [DllImport("user32.dll")]
+  public static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
+
+  [DllImport("user32.dll")]
+  public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+
+  [DllImport("user32.dll")]
+  public static extern bool IsWindowVisible(IntPtr hwnd);
+
+  public static string Probe(int x, int y) {
+    var point = new POINT { X = x, Y = y };
+    var hwnd = WindowFromPoint(point);
+    if (hwnd == IntPtr.Zero) return "{}";
+    hwnd = GetAncestor(hwnd, 2);
+    if (hwnd == IntPtr.Zero || !IsWindowVisible(hwnd)) return "{}";
+    RECT rect;
+    if (!GetWindowRect(hwnd, out rect)) return "{}";
+    return rect.Left + "," + rect.Top + "," + rect.Right + "," + rect.Bottom;
+  }
+}
+
+"@
+[WindowProbe]::Probe(${physicalX}, ${physicalY})
+`;
+
+  try {
+    const { stdout } = await execFileAsync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+      windowsHide: true,
+      timeout: 2500,
+      maxBuffer: 1024 * 64
+    });
+    const raw = stdout.trim();
+    if (!raw || raw === "{}") return null;
+    const [left, top, right, bottom] = raw.split(",").map((value) => Number(value.trim()));
+    if (![left, top, right, bottom].every(Number.isFinite)) return null;
+
+    const region = {
+      x: Math.round(left / scaleFactor),
+      y: Math.round(top / scaleFactor),
+      width: Math.round((right - left) / scaleFactor),
+      height: Math.round((bottom - top) / scaleFactor)
+    };
+    const displayRight = display.bounds.x + display.bounds.width;
+    const displayBottom = display.bounds.y + display.bounds.height;
+    const x1 = Math.max(display.bounds.x, Math.min(displayRight, region.x));
+    const y1 = Math.max(display.bounds.y, Math.min(displayBottom, region.y));
+    const x2 = Math.max(display.bounds.x, Math.min(displayRight, region.x + region.width));
+    const y2 = Math.max(display.bounds.y, Math.min(displayBottom, region.y + region.height));
+    const clamped = { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+    if (clamped.width < 80 || clamped.height < 60) return null;
+    return clamped;
+  } catch (error) {
+    console.warn("Window region probe failed.", error);
+    return null;
+  }
+}
+
+async function detectCursorDisplayDeviceName(): Promise<string | null> {
+  if (process.platform !== "win32") return null;
+
+  const script = `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class DisplayProbe {
+  [StructLayout(LayoutKind.Sequential)]
+  public struct POINT { public int X; public int Y; }
+
+  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+  public struct MONITORINFOEX {
+    public int cbSize;
+    public RECT rcMonitor;
+    public RECT rcWork;
+    public uint dwFlags;
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+    public string szDevice;
+  }
+
+  [StructLayout(LayoutKind.Sequential)]
+  public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+
+  [DllImport("user32.dll")]
+  public static extern bool GetCursorPos(out POINT point);
+
+  [DllImport("user32.dll")]
+  public static extern IntPtr MonitorFromPoint(POINT point, uint flags);
+
+  [DllImport("user32.dll", CharSet = CharSet.Auto)]
+  public static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFOEX info);
+
+  public static string Probe() {
+    POINT point;
+    if (!GetCursorPos(out point)) return "";
+    var monitor = MonitorFromPoint(point, 2);
+    if (monitor == IntPtr.Zero) return "";
+    var info = new MONITORINFOEX();
+    info.cbSize = Marshal.SizeOf(info);
+    return GetMonitorInfo(monitor, ref info) ? info.szDevice : "";
+  }
+}
+"@
+[DisplayProbe]::Probe()
+`;
+
+  try {
+    const { stdout } = await execFileAsync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+      windowsHide: true,
+      timeout: 2500,
+      maxBuffer: 1024 * 64
+    });
+    const deviceName = stdout.trim();
+    return deviceName || null;
+  } catch (error) {
+    console.warn("Display device probe failed.", error);
+    return null;
   }
 }
 
@@ -2548,6 +2981,479 @@ async function captureScrollingRegion(options: CaptureOptions, copyAfterCapture 
   }
 }
 
+function recorderHostPath() {
+  const fileName = "ZhuagepingRecorderHost.exe";
+  const packagedPath = path.join(process.resourcesPath, "recorder", fileName);
+  if (app.isPackaged) return packagedPath;
+  const builtPath = path.join(process.cwd(), "build", "recorder", fileName);
+  return fsSync.existsSync(builtPath) ? builtPath : packagedPath;
+}
+
+function closeRecordingOverlay(overlay: BrowserWindow) {
+  if (!overlay.isDestroyed()) {
+    overlay.setIgnoreMouseEvents(false);
+    overlay.close();
+  }
+  if (activeRecordingOverlay === overlay) activeRecordingOverlay = null;
+  activeRecordingUsesNative = false;
+}
+
+async function runNativeRecordingOverlay(settings: AppSettings, mode: RecordingMode): Promise<NativeRecordingSelection | null> {
+  const display = getCursorDisplay();
+  const windowRegion = mode === "region" ? await detectCursorWindowRegion(display) : null;
+  const localWindowRegion = windowRegion
+    ? {
+        x: Math.max(0, windowRegion.x - display.bounds.x),
+        y: Math.max(0, windowRegion.y - display.bounds.y),
+        width: Math.max(0, windowRegion.width),
+        height: Math.max(0, windowRegion.height)
+      }
+    : null;
+
+  return new Promise((resolve) => {
+    const overlay = new BrowserWindow({
+      x: display.bounds.x,
+      y: display.bounds.y,
+      width: display.bounds.width,
+      height: display.bounds.height,
+      frame: false,
+      transparent: true,
+      backgroundColor: "#00000000",
+      show: false,
+      resizable: false,
+      movable: false,
+      fullscreenable: false,
+      focusable: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      title: mt().dialog.recordingTitle,
+      webPreferences: {
+        nodeIntegration: true,
+        contextIsolation: false,
+        backgroundThrottling: false
+      }
+    });
+    activeRecordingOverlay = overlay;
+    activeRecordingUsesNative = true;
+    let settled = false;
+
+    const removeSelectionListeners = () => {
+      ipcMain.removeListener("recording-region-selected", onSelected);
+      ipcMain.removeListener("recording-cancel", onCancel);
+      ipcMain.removeListener("overlay:ready", onReady);
+    };
+    const cancel = () => {
+      if (settled) return;
+      settled = true;
+      removeSelectionListeners();
+      ipcMain.removeListener("recording-ignore-mouse", onIgnoreMouse);
+      closeRecordingOverlay(overlay);
+      resolve(null);
+    };
+    const showOverlay = () => {
+      if (overlay.isDestroyed()) return;
+      overlay.showInactive();
+      overlay.moveTop();
+      overlay.setAlwaysOnTop(true, "screen-saver");
+      overlay.focus();
+    };
+    const onReady = (event: Electron.IpcMainEvent) => {
+      if (event.sender.id === overlay.webContents.id) showOverlay();
+    };
+    const onCancel = (event: Electron.IpcMainEvent) => {
+      if (event.sender.id === overlay.webContents.id) cancel();
+    };
+    const onIgnoreMouse = (event: Electron.IpcMainEvent, ignore: boolean) => {
+      if (event.sender.id !== overlay.webContents.id || overlay.isDestroyed()) return;
+      overlay.setIgnoreMouseEvents(Boolean(ignore), { forward: true });
+    };
+    const onSelected = (event: Electron.IpcMainEvent, region: CaptureRegion) => {
+      if (settled || event.sender.id !== overlay.webContents.id) return;
+      const width = Math.max(2, Math.min(display.bounds.width, Math.round(region.width)));
+      const height = Math.max(2, Math.min(display.bounds.height, Math.round(region.height)));
+      const x = Math.max(0, Math.min(display.bounds.width - width, Math.round(region.x)));
+      const y = Math.max(0, Math.min(display.bounds.height - height, Math.round(region.y)));
+      settled = true;
+      removeSelectionListeners();
+      resolve({ display, region: { x, y, width, height }, overlay });
+    };
+
+    overlay.setMenu(null);
+    overlay.setMenuBarVisibility(false);
+    overlay.setContentProtection(true);
+    overlay.setAlwaysOnTop(true, "screen-saver");
+    overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    overlay.once("ready-to-show", showOverlay);
+    overlay.webContents.once("did-finish-load", showOverlay);
+    overlay.on("closed", () => {
+      ipcMain.removeListener("recording-ignore-mouse", onIgnoreMouse);
+      if (!settled) cancel();
+      if (activeRecordingOverlay === overlay) {
+        activeRecordingOverlay = null;
+        activeRecordingUsesNative = false;
+      }
+      if (activeNativeRecorderProcess?.stdin?.writable) activeNativeRecorderProcess.stdin.write("cancel\n");
+    });
+
+    ipcMain.on("recording-region-selected", onSelected);
+    ipcMain.on("recording-cancel", onCancel);
+    ipcMain.on("recording-ignore-mouse", onIgnoreMouse);
+    ipcMain.on("overlay:ready", onReady);
+
+    void overlay.loadFile(recorderHtmlPath(), {
+      query: {
+        nativeMode: "true",
+        scaleFactor: String(display.scaleFactor || 1),
+        offsetX: String(display.bounds.x),
+        offsetY: String(display.bounds.y),
+        displayWidth: String(display.bounds.width),
+        displayHeight: String(display.bounds.height),
+        displayPixelWidth: String(Math.round(display.size.width * (display.scaleFactor || 1))),
+        displayPixelHeight: String(Math.round(display.size.height * (display.scaleFactor || 1))),
+        fps: String(settings.recordingFps),
+        countdown: String(settings.recordingCountdown),
+        mode,
+        windowX: String(localWindowRegion?.x ?? ""),
+        windowY: String(localWindowRegion?.y ?? ""),
+        windowWidth: String(localWindowRegion?.width ?? ""),
+        windowHeight: String(localWindowRegion?.height ?? ""),
+        language: settings.language
+      }
+    });
+  });
+}
+
+type NativeRecorderResult = { filePath: string; canceled: boolean };
+
+function runNativeRecorder(config: Record<string, unknown>): Promise<NativeRecorderResult> {
+  const executablePath = recorderHostPath();
+  if (!fsSync.existsSync(executablePath)) {
+    return Promise.reject(new Error(`Native recorder host not found: ${executablePath}`));
+  }
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(executablePath, [], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
+    activeNativeRecorderProcess = child;
+    let stdoutBuffer = "";
+    let stderrBuffer = "";
+    let settled = false;
+
+    const finish = (error: Error | null, result?: NativeRecorderResult) => {
+      if (settled) return;
+      settled = true;
+      if (activeNativeRecorderProcess === child) activeNativeRecorderProcess = null;
+      if (error) reject(error);
+      else resolve(result ?? { filePath: "", canceled: true });
+    };
+    const processLine = (line: string) => {
+      if (!line.trim()) return;
+      try {
+        const event = JSON.parse(line) as { type?: string; payload?: { filePath?: string; message?: string; detail?: string } };
+        if (event.type === "completed" && event.payload?.filePath) {
+          finish(null, { filePath: event.payload.filePath, canceled: false });
+        } else if (event.type === "canceled") {
+          finish(null, { filePath: "", canceled: true });
+        } else if (event.type === "error") {
+          finish(new Error(event.payload?.message || event.payload?.detail || "Native recorder failed."));
+        }
+      } catch (error) {
+        console.warn("Invalid native recorder event.", line, error);
+      }
+    };
+
+    child.stdout?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk: string) => {
+      stdoutBuffer += chunk;
+      const lines = stdoutBuffer.split(/\r?\n/);
+      stdoutBuffer = lines.pop() ?? "";
+      lines.forEach(processLine);
+    });
+    child.stderr?.setEncoding("utf8");
+    child.stderr?.on("data", (chunk: string) => {
+      stderrBuffer += chunk;
+    });
+    child.on("error", (error) => finish(error));
+    child.on("close", (code) => {
+      if (stdoutBuffer.trim()) processLine(stdoutBuffer);
+      if (!settled) finish(new Error(stderrBuffer.trim() || `Native recorder exited with code ${code}.`));
+    });
+    child.stdin?.write(`${JSON.stringify(config)}\n`);
+  });
+}
+
+async function saveNativeRecordingRecord(
+  filePath: string,
+  startedAt: number,
+  width: number,
+  height: number
+): Promise<RecordingRecord> {
+  const stat = await fs.stat(filePath);
+  if (stat.size < 1024) throw new Error("录屏文件为空，请稍后重试。");
+  const createdAt = new Date();
+  const record: RecordingRecord = {
+    id: crypto.randomUUID(),
+    filePath,
+    createdAt: createdAt.toISOString(),
+    durationMs: Math.max(0, Date.now() - startedAt),
+    width,
+    height,
+    format: "mp4"
+  };
+  const records = await readRecordingHistory();
+  await writeRecordingHistory([record, ...records].slice(0, 200));
+  mainWindow?.webContents.send("app:recording-created", record);
+  mainWindow?.webContents.send("app:status", mt().status.recordingSaved(filePath));
+  return record;
+}
+
+async function recordSelectedRegionNative(settings: AppSettings, mode: RecordingMode): Promise<RecordingRecord | null> {
+  const selection = await runNativeRecordingOverlay(settings, mode);
+  if (!selection) return null;
+
+  const { display, region, overlay } = selection;
+  const scaleFactor = display.scaleFactor || 1;
+  const width = Math.max(2, Math.floor((region.width * scaleFactor) / 2) * 2);
+  const height = Math.max(2, Math.floor((region.height * scaleFactor) / 2) * 2);
+  const x = Math.max(0, Math.floor((region.x * scaleFactor) / 2) * 2);
+  const y = Math.max(0, Math.floor((region.y * scaleFactor) / 2) * 2);
+  const filePath = await buildRecordingFilePath(new Date(), "mp4");
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  const displayName = await detectCursorDisplayDeviceName();
+  const startedAt = Date.now();
+
+  try {
+    const result = await runNativeRecorder({
+      outputPath: filePath,
+      displayName,
+      x,
+      y,
+      width,
+      height,
+      framerate: settings.recordingFps,
+      bitrate: recordingVideoBitsPerSecond(settings),
+      captureSystemAudio: true,
+      captureMicrophone: settings.recordingMic,
+      showCursor: settings.recordingShowCursor,
+      showClickHighlight: settings.recordingClickHighlight
+    });
+    if (result.canceled) {
+      await fs.unlink(filePath).catch(() => undefined);
+      return null;
+    }
+    return saveNativeRecordingRecord(result.filePath, startedAt, width, height);
+  } finally {
+    closeRecordingOverlay(overlay);
+  }
+}
+
+async function runRecordingOverlay(settings: AppSettings, mode: RecordingMode): Promise<RecordingPayload | null> {
+  const display = getCursorDisplay();
+  const sourceId = await desktopSourceIdForDisplay(display);
+  const windowRegion = mode === "region" ? await detectCursorWindowRegion(display) : null;
+  const localWindowRegion = windowRegion
+    ? {
+        x: Math.max(0, windowRegion.x - display.bounds.x),
+        y: Math.max(0, windowRegion.y - display.bounds.y),
+        width: Math.max(0, windowRegion.width),
+        height: Math.max(0, windowRegion.height)
+      }
+    : null;
+  return new Promise((resolve) => {
+    const overlay = new BrowserWindow({
+      x: display.bounds.x,
+      y: display.bounds.y,
+      width: display.bounds.width,
+      height: display.bounds.height,
+      frame: false,
+      transparent: true,
+      backgroundColor: "#00000000",
+      show: false,
+      resizable: false,
+      movable: false,
+      fullscreenable: false,
+      focusable: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      title: mt().dialog.recordingTitle,
+      webPreferences: {
+        nodeIntegration: true,
+        contextIsolation: false,
+        backgroundThrottling: false
+      }
+    });
+    activeRecordingOverlay = overlay;
+    let resolved = false;
+
+    const finish = (payload: RecordingPayload | null) => {
+      if (resolved) return;
+      resolved = true;
+      ipcMain.removeListener("recording-complete", onComplete);
+      ipcMain.removeListener("recording-cancel", onCancel);
+      ipcMain.removeListener("recording-error", onError);
+      ipcMain.removeListener("recording-ignore-mouse", onIgnoreMouse);
+      ipcMain.removeListener("overlay:ready", onReady);
+      if (!overlay.isDestroyed()) {
+        overlay.setIgnoreMouseEvents(false);
+      }
+      if (!overlay.isDestroyed()) overlay.close();
+      if (activeRecordingOverlay === overlay) activeRecordingOverlay = null;
+      resolve(payload);
+    };
+
+    const showOverlay = () => {
+      if (overlay.isDestroyed()) return;
+      overlay.showInactive();
+      overlay.moveTop();
+      overlay.setAlwaysOnTop(true, "screen-saver");
+      overlay.focus();
+    };
+
+    const onComplete = (_event: Electron.IpcMainEvent, payload: RecordingPayload) => finish(payload);
+    const onCancel = () => finish(null);
+    const onError = (_event: Electron.IpcMainEvent, message: string) => {
+      console.warn(`Recording overlay error: ${message}`);
+      finish(null);
+    };
+    const onIgnoreMouse = (event: Electron.IpcMainEvent, ignore: boolean) => {
+      if (event.sender.id !== overlay.webContents.id || overlay.isDestroyed()) return;
+      overlay.setIgnoreMouseEvents(Boolean(ignore), { forward: true });
+    };
+    const onReady = (event: Electron.IpcMainEvent) => {
+      if (event.sender.id === overlay.webContents.id) {
+        showOverlay();
+      }
+    };
+
+    overlay.setMenu(null);
+    overlay.setMenuBarVisibility(false);
+    overlay.setContentProtection(true);
+    overlay.setAlwaysOnTop(true, "screen-saver");
+    overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    overlay.once("ready-to-show", showOverlay);
+    overlay.webContents.once("did-finish-load", showOverlay);
+    overlay.on("closed", () => finish(null));
+
+    ipcMain.once("recording-complete", onComplete);
+    ipcMain.once("recording-cancel", onCancel);
+    ipcMain.once("recording-error", onError);
+    ipcMain.on("recording-ignore-mouse", onIgnoreMouse);
+    ipcMain.on("overlay:ready", onReady);
+
+    void overlay.loadFile(recorderHtmlPath(), {
+      query: {
+        sourceId,
+        scaleFactor: String(display.scaleFactor || 1),
+        offsetX: String(display.bounds.x),
+        offsetY: String(display.bounds.y),
+        displayWidth: String(display.bounds.width),
+        displayHeight: String(display.bounds.height),
+        displayPixelWidth: String(Math.round(display.size.width * (display.scaleFactor || 1))),
+        displayPixelHeight: String(Math.round(display.size.height * (display.scaleFactor || 1))),
+        fps: String(settings.recordingFps),
+        bitsPerSecond: String(recordingVideoBitsPerSecond(settings)),
+        mic: String(settings.recordingMic),
+        countdown: String(settings.recordingCountdown),
+        mode,
+        windowX: String(localWindowRegion?.x ?? ""),
+        windowY: String(localWindowRegion?.y ?? ""),
+        windowWidth: String(localWindowRegion?.width ?? ""),
+        windowHeight: String(localWindowRegion?.height ?? ""),
+        showCursor: String(settings.recordingShowCursor),
+        clickHighlight: String(settings.recordingClickHighlight),
+        language: settings.language
+      }
+    });
+  });
+}
+
+async function saveRecordingPayload(payload: RecordingPayload, settings: AppSettings): Promise<RecordingRecord> {
+  const now = new Date();
+  let buffer: Buffer;
+  if (payload.dataBuffer) {
+    if (Buffer.isBuffer(payload.dataBuffer)) {
+      buffer = payload.dataBuffer;
+    } else if (payload.dataBuffer instanceof ArrayBuffer) {
+      buffer = Buffer.from(new Uint8Array(payload.dataBuffer));
+    } else {
+      buffer = Buffer.from(payload.dataBuffer);
+    }
+  } else if (payload.dataUrl) {
+    const commaIndex = payload.dataUrl.indexOf(",");
+    if (commaIndex < 0) {
+      throw new Error("无效的录屏数据。");
+    }
+    buffer = Buffer.from(payload.dataUrl.slice(commaIndex + 1), "base64");
+  } else {
+    throw new Error("无效的录屏数据。");
+  }
+  if (buffer.byteLength < 1024) {
+    throw new Error("录屏数据为空，请稍后重试。");
+  }
+  const format: RecordingFormat = "mp4";
+  const filePath = await buildRecordingFilePath(now, format);
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+
+  const sourcePath = path.join(tempCaptureDir, `recording-${crypto.randomUUID()}.webm`);
+  await fs.mkdir(tempCaptureDir, { recursive: true });
+  await fs.writeFile(sourcePath, buffer);
+  try {
+    await transcodeRecordingToMp4(sourcePath, filePath, settings, payload);
+  } catch (error) {
+    await fs.unlink(filePath).catch(() => undefined);
+    throw error;
+  } finally {
+    await fs.unlink(sourcePath).catch(() => undefined);
+  }
+
+  const record: RecordingRecord = {
+    id: crypto.randomUUID(),
+    filePath,
+    createdAt: now.toISOString(),
+    durationMs: Math.max(0, Math.round(payload.durationMs)),
+    width: Math.max(1, Math.round(payload.width)),
+    height: Math.max(1, Math.round(payload.height)),
+    format
+  };
+
+  const records = await readRecordingHistory();
+  await writeRecordingHistory([record, ...records].slice(0, 200));
+  mainWindow?.webContents.send("app:recording-created", record);
+  mainWindow?.webContents.send("app:status", mt().status.recordingSaved(filePath));
+  return record;
+}
+
+async function recordSelectedRegion(settings: AppSettings, mode: RecordingMode = "region"): Promise<RecordingRecord | null> {
+  await ensureStorage();
+  const shouldRestoreWindow = Boolean(mainWindow?.isVisible());
+  mainWindow?.hide();
+  await delay(32);
+
+  try {
+    mainWindow?.webContents.send("app:status", mode === "screen" ? mt().status.recordingPreparing : mt().status.recordingSelect);
+    if (process.platform === "win32" && fsSync.existsSync(recorderHostPath())) {
+      const nativeResult = await recordSelectedRegionNative(settings, mode);
+      if (!nativeResult) mainWindow?.webContents.send("app:status", mt().status.recordingCanceled);
+      return nativeResult;
+    }
+
+    const result = await runRecordingOverlay(settings, mode);
+    if (!result) {
+      mainWindow?.webContents.send("app:status", mt().status.recordingCanceled);
+      return null;
+    }
+    return saveRecordingPayload(result, settings);
+  } catch (error) {
+    console.error("Recording failed.", error);
+    mainWindow?.webContents.send("app:status", mt().status.recordingFailed);
+    return null;
+  } finally {
+    if (shouldRestoreWindow) {
+      mainWindow?.show();
+      mainWindow?.focus();
+    }
+  }
+}
+
 async function pinLatestScreenshot() {
   const history = await readHistory();
   const latest = history[0];
@@ -2994,6 +3900,13 @@ app.whenReady().then(async () => {
   registerGlobalShortcuts();
   startHotkeyGuard();
   registerPinWindowIpc();
+  ipcMain.on("recording-native-command", (event, command: string) => {
+    if (activeRecordingOverlay?.webContents.id !== event.sender.id) return;
+    if (!["pause", "resume", "stop", "cancel"].includes(command)) return;
+    if (activeNativeRecorderProcess?.stdin?.writable) {
+      activeNativeRecorderProcess.stdin.write(`${command}\n`);
+    }
+  });
   setupAutoUpdater();
   setTimeout(() => {
     void checkForAppUpdates(false);
@@ -3004,6 +3917,7 @@ app.whenReady().then(async () => {
   }
 
   ipcMain.handle("app:get-history", async () => readHistory());
+  ipcMain.handle("app:get-recording-history", async () => readRecordingHistory());
   ipcMain.handle("app:get-settings", async () => readSettings());
   ipcMain.handle("app:get-version", async () => app.getVersion());
   ipcMain.handle("app:check-for-updates", async () => checkForAppUpdates(true));
@@ -3021,6 +3935,9 @@ app.whenReady().then(async () => {
   );
   ipcMain.handle("app:capture-scroll", async (_event, options: CaptureOptions, copyAfterCapture?: boolean) =>
     captureScrollingRegion(options, Boolean(copyAfterCapture) || appSettings.autoCopy)
+  );
+  ipcMain.handle("app:record-region", async (_event, settings: AppSettings, mode: RecordingMode = "region") =>
+    startRegionRecording(settings, mode)
   );
   ipcMain.handle("app:pin-latest", async () => pinLatestScreenshot());
   ipcMain.handle("app:toggle-pins", async () => togglePinWindows());
@@ -3057,6 +3974,10 @@ app.whenReady().then(async () => {
   });
   ipcMain.handle("app:open-path", async (_event, targetPath: string) => {
     await shell.openPath(targetPath);
+  });
+  ipcMain.handle("app:open-recording-folder", async () => {
+    await fs.mkdir(recordingDir(), { recursive: true });
+    await shell.openPath(recordingDir());
   });
   ipcMain.handle("app:copy-image", async (_event, filePath: string) => {
     clipboard.writeImage(nativeImage.createFromPath(filePath));

@@ -10,6 +10,7 @@ internal sealed record GuardSettings(
     string? ShortcutCaptureCopy,
     string? ShortcutArea,
     string? ShortcutScrollCapture,
+    string? ShortcutRecord,
     string? ShortcutPin,
     string? ShortcutTogglePins
 );
@@ -122,6 +123,7 @@ internal static class Program
                 ParseHotkey("capture-copy", settings.ShortcutCaptureCopy),
                 ParseHotkey("area", settings.ShortcutArea),
                 ParseHotkey("scroll", settings.ShortcutScrollCapture),
+                ParseHotkey("record", settings.ShortcutRecord),
                 ParseHotkey("pin", settings.ShortcutPin),
                 ParseHotkey("toggle-pins", settings.ShortcutTogglePins)
             }

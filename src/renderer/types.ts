@@ -11,8 +11,11 @@ export type CaptureOptions = {
 export type OutputFormat = "png" | "jpg";
 export type AppLanguage = "zh-CN" | "en-US";
 export type AppTheme = "system" | "light" | "dark";
+export type RecordingQuality = "standard" | "high" | "compact";
+export type RecordingFormat = "mp4";
 
 export type AppSettings = CaptureOptions & {
+  settingsSchemaVersion: number;
   launchAtStartup: boolean;
   runAsAdmin: boolean;
   autoBackup: boolean;
@@ -29,8 +32,16 @@ export type AppSettings = CaptureOptions & {
   shortcutCaptureCopy: string;
   shortcutArea: string;
   shortcutScrollCapture: string;
+  shortcutRecord: string;
   shortcutPin: string;
   shortcutTogglePins: string;
+  recordingFps: number;
+  recordingFormat: RecordingFormat;
+  recordingQuality: RecordingQuality;
+  recordingMic: boolean;
+  recordingCountdown: boolean;
+  recordingShowCursor: boolean;
+  recordingClickHighlight: boolean;
 };
 
 export type ScreenshotRecord = {
@@ -41,6 +52,16 @@ export type ScreenshotRecord = {
   project: string;
   note: string;
   watermarkPosition: WatermarkPosition;
+};
+
+export type RecordingRecord = {
+  id: string;
+  filePath: string;
+  createdAt: string;
+  durationMs: number;
+  width: number;
+  height: number;
+  format: RecordingFormat;
 };
 
 export type StoragePaths = {
@@ -62,6 +83,7 @@ declare global {
   interface Window {
     screenshotApp: {
       getHistory: () => Promise<ScreenshotRecord[]>;
+      getRecordingHistory: () => Promise<RecordingRecord[]>;
       getSettings: () => Promise<AppSettings>;
       getVersion: () => Promise<string>;
       checkForUpdates: () => Promise<AppUpdateStatus>;
@@ -71,6 +93,7 @@ declare global {
       captureFullscreen: (options: CaptureOptions, copyAfterCapture?: boolean) => Promise<ScreenshotRecord | null>;
       captureRegion: (options: CaptureOptions, copyAfterCapture?: boolean) => Promise<ScreenshotRecord | null>;
       captureScroll: (options: CaptureOptions, copyAfterCapture?: boolean) => Promise<ScreenshotRecord | null>;
+      recordRegion: (settings: AppSettings, mode?: "region" | "screen") => Promise<RecordingRecord | null>;
       pinLatest: () => Promise<void>;
       togglePins: () => Promise<void>;
       minimizePreferences: () => Promise<void>;
@@ -80,10 +103,12 @@ declare global {
       clearHistory: () => Promise<void>;
       openInFolder: (filePath: string) => Promise<void>;
       openPath: (targetPath: string) => Promise<void>;
+      openRecordingFolder: () => Promise<void>;
       copyImage: (filePath: string) => Promise<void>;
       getStoragePaths: () => Promise<StoragePaths>;
       onOpenPreferences: (callback: () => void) => () => void;
       onCaptureCreated: (callback: (record: ScreenshotRecord) => void) => () => void;
+      onRecordingCreated: (callback: (record: RecordingRecord) => void) => () => void;
       onHistoryCleared: (callback: () => void) => () => void;
       onSettingsUpdated: (callback: (settings: AppSettings) => void) => () => void;
       onStatus: (callback: (message: string) => void) => () => void;

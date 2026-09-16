@@ -5,6 +5,7 @@ screenshots
 .runtime
 build/ocr
 build/hotkey
+build/recorder
 native/**/bin
 native/**/obj
 release

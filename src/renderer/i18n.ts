@@ -1,6 +1,6 @@
 import type { AppLanguage, WatermarkPosition } from "./types";
 
-export type TabKey = "general" | "interface" | "capture" | "pin" | "output" | "control" | "about";
+export type TabKey = "general" | "interface" | "capture" | "recording" | "pin" | "output" | "control" | "about";
 
 export const fallbackLanguage: AppLanguage = "zh-CN";
 
@@ -9,7 +9,7 @@ export const languageOptions: Array<{ value: AppLanguage; label: string }> = [
   { value: "en-US", label: "English" }
 ];
 
-export const tabKeys: TabKey[] = ["general", "interface", "capture", "pin", "output", "control", "about"];
+export const tabKeys: TabKey[] = ["general", "interface", "capture", "recording", "pin", "output", "control", "about"];
 
 export function normalizeLanguage(language: string | undefined): AppLanguage {
   return language === "en-US" ? "en-US" : fallbackLanguage;
@@ -36,6 +36,7 @@ export const messages = {
       general: "常规",
       interface: "界面",
       capture: "截屏",
+      recording: "录屏",
       pin: "贴图",
       output: "输出",
       control: "控制",
@@ -67,6 +68,9 @@ export const messages = {
       selectingScroll: "拖动选择长截图区域...",
       scrollCanceled: "滚动截图已取消",
       scrollSavedCopied: "长截图已保存并复制",
+      selectingRecording: "拖动选择录屏区域...",
+      recordingCanceled: "录屏已取消",
+      recordingSaved: (filePath: string) => `录屏已保存：${filePath}`,
       pinned: "已执行贴图",
       pathMissing: "路径还没有准备好",
       screenshotDirUpdated: "截图保存目录已更新",
@@ -127,6 +131,27 @@ export const messages = {
       autoCopy: "截屏后自动复制",
       autoPin: "截图完成后自动贴图"
     },
+    recording: {
+      start: "区域录屏",
+      screen: "当前屏幕录屏",
+      hint: "支持区域录制、当前屏幕录制、暂停继续和本地 MP4 保存。",
+      fps: "帧率:",
+      quality: "画质:",
+      qualityOptions: {
+        standard: "标准",
+        high: "高清",
+        compact: "高压缩"
+      },
+      mic: "录制麦克风",
+      countdown: "开始前倒计时",
+      showCursor: "显示鼠标指针",
+      clickHighlight: "显示点击效果",
+      historyCount: (count: number) => `当前录屏：${count} 个`,
+      latest: "最近录屏",
+      openLatest: "打开最近录屏",
+      openFolder: "打开文件夹",
+      recent: "录屏历史"
+    },
     watermark: {
       "top-left": "左上",
       "top-right": "右上",
@@ -156,6 +181,7 @@ export const messages = {
         shortcutCaptureCopy: "截屏并自动复制",
         shortcutArea: "自定义截屏",
         shortcutScrollCapture: "滚动截图",
+        shortcutRecord: "区域录屏",
         shortcutPin: "贴图",
         shortcutTogglePins: "隐藏/显示所有贴图"
       }
@@ -181,6 +207,7 @@ export const messages = {
       general: "General",
       interface: "Interface",
       capture: "Capture",
+      recording: "Record",
       pin: "Pin",
       output: "Output",
       control: "Controls",
@@ -212,6 +239,9 @@ export const messages = {
       selectingScroll: "Drag to select a scrolling capture region...",
       scrollCanceled: "Scrolling capture canceled",
       scrollSavedCopied: "Scrolling capture saved and copied",
+      selectingRecording: "Drag to select a recording region...",
+      recordingCanceled: "Recording canceled",
+      recordingSaved: (filePath: string) => `Recording saved: ${filePath}`,
       pinned: "Pin action completed",
       pathMissing: "Path is not ready yet",
       screenshotDirUpdated: "Screenshot folder updated",
@@ -272,6 +302,27 @@ export const messages = {
       autoCopy: "Auto copy after capture",
       autoPin: "Auto pin after capture"
     },
+    recording: {
+      start: "Region Recording",
+      screen: "Current Screen",
+      hint: "Record a region or the current screen with pause/resume and local MP4 saving.",
+      fps: "Frame rate:",
+      quality: "Quality:",
+      qualityOptions: {
+        standard: "Standard",
+        high: "High",
+        compact: "Compact"
+      },
+      mic: "Record microphone",
+      countdown: "Countdown before start",
+      showCursor: "Show cursor",
+      clickHighlight: "Show click highlight",
+      historyCount: (count: number) => `${count} recording${count === 1 ? "" : "s"} in history`,
+      latest: "Latest recording",
+      openLatest: "Open latest recording",
+      openFolder: "Open Folder",
+      recent: "Recording History"
+    },
     watermark: {
       "top-left": "Top Left",
       "top-right": "Top Right",
@@ -301,6 +352,7 @@ export const messages = {
         shortcutCaptureCopy: "Capture and auto copy",
         shortcutArea: "Custom capture",
         shortcutScrollCapture: "Scrolling capture",
+        shortcutRecord: "Region recording",
         shortcutPin: "Pin",
         shortcutTogglePins: "Show/hide all pins"
       }

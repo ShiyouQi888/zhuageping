@@ -1,7 +1,7 @@
 {
   "name": "zhua-ge-ping",
   "productName": "抓个屏",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "private": true,
   "description": "抓个屏：Windows 本地截图、贴图与水印工具。",
   "homepage": "https://local.zhuageping.app",
@@ -24,9 +24,10 @@
     "build:icons": "node scripts/generate-icons.js",
     "prepare:ocr": "node scripts/prepare-ocr-engine.js",
     "prepare:hotkey": "node scripts/build-hotkey-guard.js",
-    "dist": "npm run build:icons && npm run build && npm run prepare:ocr && npm run prepare:hotkey && electron-builder --win",
-    "dist:github": "npm run build:icons && npm run build && npm run prepare:ocr && npm run prepare:hotkey && electron-builder --win --publish always",
-    "dist:dir": "npm run build:icons && npm run build && npm run prepare:ocr && npm run prepare:hotkey && electron-builder --dir",
+    "prepare:recorder": "node scripts/build-recorder-host.js",
+    "dist": "npm run build:icons && npm run build && npm run prepare:ocr && npm run prepare:hotkey && npm run prepare:recorder && electron-builder --win",
+    "dist:github": "npm run build:icons && npm run build && npm run prepare:ocr && npm run prepare:hotkey && npm run prepare:recorder && electron-builder --win --publish always",
+    "dist:dir": "npm run build:icons && npm run build && npm run prepare:ocr && npm run prepare:hotkey && npm run prepare:recorder && electron-builder --dir",
     "typecheck": "tsc --noEmit",
     "test": "node --test src/main/overlay/*.test.js",
     "lint": "eslint .",
@@ -34,6 +35,7 @@
   },
   "dependencies": {
     "electron-updater": "^6.8.9",
+    "ffmpeg-static": "^5.3.0",
     "lucide-react": "^0.468.0",
     "rapidocrjson": "^0.1.1",
     "react": "^18.3.1",
@@ -79,7 +81,8 @@
     "asarUnpack": [
       "node_modules/sharp/**/*",
       "node_modules/@img/**/*",
-      "node_modules/rapidocrjson/**/*"
+      "node_modules/rapidocrjson/**/*",
+      "node_modules/ffmpeg-static/**/*"
     ],
     "extraResources": [
       {
@@ -92,6 +95,13 @@
       {
         "from": "build/hotkey",
         "to": "hotkey",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "build/recorder",
+        "to": "recorder",
         "filter": [
           "**/*"
         ]

@@ -12,6 +12,7 @@ type CaptureOptions = {
 
 contextBridge.exposeInMainWorld("screenshotApp", {
   getHistory: () => ipcRenderer.invoke("app:get-history"),
+  getRecordingHistory: () => ipcRenderer.invoke("app:get-recording-history"),
   getSettings: () => ipcRenderer.invoke("app:get-settings"),
   getVersion: () => ipcRenderer.invoke("app:get-version"),
   checkForUpdates: () => ipcRenderer.invoke("app:check-for-updates"),
@@ -24,6 +25,7 @@ contextBridge.exposeInMainWorld("screenshotApp", {
     ipcRenderer.invoke("app:capture-region", options, copyAfterCapture),
   captureScroll: (options: CaptureOptions, copyAfterCapture?: boolean) =>
     ipcRenderer.invoke("app:capture-scroll", options, copyAfterCapture),
+  recordRegion: (settings: unknown, mode?: unknown) => ipcRenderer.invoke("app:record-region", settings, mode),
   pinLatest: () => ipcRenderer.invoke("app:pin-latest"),
   togglePins: () => ipcRenderer.invoke("app:toggle-pins"),
   minimizePreferences: () => ipcRenderer.invoke("app:minimize-preferences"),
@@ -33,6 +35,7 @@ contextBridge.exposeInMainWorld("screenshotApp", {
   clearHistory: () => ipcRenderer.invoke("app:clear-history"),
   openInFolder: (filePath: string) => ipcRenderer.invoke("app:open-in-folder", filePath),
   openPath: (targetPath: string) => ipcRenderer.invoke("app:open-path", targetPath),
+  openRecordingFolder: () => ipcRenderer.invoke("app:open-recording-folder"),
   copyImage: (filePath: string) => ipcRenderer.invoke("app:copy-image", filePath),
   getStoragePaths: () => ipcRenderer.invoke("app:get-storage-paths"),
   onOpenPreferences: (callback: () => void) => {
@@ -44,6 +47,11 @@ contextBridge.exposeInMainWorld("screenshotApp", {
     const listener = (_event: Electron.IpcRendererEvent, record: unknown) => callback(record);
     ipcRenderer.on("app:capture-created", listener);
     return () => ipcRenderer.removeListener("app:capture-created", listener);
+  },
+  onRecordingCreated: (callback: (record: unknown) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, record: unknown) => callback(record);
+    ipcRenderer.on("app:recording-created", listener);
+    return () => ipcRenderer.removeListener("app:recording-created", listener);
   },
   onHistoryCleared: (callback: () => void) => {
     const listener = () => callback();
