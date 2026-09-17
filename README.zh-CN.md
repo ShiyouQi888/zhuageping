@@ -11,7 +11,7 @@
 <h1 align="center">抓个屏</h1>
 
 <p align="center">
-  Windows 本地截图、标注、贴图、滚动长截图、水印与 OCR 识别工具。
+  Windows 本地截图、标注、贴图、原生录屏、滚动长截图、水印与 OCR 识别工具。
 </p>
 
 <p align="center">
@@ -26,7 +26,7 @@
   <a href="#隐私说明">隐私说明</a>
 </p>
 
-抓个屏是一款面向 Windows 的本地截图工具。软件不依赖云端服务，截图、历史记录、配置、贴图和 OCR 识别都在本机完成，适合工作留痕、项目验收、客服沟通、远程协作、资料对照和日常截图标注。
+抓个屏是一款面向 Windows 的本地截图与录屏工具。软件不依赖云端服务，截图、录屏、历史记录、配置、贴图和 OCR 识别都保留在本机，适合工作留痕、项目验收、客服沟通、远程协作、资料对照和日常截图标注。
 
 作者：齐世有  
 邮箱：blacklaw@foxmail.com
@@ -39,40 +39,27 @@
 
 当前版本：
 
-- 版本：`0.1.13`
+- 版本：`0.1.15`
 - 平台：Windows x64
-- 安装包：`zhuageping-Setup-0.1.13-x64.exe`
-- SHA256：`264FDBF9E791A757480B169A40DDC1D3FCD823A993D0534C6FEAAA8CAD292281`
-- Release：[抓个屏 v0.1.13](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.13)
+- 安装包：`zhuageping-Setup-0.1.15-x64.exe`
+- SHA256：`4FA809DDB528B680A20F421823BF2BBC25201A1CC751076B77D52C6663ECE3AE`
+- Release：[抓个屏 v0.1.15](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.15)
 
 说明：当前安装包暂未购买商业代码签名证书。安装时 Windows 可能提示未知发布者，这是未签名安装包的正常现象，不代表软件连接云端或上传数据。
 
 ## 最新功能
 
-`v0.1.13` 重点更新：
+`v0.1.15` 重点更新：
 
-- 开机启动可靠性修复：同时同步 Electron 登录项和 Windows 当前用户 Run 注册表启动项。
-- 开机启动自修复：设置中已开启开机启动时，软件打开后会自动刷新 Windows 自启注册。
-- 对齐体验优化：单个对象对齐到截图区域，多个对象对齐到选中对象的整体边界。
-- 模糊合成优化：先外扩采样再裁回原区域，强度拉高后边缘不再出现明显虚化。
-- 快捷键守护增强：Windows 偶发丢失按键抬起事件时可自动恢复，连续触发更稳定。
-- 贴图滚轮缩放取消最大尺寸限制。
-- 截图编辑工具栏瘦身：主工具栏更轻、更窄，只保留高频操作。
-- 参数按需浮层：颜色、线宽、文字样式、隐私强度和对象操作只在需要时显示。
-- 选中对象样式联动：颜色和线宽调整可直接作用到已选中的绘制对象。
-- 贴图工具栏重设计：分组控制、半透明玻璃质感、更清晰的图标、状态高亮和透明度百分比反馈。
-- 快捷键响应优化：F1 遮罩启动更快，减少截图前置工作，并提高热键守护进程优先级。
-- GitHub Releases 自动更新：安装版可检查、下载并安装新版本。
-- 首选项新增软件更新面板：显示当前版本、最新版本、更新源、下载进度和重启安装入口。
-- 托盘新增检查更新入口：首选项窗口隐藏时也能手动检查。
-- 多屏截图隔离：按 F1 后只影响鼠标所在屏幕，不再同时影响另一块屏幕。
-- 截图工具栏视觉优化：使用更贴近品牌色的暖橙风格和更清晰的标注图标。
-- 安装器新增语言选择：安装开始前可选择简体中文或 English。
-- 安装协议多语言：许可协议会跟随安装语言显示中文或英文。
-- 英文界面适配：优化首选项窗口尺寸、标签栏、按钮、状态栏和长文本显示，减少英文截断。
-- F1 快捷键增强：新增 Windows 热键守护，优先拦截 F1 触发截图，降低与浏览器 F1 帮助冲突。
-- 打包流程增强：发行版会自动携带 OCR 资源和热键守护组件。
-- 继续保留当前截图区域 OCR、自动复制、结果弹窗和本地模型内置能力。
+- 采用 Windows 原生独立录屏进程，通过 Media Foundation 和 WASAPI 直接生成 MP4/H.264，不再经过浏览器 WebM 二次转码。
+- 支持区域录屏和当前屏幕录制，可录入电脑声音、可选麦克风、鼠标指针与点击提示，并可配置画质和帧率。
+- 支持多屏与高 DPI，按照鼠标所在位置识别实际 Windows 显示设备。
+- 区域录屏控制条在空间允许时显示于录制范围外，不进入最终视频。
+- 全屏录制可通过 `F2`、临时全局 `Esc` 或托盘中的“停止录屏”结束。
+- 修复原生录制进程启动期间停止命令可能丢失的问题。
+- 修复录屏期间鼠标无法穿透的问题，可正常操作被录制的软件。
+- 安装包内置录屏引擎及运行环境，用户无需安装 .NET 或另行下载组件。
+- 截图编辑、滚动截图、OCR、水印、贴图、自动更新、中英文界面和开机启动等原有能力继续保留。
 
 ## 界面截图
 
@@ -120,6 +107,9 @@
 - 截图并复制：按 `Ctrl+F1` 截图完成后写入剪贴板。
 - 自定义截图：按 `Shift+F1` 进入区域截图流程。
 - 滚动截图：按 `Ctrl+Shift+F1` 选择可滚动区域，自动滚动并拼接成长图。
+- Windows 原生录屏：支持框选区域或录制当前屏幕，直接保存为 MP4/H.264。
+- 录屏声音：默认录入电脑声音，可选择同时录入麦克风。
+- 录屏控制：区域外控制条、`F2`、`Esc` 和托盘菜单均可用于安全结束录制。
 - OCR 文字识别：识别当前截图区域文字，自动复制并弹窗展示结果。
 - 原地编辑：截图后直接在选区内添加标注，不打开独立编辑窗口。
 - 标注工具：矩形、圆形、直线、箭头、画笔、文字、编号、马赛克、模糊块、橡皮擦。
@@ -162,6 +152,8 @@
 | 截图并自动复制 | `Ctrl+F1` |
 | 自定义截图 | `Shift+F1` |
 | 滚动截图（长图） | `Ctrl+Shift+F1` |
+| 开始区域录屏 / 停止录屏 | `F2` |
+| 停止或取消录屏备用键 | `Esc` |
 | OCR 识别当前截图区域 | `Ctrl+Shift+O` |
 | 贴图 | `F3` |
 | 隐藏/显示所有贴图 | `Shift+F3` |
@@ -229,6 +221,30 @@ npm run prepare:ocr
 
 该脚本会把本机 OCR 引擎复制到 `build/ocr`，再由 `electron-builder` 打进安装包。
 
+## 录屏功能
+
+Windows 下的录屏由安装包内置的 `ZhuagepingRecorderHost` 原生进程完成。视频通过 Microsoft Media Foundation 编码，电脑声音和麦克风通过 ScreenRecorderLib 调用 WASAPI 采集。
+
+已支持：
+
+- 区域录屏和当前屏幕录制。
+- 直接输出 H.264 视频与 AAC 音频的 MP4 文件。
+- Windows 电脑声音和可选麦克风录入。
+- 15、30、60 FPS，以及精简、标准、高清三档画质。
+- 鼠标指针与点击提示。
+- 多屏显示设备识别和单屏高 DPI 坐标换算。
+- 区域外空间足够时，在录制范围外显示控制条。
+- `F2` 开始或停止、全局 `Esc` 备用结束键，以及托盘“停止录屏”。
+- 本地录屏历史与打开录屏文件夹功能。
+
+录屏默认保存在当前截图目录下：
+
+```text
+screenshots/recordings/Zhuageping-年月日-时间-编号.mp4
+```
+
+全屏录制时，同一屏幕不存在录制范围外区域，因此会隐藏悬浮控制条。请使用 `F2`、`Esc` 或托盘菜单结束录制。
+
 ## 贴图功能
 
 贴图窗口用于把截图固定在桌面上，常见用途包括对照资料、临摹 UI、核对表格、暂存截图信息。
@@ -282,7 +298,9 @@ E:\jietu-shiyou-2026\.runtime
 
 ```text
 local\data\history.json
+local\data\recordings.json
 local\screenshots\
+local\screenshots\recordings\
 electron-profile\
 temp-captures\
 ```
@@ -290,7 +308,9 @@ temp-captures\
 其中：
 
 - `history.json` 保存截图历史元数据。
+- `recordings.json` 保存本地录屏历史元数据。
 - `screenshots` 保存截图图片。
+- `screenshots/recordings` 默认保存 MP4 录屏文件。
 - `electron-profile` 保存 Electron 本地配置和缓存。
 - `temp-captures` 保存临时捕获文件。
 
@@ -375,7 +395,7 @@ release/
 src/
   main/
     main.ts               Electron 主进程
-    overlay/              原地截图编辑器
+    overlay/              原地截图编辑器与录屏覆盖层
     pin/                  桌面贴图窗口
     assets/               主进程资源
   preload/
@@ -396,8 +416,10 @@ scripts/
   generate-icons.js       图标生成脚本
   prepare-ocr-engine.js   OCR 引擎准备脚本
   build-hotkey-guard.js   Windows 热键守护构建脚本
+  build-recorder-host.js  Windows 原生录屏宿主构建脚本
 native/
   hotkey-guard/           Windows F1 热键守护
+  recorder-host/          Media Foundation/WASAPI 录屏进程
 ```
 
 ## 技术栈
@@ -410,6 +432,7 @@ native/
 - Sharp
 - RapidOCR-json
 - .NET Windows 热键守护
+- ScreenRecorderLib、Microsoft Media Foundation 与 WASAPI
 - Node.js test runner
 
 ## 打包说明
@@ -428,6 +451,7 @@ native/
 - RapidOCR-json Node 依赖解包配置。
 - RapidOCR-json exe 和模型资源打包配置。
 - Windows 热键守护组件打包配置。
+- 自包含 Windows 原生录屏进程及第三方许可说明。
 
 打包命令：
 
@@ -438,8 +462,8 @@ npm run dist
 生成文件示例：
 
 ```text
-release/zhuageping-Setup-0.1.13-x64.exe
-release/zhuageping-Setup-0.1.13-x64.exe.blockmap
+release/zhuageping-Setup-0.1.15-x64.exe
+release/zhuageping-Setup-0.1.15-x64.exe.blockmap
 release/win-unpacked/
 ```
 
@@ -475,6 +499,13 @@ resources/ocr/RapidOCR-json/models/
 
 当前安装包未进行商业代码签名。正式商用分发时建议购买 Windows 代码签名证书，以减少 SmartScreen 或未知发布者提示。
 
+### 全屏录制无法结束
+
+- 再按一次 `F2` 停止并保存。
+- 使用临时全局备用键 `Esc`。
+- 右键托盘图标，选择“停止录屏”。
+- 如果安装版和开发版同时运行，请退出旧进程，避免多个实例争抢快捷键。
+
 ### 截图出现短暂停顿
 
 Windows 屏幕捕获在部分显卡、远程桌面、多屏缩放环境下可能出现短暂延迟。当前版本优先使用 Windows GDI 捕获，降低 Electron DXGI 捕获失败对体验的影响。
@@ -495,12 +526,14 @@ Windows 屏幕捕获在部分显卡、远程桌面、多屏缩放环境下可能
 本地保存内容包括：
 
 - 截图图片。
+- MP4 录屏文件和录屏历史元数据。
 - 截图历史元数据。
 - 用户配置。
 - Electron 本地缓存。
 - OCR 临时识别图片。
 
 OCR 临时识别图片仅用于本机识别流程，处理后会自动删除。
+电脑声音与麦克风数据只会写入本地录屏文件，不会上传。
 
 用户可以在首选项中打开截图保存目录，也可以手动删除本地数据。
 

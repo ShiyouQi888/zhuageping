@@ -11,7 +11,7 @@
 <h1 align="center">Zhuageping</h1>
 
 <p align="center">
-  A local Windows screenshot, annotation, pinning, scrolling capture, watermark, and OCR tool.
+  A local Windows screenshot, annotation, pinning, screen recording, scrolling capture, watermark, and OCR tool.
 </p>
 
 <p align="center">
@@ -26,7 +26,7 @@
   <a href="#privacy">Privacy</a>
 </p>
 
-Zhuageping is a local-first screenshot tool for Windows. It does not depend on cloud services. Screenshots, history, settings, pinned images, and OCR recognition all run on your own machine, making it useful for work records, project acceptance, customer support, remote collaboration, reference comparison, and daily screenshot annotation.
+Zhuageping is a local-first screenshot and screen recording tool for Windows. It does not depend on cloud services. Screenshots, recordings, history, settings, pinned images, and OCR recognition all stay on your own machine, making it useful for work records, project acceptance, customer support, remote collaboration, reference comparison, and daily annotation.
 
 Author: Qi Shiyou  
 Email: blacklaw@foxmail.com
@@ -39,40 +39,27 @@ Download the latest installer from GitHub Releases:
 
 Current version:
 
-- Version: `0.1.13`
+- Version: `0.1.15`
 - Platform: Windows x64
-- Installer: `zhuageping-Setup-0.1.13-x64.exe`
-- SHA256: `264FDBF9E791A757480B169A40DDC1D3FCD823A993D0534C6FEAAA8CAD292281`
-- Release: [Zhuageping v0.1.13](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.13)
+- Installer: `zhuageping-Setup-0.1.15-x64.exe`
+- SHA256: `4FA809DDB528B680A20F421823BF2BBC25201A1CC751076B77D52C6663ECE3AE`
+- Release: [Zhuageping v0.1.15](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.15)
 
 Note: the current installer is not signed with a commercial code-signing certificate. Windows may show an unknown publisher warning during installation. This is expected for an unsigned installer and does not mean the app connects to the cloud or uploads your data.
 
 ## Latest Updates
 
-Highlights in `v0.1.13`:
+Highlights in `v0.1.15`:
 
-- Startup reliability fix: launch-at-startup now syncs both Electron login items and the Windows current-user Run registry key.
-- Startup self-healing: when the app opens and startup is enabled in settings, it refreshes the Windows startup registration automatically.
-- Object alignment now works more naturally: single objects align to the capture area, while multiple selected objects align against the selected group bounds.
-- Blur rendering now uses expanded source sampling and crops back to the original region, reducing soft or feathered edges at high strength.
-- Shortcut guard recovery is more resilient when Windows misses a key-up event, improving wake reliability for repeated shortcuts.
-- Pinned image mouse-wheel zoom no longer has the previous maximum size limit.
-- Capture editor toolbar cleanup: the main toolbar is now slimmer, lighter, and focused on frequent actions.
-- Contextual option panels: color, stroke width, text styles, privacy strength, and object actions now appear only when needed.
-- Selected object styling: color and stroke width changes can apply directly to selected drawing objects.
-- Pinned image toolbar redesign: grouped controls, translucent glass styling, clearer icons, active states, and opacity percentage feedback.
-- Shortcut responsiveness improvements: faster F1 overlay startup, reduced pre-capture work, and higher priority for the hotkey guard process.
-- GitHub Releases auto-update: packaged builds can check, download, and install new versions.
-- Preferences update panel: shows the current version, latest version, update source, download progress, and restart-to-install action.
-- Tray update entry: check for updates even when the preferences window is hidden.
-- Multi-monitor capture isolation: pressing F1 only affects the display where the cursor is located.
-- Capture toolbar polish: warmer brand styling and refined icons for a cleaner annotation workflow.
-- Multilingual installer: choose Simplified Chinese or English before installation starts.
-- Multilingual license agreement: the installer license follows the selected language.
-- English UI layout improvements: preferences window, tabs, buttons, status bar, and long text are optimized to avoid truncation.
-- F1 shortcut enhancement: a Windows hotkey guard gives Zhuageping priority over browser F1 help shortcuts.
-- Packaging improvements: releases include OCR resources and the hotkey guard component.
-- Existing OCR features remain available: current capture region OCR, auto-copy, result dialog, and bundled local models.
+- Native Windows recording process using Media Foundation and WASAPI, producing MP4/H.264 directly without a browser WebM conversion stage.
+- Region and current-screen recording with system audio, optional microphone, cursor, click highlight, quality, and frame-rate settings.
+- Multi-monitor and high-DPI recording source detection uses the Windows display device under the cursor.
+- Region recording controls are placed outside the captured area whenever space is available, so they remain usable without entering the video.
+- Full-screen recording can be stopped with `F2`, the temporary global `Esc` fallback, or the dynamic **Stop Recording** tray command.
+- Stop commands issued during native recorder startup are queued instead of being lost.
+- Recording mouse pass-through is restored, allowing normal interaction with the application being recorded.
+- The recorder engine and its runtime are bundled with the installer; users do not need to install .NET or download recording components.
+- Existing screenshot editing, scrolling capture, OCR, watermark, pinning, auto-update, multilingual UI, and startup reliability improvements remain included.
 
 ## Screenshots
 
@@ -120,6 +107,9 @@ Highlights in `v0.1.13`:
 - Capture and copy: press `Ctrl+F1` to capture and copy the result to the clipboard.
 - Custom capture: press `Shift+F1` to enter the region capture flow.
 - Scrolling capture: press `Ctrl+Shift+F1` to select a scrollable area and stitch a long screenshot.
+- Native screen recording: record a selected region or the current display directly to MP4/H.264.
+- Recording audio: capture Windows system audio and optionally mix in the microphone.
+- Recording controls: use the external region control bar, `F2`, `Esc`, or the tray menu to finish recording safely.
 - OCR recognition: recognize text from the current capture region, copy it automatically, and show the result dialog.
 - In-place editing: annotate directly inside the selected region without opening a separate editor window.
 - Annotation tools: rectangle, ellipse, line, arrow, pen, text, numbered label, mosaic, blur block, and eraser.
@@ -162,6 +152,8 @@ Design rules:
 | Capture and auto copy | `Ctrl+F1` |
 | Custom capture | `Shift+F1` |
 | Scrolling capture | `Ctrl+Shift+F1` |
+| Start region recording / stop recording | `F2` |
+| Stop or cancel recording fallback | `Esc` |
 | OCR current capture region | `Ctrl+Shift+O` |
 | Pin latest screenshot | `F3` |
 | Show or hide all pins | `Shift+F3` |
@@ -229,6 +221,30 @@ npm run prepare:ocr
 
 The script copies the local OCR engine to `build/ocr`, which is then bundled by `electron-builder`.
 
+## Screen Recording
+
+On Windows, Zhuageping records through the bundled `ZhuagepingRecorderHost` native process. Video encoding uses Microsoft Media Foundation, while system and microphone audio use WASAPI through ScreenRecorderLib.
+
+Supported:
+
+- Region recording and current-screen recording.
+- Direct MP4 output with H.264 video and AAC audio.
+- Windows system audio and optional microphone capture.
+- Configurable 15, 30, or 60 FPS and compact, standard, or high quality.
+- Cursor capture and click highlighting.
+- Multi-monitor device selection and per-display high-DPI coordinate conversion.
+- External control bar for region recording when space is available outside the capture boundary.
+- `F2` to start or stop, global `Esc` fallback, and a dynamic tray **Stop Recording** command.
+- Local recording history and an action to open the recording folder.
+
+Recordings are stored under the configured screenshot directory:
+
+```text
+screenshots/recordings/Zhuageping-YYYYMMDD-HHMMSS-###.mp4
+```
+
+Full-screen recording hides the floating control bar because the same display has no area outside the capture boundary. Use `F2`, `Esc`, or the tray menu to stop it.
+
 ## Pinned Images
 
 Pinned image windows keep screenshots on the desktop. Common uses include comparing references, tracing UI, checking tables, and temporarily holding screenshot information.
@@ -282,7 +298,9 @@ Main contents:
 
 ```text
 local\data\history.json
+local\data\recordings.json
 local\screenshots\
+local\screenshots\recordings\
 electron-profile\
 temp-captures\
 ```
@@ -290,7 +308,9 @@ temp-captures\
 Details:
 
 - `history.json` stores screenshot history metadata.
+- `recordings.json` stores local recording history metadata.
 - `screenshots` stores screenshot images.
+- `screenshots/recordings` stores MP4 recordings by default.
 - `electron-profile` stores Electron local settings and cache.
 - `temp-captures` stores temporary capture files.
 
@@ -375,7 +395,7 @@ release/
 src/
   main/
     main.ts               Electron main process
-    overlay/              In-place screenshot editor
+    overlay/              Screenshot editor and recording overlay
     pin/                  Desktop pinned image window
     assets/               Main-process assets
   preload/
@@ -396,8 +416,10 @@ scripts/
   generate-icons.js       Icon generation script
   prepare-ocr-engine.js   OCR engine preparation script
   build-hotkey-guard.js   Windows hotkey guard build script
+  build-recorder-host.js  Windows native recorder build script
 native/
   hotkey-guard/           Windows F1 hotkey guard
+  recorder-host/          Media Foundation/WASAPI recorder process
 ```
 
 ## Tech Stack
@@ -410,6 +432,7 @@ native/
 - Sharp
 - RapidOCR-json
 - .NET Windows hotkey guard
+- ScreenRecorderLib, Microsoft Media Foundation, and WASAPI
 - Node.js test runner
 
 ## Packaging
@@ -428,6 +451,7 @@ The installer is generated by `electron-builder` and currently includes:
 - RapidOCR-json Node dependency unpacking.
 - RapidOCR-json executable and model resources.
 - Windows hotkey guard component.
+- Self-contained Windows native recording process and third-party license notice.
 
 Build command:
 
@@ -438,8 +462,8 @@ npm run dist
 Generated files:
 
 ```text
-release/zhuageping-Setup-0.1.13-x64.exe
-release/zhuageping-Setup-0.1.13-x64.exe.blockmap
+release/zhuageping-Setup-0.1.15-x64.exe
+release/zhuageping-Setup-0.1.15-x64.exe.blockmap
 release/win-unpacked/
 ```
 
@@ -475,6 +499,13 @@ resources/ocr/RapidOCR-json/models/
 
 The current installer is not commercially code-signed. For commercial distribution, a Windows code-signing certificate is recommended to reduce SmartScreen and unknown publisher warnings.
 
+### Full-screen recording does not stop
+
+- Press `F2` again to stop and save.
+- Press `Esc` as the temporary global fallback.
+- Right-click the tray icon and choose **Stop Recording**.
+- Quit older installed or development instances if more than one Zhuageping process is competing for the shortcut.
+
 ### Capture has a short delay
 
 Windows screen capture may briefly pause on some GPUs, remote desktop sessions, and multi-monitor scaling setups. The current version prioritizes Windows GDI capture to reduce the impact of Electron DXGI capture failures.
@@ -495,12 +526,14 @@ Zhuageping does not provide cloud sync and does not upload screenshot content.
 Local data includes:
 
 - Screenshot images.
+- MP4 screen recordings and recording history metadata.
 - Screenshot history metadata.
 - User settings.
 - Electron local cache.
 - Temporary OCR recognition images.
 
 Temporary OCR images are only used for local recognition and are deleted after processing.
+System audio and microphone data are written only to the local recording file and are not uploaded.
 
 Users can open the screenshot folder from Preferences and can manually delete local data.
 
