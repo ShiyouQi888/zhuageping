@@ -251,6 +251,14 @@ function getCursorDisplay() {
   return screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
 }
 
+function getRecordingDisplay(displayId?: string) {
+  if (displayId) {
+    const target = screen.getAllDisplays().find((display) => String(display.id) === displayId);
+    if (target) return target;
+  }
+  return getCursorDisplay();
+}
+
 type PinWindowState = {
   filePath: string;
   naturalWidth: number;
@@ -1154,7 +1162,11 @@ function runShortcutRecording() {
   });
 }
 
-function startRegionRecording(settings: AppSettings, mode: RecordingMode = "region"): Promise<RecordingRecord | null> {
+function startRegionRecording(
+  settings: AppSettings,
+  mode: RecordingMode = "region",
+  displayId?: string
+): Promise<RecordingRecord | null> {
   if (shortcutCaptureRunning || recordingRunning) {
     return Promise.resolve(null);
   }
@@ -1162,7 +1174,7 @@ function startRegionRecording(settings: AppSettings, mode: RecordingMode = "regi
   pendingNativeRecorderCommand = null;
   updateTrayMenu();
   globalShortcut.register("Escape", () => runShortcutRecording());
-  return recordSelectedRegion(settings, mode).finally(() => {
+  return recordSelectedRegion(settings, mode, displayId).finally(() => {
     recordingRunning = false;
     pendingNativeRecorderCommand = null;
     globalShortcut.unregister("Escape");
@@ -1491,9 +1503,15 @@ async function desktopSourceIdForDisplay(display: DisplayLike) {
 }
 
 function recordingVideoBitsPerSecond(settings: AppSettings) {
-  if (settings.recordingQuality === "high") return 35_000_000;
-  if (settings.recordingQuality === "compact") return 8_000_000;
-  return 18_000_000;
+  if (settings.recordingQuality === "high") return 55_000_000;
+  if (settings.recordingQuality === "compact") return 10_000_000;
+  return 28_000_000;
+}
+
+function recordingVideoQuality(settings: AppSettings) {
+  if (settings.recordingQuality === "high") return 100;
+  if (settings.recordingQuality === "compact") return 78;
+  return 92;
 }
 
 function recordingMp4Crf(settings: AppSettings) {
@@ -1832,8 +1850,15 @@ public static class WindowProbe {
   }
 }
 
-async function detectCursorDisplayDeviceName(): Promise<string | null> {
+async function detectDisplayDeviceName(display: DisplayLike): Promise<string | null> {
   if (process.platform !== "win32") return null;
+
+  const centerPoint = screen.dipToScreenPoint({
+    x: Math.round(display.bounds.x + display.bounds.width / 2),
+    y: Math.round(display.bounds.y + display.bounds.height / 2)
+  });
+  const centerX = centerPoint.x;
+  const centerY = centerPoint.y;
 
   const script = `
 Add-Type @"
@@ -1858,17 +1883,13 @@ public static class DisplayProbe {
   public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
 
   [DllImport("user32.dll")]
-  public static extern bool GetCursorPos(out POINT point);
-
-  [DllImport("user32.dll")]
   public static extern IntPtr MonitorFromPoint(POINT point, uint flags);
 
   [DllImport("user32.dll", CharSet = CharSet.Auto)]
   public static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFOEX info);
 
-  public static string Probe() {
-    POINT point;
-    if (!GetCursorPos(out point)) return "";
+  public static string Probe(int x, int y) {
+    var point = new POINT { X = x, Y = y };
     var monitor = MonitorFromPoint(point, 2);
     if (monitor == IntPtr.Zero) return "";
     var info = new MONITORINFOEX();
@@ -1877,7 +1898,7 @@ public static class DisplayProbe {
   }
 }
 "@
-[DisplayProbe]::Probe()
+[DisplayProbe]::Probe(${centerX}, ${centerY})
 `;
 
   try {
@@ -3012,8 +3033,12 @@ function closeRecordingOverlay(overlay: BrowserWindow) {
   nativeRecordingSelectionCommitted = false;
 }
 
-async function runNativeRecordingOverlay(settings: AppSettings, mode: RecordingMode): Promise<NativeRecordingSelection | null> {
-  const display = getCursorDisplay();
+async function runNativeRecordingOverlay(
+  settings: AppSettings,
+  mode: RecordingMode,
+  displayId?: string
+): Promise<NativeRecordingSelection | null> {
+  const display = getRecordingDisplay(displayId);
   const windowRegion = mode === "region" ? await detectCursorWindowRegion(display) : null;
   const localWindowRegion = windowRegion
     ? {
@@ -3051,6 +3076,27 @@ async function runNativeRecordingOverlay(settings: AppSettings, mode: RecordingM
     activeRecordingUsesNative = true;
     nativeRecordingSelectionCommitted = false;
     let settled = false;
+    let pointerPoll: NodeJS.Timeout | null = null;
+
+    const stopPointerPoll = () => {
+      if (!pointerPoll) return;
+      clearInterval(pointerPoll);
+      pointerPoll = null;
+    };
+    const startPointerPoll = () => {
+      if (mode !== "screen" || pointerPoll || overlay.isDestroyed()) return;
+      pointerPoll = setInterval(() => {
+        if (overlay.isDestroyed()) {
+          stopPointerPoll();
+          return;
+        }
+        const point = screen.getCursorScreenPoint();
+        overlay.webContents.send("recording-global-pointer", {
+          x: point.x - display.bounds.x,
+          y: point.y - display.bounds.y
+        });
+      }, 80);
+    };
 
     const removeSelectionListeners = () => {
       ipcMain.removeListener("recording-region-selected", onSelected);
@@ -3091,6 +3137,7 @@ async function runNativeRecordingOverlay(settings: AppSettings, mode: RecordingM
       settled = true;
       nativeRecordingSelectionCommitted = true;
       removeSelectionListeners();
+      startPointerPoll();
       resolve({ display, region: { x, y, width, height }, overlay });
     };
 
@@ -3102,6 +3149,7 @@ async function runNativeRecordingOverlay(settings: AppSettings, mode: RecordingM
     overlay.once("ready-to-show", showOverlay);
     overlay.webContents.once("did-finish-load", showOverlay);
     overlay.on("closed", () => {
+      stopPointerPoll();
       ipcMain.removeListener("recording-ignore-mouse", onIgnoreMouse);
       if (!settled) cancel();
       if (activeRecordingOverlay === overlay) {
@@ -3227,8 +3275,12 @@ async function saveNativeRecordingRecord(
   return record;
 }
 
-async function recordSelectedRegionNative(settings: AppSettings, mode: RecordingMode): Promise<RecordingRecord | null> {
-  const selection = await runNativeRecordingOverlay(settings, mode);
+async function recordSelectedRegionNative(
+  settings: AppSettings,
+  mode: RecordingMode,
+  displayId?: string
+): Promise<RecordingRecord | null> {
+  const selection = await runNativeRecordingOverlay(settings, mode, displayId);
   if (!selection) return null;
 
   const { display, region, overlay } = selection;
@@ -3239,7 +3291,7 @@ async function recordSelectedRegionNative(settings: AppSettings, mode: Recording
   const y = Math.max(0, Math.floor((region.y * scaleFactor) / 2) * 2);
   const filePath = await buildRecordingFilePath(new Date(), "mp4");
   await fs.mkdir(path.dirname(filePath), { recursive: true });
-  const displayName = await detectCursorDisplayDeviceName();
+  const displayName = await detectDisplayDeviceName(display);
   const startedAt = Date.now();
 
   try {
@@ -3252,6 +3304,7 @@ async function recordSelectedRegionNative(settings: AppSettings, mode: Recording
       height,
       framerate: settings.recordingFps,
       bitrate: recordingVideoBitsPerSecond(settings),
+      quality: recordingVideoQuality(settings),
       captureSystemAudio: true,
       captureMicrophone: settings.recordingMic,
       showCursor: settings.recordingShowCursor,
@@ -3267,8 +3320,12 @@ async function recordSelectedRegionNative(settings: AppSettings, mode: Recording
   }
 }
 
-async function runRecordingOverlay(settings: AppSettings, mode: RecordingMode): Promise<RecordingPayload | null> {
-  const display = getCursorDisplay();
+async function runRecordingOverlay(
+  settings: AppSettings,
+  mode: RecordingMode,
+  displayId?: string
+): Promise<RecordingPayload | null> {
+  const display = getRecordingDisplay(displayId);
   const sourceId = await desktopSourceIdForDisplay(display);
   const windowRegion = mode === "region" ? await detectCursorWindowRegion(display) : null;
   const localWindowRegion = windowRegion
@@ -3443,7 +3500,11 @@ async function saveRecordingPayload(payload: RecordingPayload, settings: AppSett
   return record;
 }
 
-async function recordSelectedRegion(settings: AppSettings, mode: RecordingMode = "region"): Promise<RecordingRecord | null> {
+async function recordSelectedRegion(
+  settings: AppSettings,
+  mode: RecordingMode = "region",
+  displayId?: string
+): Promise<RecordingRecord | null> {
   await ensureStorage();
   const shouldRestoreWindow = Boolean(mainWindow?.isVisible());
   mainWindow?.hide();
@@ -3452,12 +3513,12 @@ async function recordSelectedRegion(settings: AppSettings, mode: RecordingMode =
   try {
     mainWindow?.webContents.send("app:status", mode === "screen" ? mt().status.recordingPreparing : mt().status.recordingSelect);
     if (process.platform === "win32" && fsSync.existsSync(recorderHostPath())) {
-      const nativeResult = await recordSelectedRegionNative(settings, mode);
+      const nativeResult = await recordSelectedRegionNative(settings, mode, displayId);
       if (!nativeResult) mainWindow?.webContents.send("app:status", mt().status.recordingCanceled);
       return nativeResult;
     }
 
-    const result = await runRecordingOverlay(settings, mode);
+    const result = await runRecordingOverlay(settings, mode, displayId);
     if (!result) {
       mainWindow?.webContents.send("app:status", mt().status.recordingCanceled);
       return null;
@@ -3941,6 +4002,20 @@ app.whenReady().then(async () => {
 
   ipcMain.handle("app:get-history", async () => readHistory());
   ipcMain.handle("app:get-recording-history", async () => readRecordingHistory());
+  ipcMain.handle("app:get-recording-displays", async () => {
+    const primaryId = screen.getPrimaryDisplay().id;
+    return screen
+      .getAllDisplays()
+      .slice()
+      .sort((a, b) => a.bounds.x - b.bounds.x || a.bounds.y - b.bounds.y)
+      .map((display) => ({
+        id: String(display.id),
+        label: display.label || "",
+        width: Math.round(display.size.width * (display.scaleFactor || 1)),
+        height: Math.round(display.size.height * (display.scaleFactor || 1)),
+        isPrimary: display.id === primaryId
+      }));
+  });
   ipcMain.handle("app:get-settings", async () => readSettings());
   ipcMain.handle("app:get-version", async () => app.getVersion());
   ipcMain.handle("app:check-for-updates", async () => checkForAppUpdates(true));
@@ -3959,8 +4034,10 @@ app.whenReady().then(async () => {
   ipcMain.handle("app:capture-scroll", async (_event, options: CaptureOptions, copyAfterCapture?: boolean) =>
     captureScrollingRegion(options, Boolean(copyAfterCapture) || appSettings.autoCopy)
   );
-  ipcMain.handle("app:record-region", async (_event, settings: AppSettings, mode: RecordingMode = "region") =>
-    startRegionRecording(settings, mode)
+  ipcMain.handle(
+    "app:record-region",
+    async (_event, settings: AppSettings, mode: RecordingMode = "region", displayId?: string) =>
+      startRegionRecording(settings, mode, typeof displayId === "string" ? displayId : undefined)
   );
   ipcMain.handle("app:pin-latest", async () => pinLatestScreenshot());
   ipcMain.handle("app:toggle-pins", async () => togglePinWindows());

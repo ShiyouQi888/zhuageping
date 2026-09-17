@@ -13,6 +13,7 @@ type CaptureOptions = {
 contextBridge.exposeInMainWorld("screenshotApp", {
   getHistory: () => ipcRenderer.invoke("app:get-history"),
   getRecordingHistory: () => ipcRenderer.invoke("app:get-recording-history"),
+  getRecordingDisplays: () => ipcRenderer.invoke("app:get-recording-displays"),
   getSettings: () => ipcRenderer.invoke("app:get-settings"),
   getVersion: () => ipcRenderer.invoke("app:get-version"),
   checkForUpdates: () => ipcRenderer.invoke("app:check-for-updates"),
@@ -25,7 +26,8 @@ contextBridge.exposeInMainWorld("screenshotApp", {
     ipcRenderer.invoke("app:capture-region", options, copyAfterCapture),
   captureScroll: (options: CaptureOptions, copyAfterCapture?: boolean) =>
     ipcRenderer.invoke("app:capture-scroll", options, copyAfterCapture),
-  recordRegion: (settings: unknown, mode?: unknown) => ipcRenderer.invoke("app:record-region", settings, mode),
+  recordRegion: (settings: unknown, mode?: unknown, displayId?: unknown) =>
+    ipcRenderer.invoke("app:record-region", settings, mode, displayId),
   pinLatest: () => ipcRenderer.invoke("app:pin-latest"),
   togglePins: () => ipcRenderer.invoke("app:toggle-pins"),
   minimizePreferences: () => ipcRenderer.invoke("app:minimize-preferences"),

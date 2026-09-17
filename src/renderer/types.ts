@@ -64,6 +64,14 @@ export type RecordingRecord = {
   format: RecordingFormat;
 };
 
+export type RecordingDisplay = {
+  id: string;
+  label: string;
+  width: number;
+  height: number;
+  isPrimary: boolean;
+};
+
 export type StoragePaths = {
   rootDir: string;
   dataDir: string;
@@ -84,6 +92,7 @@ declare global {
     screenshotApp: {
       getHistory: () => Promise<ScreenshotRecord[]>;
       getRecordingHistory: () => Promise<RecordingRecord[]>;
+      getRecordingDisplays: () => Promise<RecordingDisplay[]>;
       getSettings: () => Promise<AppSettings>;
       getVersion: () => Promise<string>;
       checkForUpdates: () => Promise<AppUpdateStatus>;
@@ -93,7 +102,7 @@ declare global {
       captureFullscreen: (options: CaptureOptions, copyAfterCapture?: boolean) => Promise<ScreenshotRecord | null>;
       captureRegion: (options: CaptureOptions, copyAfterCapture?: boolean) => Promise<ScreenshotRecord | null>;
       captureScroll: (options: CaptureOptions, copyAfterCapture?: boolean) => Promise<ScreenshotRecord | null>;
-      recordRegion: (settings: AppSettings, mode?: "region" | "screen") => Promise<RecordingRecord | null>;
+      recordRegion: (settings: AppSettings, mode?: "region" | "screen", displayId?: string) => Promise<RecordingRecord | null>;
       pinLatest: () => Promise<void>;
       togglePins: () => Promise<void>;
       minimizePreferences: () => Promise<void>;

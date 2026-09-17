@@ -133,8 +133,11 @@ export const messages = {
     },
     recording: {
       start: "区域录屏",
-      screen: "当前屏幕录屏",
-      hint: "支持区域录制、当前屏幕录制、暂停继续和本地 MP4 保存。",
+      screen: "录制所选显示器",
+      hint: "支持区域录制、指定显示器录制、暂停继续和本地 MP4 保存。",
+      display: "录制显示器:",
+      displayOption: (index: number, width: number, height: number, isPrimary: boolean) =>
+        `显示器 ${index} · ${width} x ${height}${isPrimary ? " · 主屏" : ""}`,
       fps: "帧率:",
       quality: "画质:",
       qualityOptions: {
@@ -304,8 +307,11 @@ export const messages = {
     },
     recording: {
       start: "Region Recording",
-      screen: "Current Screen",
-      hint: "Record a region or the current screen with pause/resume and local MP4 saving.",
+      screen: "Record Selected Display",
+      hint: "Record a region or selected display with pause/resume and local MP4 saving.",
+      display: "Recording display:",
+      displayOption: (index: number, width: number, height: number, isPrimary: boolean) =>
+        `Display ${index} · ${width} x ${height}${isPrimary ? " · Primary" : ""}`,
       fps: "Frame rate:",
       quality: "Quality:",
       qualityOptions: {

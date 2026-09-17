@@ -3,7 +3,7 @@ import { Camera, FolderOpen, HelpCircle, Minus, Pin, RefreshCw, RotateCcw, Scrol
 import appLogoUrl from "./assets/app-logo.png";
 import wechatQrUrl from "./assets/weichat-qr.svg";
 import { fallbackLanguage, formatShortcutForWindows, languageOptions, messages, normalizeLanguage, tabKeys, type TabKey } from "./i18n";
-import type { AppLanguage, AppSettings, AppTheme, AppUpdateStatus, RecordingQuality, RecordingRecord, ScreenshotRecord, StoragePaths, WatermarkPosition } from "./types";
+import type { AppLanguage, AppSettings, AppTheme, AppUpdateStatus, RecordingDisplay, RecordingQuality, RecordingRecord, ScreenshotRecord, StoragePaths, WatermarkPosition } from "./types";
 
 const shortcutKeys: Array<keyof AppSettings> = [
   "shortcutCapture",
@@ -61,6 +61,8 @@ export function App() {
   const [storagePaths, setStoragePaths] = useState<StoragePaths | null>(null);
   const [history, setHistory] = useState<ScreenshotRecord[]>([]);
   const [recordings, setRecordings] = useState<RecordingRecord[]>([]);
+  const [recordingDisplays, setRecordingDisplays] = useState<RecordingDisplay[]>([]);
+  const [recordingDisplayId, setRecordingDisplayId] = useState("");
   const [status, setStatus] = useState<string>(messages[fallbackLanguage].status.ready);
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [appVersion, setAppVersion] = useState("");
@@ -86,12 +88,15 @@ export function App() {
       window.screenshotApp.getStoragePaths(),
       window.screenshotApp.getHistory(),
       window.screenshotApp.getRecordingHistory(),
+      window.screenshotApp.getRecordingDisplays(),
       window.screenshotApp.getSettings(),
       window.screenshotApp.getVersion()
-    ]).then(([paths, records, recordingRecords, loadedSettings, version]) => {
+    ]).then(([paths, records, recordingRecords, displays, loadedSettings, version]) => {
       setStoragePaths(paths);
       setHistory(records);
       setRecordings(recordingRecords);
+      setRecordingDisplays(displays);
+      setRecordingDisplayId(displays.find((display) => display.isPrimary)?.id ?? displays[0]?.id ?? "");
       setSettings({ ...loadedSettings, language: normalizeLanguage(loadedSettings.language), theme: normalizeTheme(loadedSettings.theme) });
       setAppVersion(version);
       setUpdateStatus((current) => current ?? { state: "idle", message: "", currentVersion: version });
@@ -192,7 +197,11 @@ export function App() {
   async function recordRegion(mode: "region" | "screen" = "region") {
     setStatus(mode === "screen" ? t.status.capturing : t.status.selectingRecording);
     try {
-      const record = await window.screenshotApp.recordRegion(settings, mode);
+      const record = await window.screenshotApp.recordRegion(
+        settings,
+        mode,
+        mode === "screen" ? recordingDisplayId || undefined : undefined
+      );
       if (!record) {
         setStatus(t.status.recordingCanceled);
         return;
@@ -451,6 +460,16 @@ export function App() {
               <strong>{t.tabs.recording}</strong>
               <span>{t.recording.hint}</span>
             </div>
+            <label className="field-row">
+              <span>{t.recording.display}</span>
+              <select value={recordingDisplayId} onChange={(event) => setRecordingDisplayId(event.target.value)}>
+                {recordingDisplays.map((display, index) => (
+                  <option key={display.id} value={display.id}>
+                    {t.recording.displayOption(index + 1, display.width, display.height, display.isPrimary)}
+                  </option>
+                ))}
+              </select>
+            </label>
             <div className="action-grid">
               <button className="primary" onClick={() => void recordRegion("region")}>
                 <Video size={16} aria-hidden="true" />

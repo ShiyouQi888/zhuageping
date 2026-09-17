@@ -12,6 +12,7 @@ internal sealed record RecorderHostConfig(
     int Height,
     int Framerate,
     int Bitrate,
+    int Quality,
     bool CaptureSystemAudio,
     bool CaptureMicrophone,
     bool ShowCursor,
@@ -74,6 +75,7 @@ internal static class Program
             ? DisplayRecordingSource.MainMonitor
             : new DisplayRecordingSource(value.DisplayName);
         source.IsVideoCaptureEnabled = true;
+        source.RecorderApi = RecorderApi.DesktopDuplication;
         if (value.Width > 0 && value.Height > 0)
         {
             source.SourceRect = new ScreenRect(value.X, value.Y, value.Width, value.Height);
@@ -104,6 +106,7 @@ internal static class Program
             {
                 Bitrate = value.Bitrate,
                 Framerate = value.Framerate,
+                Quality = value.Quality,
                 IsFixedFramerate = true,
                 Encoder = new H264VideoEncoder
                 {
@@ -196,6 +199,7 @@ internal static class Program
         if (!Path.IsPathFullyQualified(value.OutputPath)) throw new ArgumentException("OutputPath must be absolute.");
         if (value.Framerate is < 1 or > 120) throw new ArgumentOutOfRangeException(nameof(value.Framerate));
         if (value.Bitrate < 500_000) throw new ArgumentOutOfRangeException(nameof(value.Bitrate));
+        if (value.Quality is < 1 or > 100) throw new ArgumentOutOfRangeException(nameof(value.Quality));
         if ((value.Width == 0) != (value.Height == 0)) throw new ArgumentException("Width and height must both be zero or positive.");
     }
 
