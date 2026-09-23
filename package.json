@@ -1,7 +1,7 @@
 {
   "name": "zhua-ge-ping",
   "productName": "抓个屏",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "private": true,
   "description": "抓个屏：Windows 本地截图、贴图与水印工具。",
   "homepage": "https://local.zhuageping.app",
@@ -25,9 +25,10 @@
     "prepare:ocr": "node scripts/prepare-ocr-engine.js",
     "prepare:hotkey": "node scripts/build-hotkey-guard.js",
     "prepare:recorder": "node scripts/build-recorder-host.js",
-    "dist": "npm run build:icons && npm run build && npm run prepare:ocr && npm run prepare:hotkey && npm run prepare:recorder && electron-builder --win",
-    "dist:github": "npm run build:icons && npm run build && npm run prepare:ocr && npm run prepare:hotkey && npm run prepare:recorder && electron-builder --win --publish always",
-    "dist:dir": "npm run build:icons && npm run build && npm run prepare:ocr && npm run prepare:hotkey && npm run prepare:recorder && electron-builder --dir",
+    "prepare:window-probe": "node scripts/build-window-probe.js",
+    "dist": "npm run build:icons && npm run build && npm run prepare:ocr && npm run prepare:hotkey && npm run prepare:recorder && npm run prepare:window-probe && electron-builder --win",
+    "dist:github": "npm run build:icons && npm run build && npm run prepare:ocr && npm run prepare:hotkey && npm run prepare:recorder && npm run prepare:window-probe && electron-builder --win --publish always",
+    "dist:dir": "npm run build:icons && npm run build && npm run prepare:ocr && npm run prepare:hotkey && npm run prepare:recorder && npm run prepare:window-probe && electron-builder --dir",
     "typecheck": "tsc --noEmit",
     "test": "node --test src/main/overlay/*.test.js",
     "lint": "eslint .",
@@ -102,6 +103,13 @@
       {
         "from": "build/recorder",
         "to": "recorder",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "build/window-probe",
+        "to": "window-probe",
         "filter": [
           "**/*"
         ]

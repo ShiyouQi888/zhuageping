@@ -39,6 +39,16 @@ body {
   pointer-events: none;
 }
 
+#selection.is-sensing {
+  outline-color: #1687ff;
+  box-shadow:
+    0 0 0 9999px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(255, 255, 255, 0.82),
+    0 0 14px rgba(22, 135, 255, 0.52),
+    inset 0 0 0 2px #1687ff,
+    inset 0 0 0 3px rgba(255, 255, 255, 0.72);
+}
+
 body.is-recording #shade,
 body.is-recording #sizeBadge,
 body.is-recording #selectionHint {

@@ -6,6 +6,7 @@ screenshots
 build/ocr
 build/hotkey
 build/recorder
+build/window-probe
 native/**/bin
 native/**/obj
 release

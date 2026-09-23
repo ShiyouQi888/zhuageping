@@ -39,26 +39,25 @@ Download the latest installer from GitHub Releases:
 
 Current version:
 
-- Version: `0.1.15`
+- Version: `0.1.17`
 - Platform: Windows x64
-- Installer: `zhuageping-Setup-0.1.15-x64.exe`
-- SHA256: `4FA809DDB528B680A20F421823BF2BBC25201A1CC751076B77D52C6663ECE3AE`
-- Release: [Zhuageping v0.1.15](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.15)
+- Installer: `zhuageping-Setup-0.1.17-x64.exe`
+- SHA256: `A071DB093DA0629655332F27453B3E479F41DA61B4CCFC60FBB7E7143AAA20F5`
+- Release: [Zhuageping v0.1.17](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.17)
 
 Note: the current installer is not signed with a commercial code-signing certificate. Windows may show an unknown publisher warning during installation. This is expected for an unsigned installer and does not mean the app connects to the cloud or uploads your data.
 
 ## Latest Updates
 
-Highlights in `v0.1.15`:
+Highlights in `v0.1.17`:
 
-- Native Windows recording process using Media Foundation and WASAPI, producing MP4/H.264 directly without a browser WebM conversion stage.
-- Region and current-screen recording with system audio, optional microphone, cursor, click highlight, quality, and frame-rate settings.
-- Multi-monitor and high-DPI recording source detection uses the Windows display device under the cursor.
-- Region recording controls are placed outside the captured area whenever space is available, so they remain usable without entering the video.
-- Full-screen recording can be stopped with `F2`, the temporary global `Esc` fallback, or the dynamic **Stop Recording** tray command.
-- Stop commands issued during native recorder startup are queued instead of being lost.
-- Recording mouse pass-through is restored, allowing normal interaction with the application being recorded.
-- The recorder engine and its runtime are bundled with the installer; users do not need to install .NET or download recording components.
+- Added fast top-level window detection for screenshots and region recording: hover to preview a window, click to select it, or drag a custom region.
+- Added multi-monitor sensing overlays with per-display DPI conversion and automatic clearing of stale highlights when the pointer moves between screens.
+- Bundled a NativeAOT Windows window-probe helper, reducing measured probe startup from about one second to roughly 30–50 ms without requiring an external runtime.
+- Restored true full-display recording dimensions instead of reserving pixels for the recording controls.
+- Fixed black frames in custom-region recording by separating the selection overlay from native Desktop Duplication capture.
+- Full-screen recording now shows an inward-drawn preview/countdown frame, then hides the overlay before native recording so the frame is not captured.
+- Improved native MP4/H.264 recording reliability across two displays while retaining system audio, optional microphone, cursor, click highlight, quality, and frame-rate settings.
 - Existing screenshot editing, scrolling capture, OCR, watermark, pinning, auto-update, multilingual UI, and startup reliability improvements remain included.
 
 ## Screenshots

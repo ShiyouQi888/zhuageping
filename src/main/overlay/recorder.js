@@ -9,24 +9,33 @@ const useMic = params.get("mic") === "true";
 const useCountdown = params.get("countdown") !== "false";
 const recordingMode = params.get("mode") === "screen" ? "screen" : "region";
 const nativeMode = params.get("nativeMode") === "true";
+const windowRegionChannel = params.get("windowRegionChannel") || "";
+const windowRegionActiveChannel = params.get("windowRegionActiveChannel") || "";
 const showCursor = params.get("showCursor") !== "false";
 const clickHighlight = params.get("clickHighlight") !== "false";
 const displayPixelWidth = Math.max(1, Number(params.get("displayPixelWidth")) || Math.round(window.innerWidth * scaleFactor));
 const displayPixelHeight = Math.max(1, Number(params.get("displayPixelHeight")) || Math.round(window.innerHeight * scaleFactor));
 const language = params.get("language") === "en-US" ? "en-US" : "zh-CN";
-const initialWindowRect = (() => {
-  const x = Number(params.get("windowX"));
-  const y = Number(params.get("windowY"));
-  const width = Number(params.get("windowWidth"));
-  const height = Number(params.get("windowHeight"));
-  if (![x, y, width, height].every(Number.isFinite) || width < 8 || height < 8) return null;
-  return {
-    x: clamp(x, 0, window.innerWidth),
-    y: clamp(y, 0, window.innerHeight),
-    width: clamp(width, 0, window.innerWidth),
-    height: clamp(height, 0, window.innerHeight)
-  };
+let windowRegions = (() => {
+  try {
+    const value = JSON.parse(params.get("windowRegions") || "[]");
+    return Array.isArray(value)
+      ? value.filter(
+          (rect) =>
+            rect &&
+            [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite) &&
+            rect.width >= 24 &&
+            rect.height >= 24
+        )
+      : [];
+  } catch {
+    return [];
+  }
 })();
+const initialCursor = { x: Number(params.get("cursorX")), y: Number(params.get("cursorY")) };
+let lastPointer = { ...initialCursor };
+let windowRegionsRequested = false;
+let lastWindowRegionActiveAt = 0;
 
 const text = {
   "zh-CN": {
@@ -35,7 +44,7 @@ const text = {
     resume: "继续",
     stop: "停止",
     cancel: "取消",
-    selectionHint: "拖动选择区域 · 再按 F2 或 Esc 取消"
+    selectionHint: "移动鼠标探测窗口，单击选中；拖动自定义区域 · F2 或 Esc 取消"
   },
   "en-US": {
     select: "Drag to select a recording region",
@@ -43,7 +52,7 @@ const text = {
     resume: "Resume",
     stop: "Stop",
     cancel: "Cancel",
-    selectionHint: "Drag to select · Press F2 again or Esc to cancel"
+    selectionHint: "Hover to detect a window, click to select, or drag · F2/Esc to cancel"
   }
 }[language];
 
@@ -85,6 +94,8 @@ setButtonLabel(cancelButton, text.cancel);
 
 let selecting = false;
 let selectedRect = null;
+let hoverWindowRect = null;
+let clickWindowRect = null;
 let startPoint = null;
 let hasDragged = false;
 let recorder = null;
@@ -103,10 +114,29 @@ let nativeRecordingPaused = false;
 let controlHideTimer = 0;
 
 const recordingFrameWidth = 2;
-const screenControlHeight = 38;
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function windowRegionAt(x, y) {
+  return windowRegions.find(
+    (rect) => x >= rect.x && y >= rect.y && x <= rect.x + rect.width && y <= rect.y + rect.height
+  );
+}
+
+function requestWindowRegions() {
+  if (!windowRegionChannel || windowRegionsRequested || recordingMode !== "region") return;
+  windowRegionsRequested = true;
+  ipcRenderer.send(windowRegionChannel);
+}
+
+function announceActiveWindowRegionOverlay() {
+  if (!windowRegionActiveChannel) return;
+  const now = performance.now();
+  if (now - lastWindowRegionActiveAt < 60) return;
+  lastWindowRegionActiveAt = now;
+  ipcRenderer.send(windowRegionActiveChannel);
 }
 
 function evenPixelSize(value) {
@@ -128,6 +158,10 @@ function normalizeRect(a, b) {
 
 function renderSelection(rect) {
   selectionEl.style.display = "block";
+  selectionEl.classList.toggle(
+    "is-sensing",
+    recordingMode === "screen" || (recordingMode === "region" && !selecting && hoverWindowRect === rect)
+  );
   selectionEl.style.left = `${rect.x}px`;
   selectionEl.style.top = `${rect.y}px`;
   selectionEl.style.width = `${rect.width}px`;
@@ -142,28 +176,22 @@ function renderSelection(rect) {
 
 function positionRecordingFrame(rect) {
   const frameWidth = recordingFrameWidth;
-  recordingFrame.style.left = `${rect.x - frameWidth}px`;
-  recordingFrame.style.top = `${rect.y - frameWidth}px`;
-  recordingFrame.style.width = `${rect.width + frameWidth * 2}px`;
-  recordingFrame.style.height = `${rect.height + frameWidth * 2}px`;
-}
-
-function captureRectInsideChrome(rect) {
   const coversViewport =
     rect.x <= 1 &&
     rect.y <= 1 &&
     rect.x + rect.width >= window.innerWidth - 1 &&
     rect.y + rect.height >= window.innerHeight - 1;
-  if (recordingMode !== "screen" && !coversViewport) return rect;
-
-  const x = recordingFrameWidth;
-  const y = screenControlHeight;
-  return {
-    x,
-    y,
-    width: Math.max(2, window.innerWidth - x - recordingFrameWidth),
-    height: Math.max(2, window.innerHeight - y - recordingFrameWidth)
-  };
+  if (coversViewport) {
+    recordingFrame.style.left = "0";
+    recordingFrame.style.top = "0";
+    recordingFrame.style.width = `${window.innerWidth}px`;
+    recordingFrame.style.height = `${window.innerHeight}px`;
+    return;
+  }
+  recordingFrame.style.left = `${rect.x - frameWidth}px`;
+  recordingFrame.style.top = `${rect.y - frameWidth}px`;
+  recordingFrame.style.width = `${rect.width + frameWidth * 2}px`;
+  recordingFrame.style.height = `${rect.height + frameWidth * 2}px`;
 }
 
 function placeControlBar(rect) {
@@ -431,7 +459,7 @@ function syncMousePassThrough(event) {
 
 async function startRecording(rect) {
   try {
-    const captureRect = captureRectInsideChrome(rect);
+    const captureRect = rect;
     selectedRect = captureRect;
     const dimensions = `${Math.round(captureRect.width * scaleFactor)} x ${Math.round(captureRect.height * scaleFactor)}`;
     controlSize.textContent = dimensions;
@@ -544,34 +572,58 @@ window.addEventListener("mousedown", (event) => {
   if (recorder || nativeRecordingActive || event.button !== 0) return;
   selecting = true;
   hasDragged = false;
+  clickWindowRect = hoverWindowRect ? { ...hoverWindowRect } : null;
   startPoint = { x: event.clientX, y: event.clientY };
   selectedRect = { x: event.clientX, y: event.clientY, width: 0, height: 0 };
   renderSelection(selectedRect);
 });
 
 window.addEventListener("mousemove", (event) => {
+  requestWindowRegions();
+  announceActiveWindowRegionOverlay();
+  lastPointer = { x: event.clientX, y: event.clientY };
   syncMousePassThrough(event);
-  if (!selecting || !startPoint) return;
+  if (!selecting || !startPoint) {
+    if (!recorder && !nativeRecordingActive && recordingMode === "region") {
+      hoverWindowRect = windowRegionAt(event.clientX, event.clientY) || null;
+      selectedRect = hoverWindowRect;
+      if (selectedRect) {
+        renderSelection(selectedRect);
+      } else {
+        selectionEl.style.display = "none";
+        sizeBadge.style.display = "none";
+      }
+    }
+    return;
+  }
   if (Math.abs(event.clientX - startPoint.x) > 4 || Math.abs(event.clientY - startPoint.y) > 4) {
     hasDragged = true;
   }
   selectedRect = normalizeRect(startPoint, { x: event.clientX, y: event.clientY });
   renderSelection(selectedRect);
 });
+window.addEventListener("mouseleave", () => {
+  if (recordingMode !== "region" || selecting || recorder || nativeRecordingActive) return;
+  hoverWindowRect = null;
+  selectedRect = null;
+  selectionEl.style.display = "none";
+  sizeBadge.style.display = "none";
+});
 
 window.addEventListener("mouseup", () => {
   if (!selecting || !selectedRect) return;
   selecting = false;
-  if (!hasDragged && initialWindowRect) {
-    selectedRect = initialWindowRect;
+  if (!hasDragged && clickWindowRect) {
+    selectedRect = clickWindowRect;
+    clickWindowRect = null;
     renderSelection(selectedRect);
     void startRecording(selectedRect);
     return;
   }
+  clickWindowRect = null;
   if (selectedRect.width < 24 || selectedRect.height < 24) {
-    selectedRect = null;
-    if (initialWindowRect) {
-      selectedRect = initialWindowRect;
+    selectedRect = hoverWindowRect;
+    if (selectedRect) {
       renderSelection(selectedRect);
     } else {
       selectionEl.style.display = "none";
@@ -668,24 +720,30 @@ ipcRenderer.on("recording-command", (_event, command) => {
   if (command === "stop" && recorder && recorder.state !== "inactive") recorder.stop();
 });
 
-ipcRenderer.on("recording-global-pointer", (_event, point) => {
-  if (recordingMode !== "screen" || !nativeRecordingActive) return;
-  const x = Number(point?.x);
-  const y = Number(point?.y);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-  const revealDistance = 10;
-  const nearScreenEdge =
-    x <= revealDistance ||
-    y <= revealDistance ||
-    x >= window.innerWidth - revealDistance ||
-    y >= window.innerHeight - revealDistance;
-  if (nearScreenEdge) {
-    showScreenControls();
-    setMouseIgnored(!pointInControlBar(x, y));
-  } else if (!pointInControlBar(x, y)) {
-    scheduleScreenControlsHide();
-    setMouseIgnored(true);
+ipcRenderer.on("window-regions", (_event, payload) => {
+  const regions = Array.isArray(payload?.regions) ? payload.regions : [];
+  windowRegions = regions.filter(
+    (rect) =>
+      rect &&
+      [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite) &&
+      rect.width >= 24 &&
+      rect.height >= 24
+  );
+  if (Number.isFinite(payload?.cursor?.x) && Number.isFinite(payload?.cursor?.y)) {
+    lastPointer = { x: payload.cursor.x, y: payload.cursor.y };
   }
+  if (recordingMode === "region" && !selecting && !recorder && !nativeRecordingActive) {
+    hoverWindowRect = windowRegionAt(lastPointer.x, lastPointer.y) || null;
+    selectedRect = hoverWindowRect;
+    if (selectedRect) renderSelection(selectedRect);
+  }
+});
+ipcRenderer.on("window-regions-clear", () => {
+  if (recordingMode !== "region" || selecting || recorder || nativeRecordingActive) return;
+  hoverWindowRect = null;
+  selectedRect = null;
+  selectionEl.style.display = "none";
+  sizeBadge.style.display = "none";
 });
 
 ipcRenderer.send("overlay:ready");
@@ -696,7 +754,8 @@ if (recordingMode === "screen") {
   setTimeout(() => {
     if (!recorder && selectedRect) void startRecording(selectedRect);
   }, 160);
-} else if (initialWindowRect) {
-  selectedRect = initialWindowRect;
-  renderSelection(selectedRect);
+} else if (Number.isFinite(initialCursor.x) && Number.isFinite(initialCursor.y)) {
+  hoverWindowRect = windowRegionAt(initialCursor.x, initialCursor.y) || null;
+  selectedRect = hoverWindowRect;
+  if (selectedRect) renderSelection(selectedRect);
 }

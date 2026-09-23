@@ -251,6 +251,13 @@ function getCursorDisplay() {
   return screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
 }
 
+function getDisplaysCursorFirst() {
+  const cursorDisplay = getCursorDisplay();
+  return screen
+    .getAllDisplays()
+    .sort((left, right) => Number(right.id === cursorDisplay.id) - Number(left.id === cursorDisplay.id));
+}
+
 function getRecordingDisplay(displayId?: string) {
   if (displayId) {
     const target = screen.getAllDisplays().find((display) => String(display.id) === displayId);
@@ -375,11 +382,11 @@ const mainMessages = {
       hotkeyGuardUnavailable: "快捷键增强未启用，已使用系统全局热键兜底",
       hotkeyGuardStopped: "快捷键增强已停止，正在尝试恢复",
       scrollSelect: "拖动选择要滚动截取的区域",
-      scrollHint: "拖动选择长截图区域，单击可选中窗口",
+      scrollHint: "移动鼠标探测窗口，单击选中；拖动可自定义长截图区域",
       scrollPreparing: "正在准备滚动截图...",
       scrollMerged: (frames: number) => `长截图合成完成：${frames} 帧`,
       scrollMergedEditable: (frames: number) => `长截图已合成：${frames} 帧，可继续编辑`,
-      recordingSelect: "拖动选择录屏区域",
+      recordingSelect: "移动鼠标探测窗口，单击选中；拖动可自定义录屏区域",
       recordingPreparing: "正在准备录屏...",
       recordingCanceled: "录屏已取消",
       recordingSaved: (filePath: string) => `录屏已保存：${filePath}`,
@@ -465,11 +472,11 @@ const mainMessages = {
       hotkeyGuardUnavailable: "Shortcut guard unavailable; using system global shortcuts as fallback",
       hotkeyGuardStopped: "Shortcut guard stopped, trying to recover",
       scrollSelect: "Drag to select the scrolling capture region",
-      scrollHint: "Drag to select a scrolling capture region, or click to select a window",
+      scrollHint: "Hover to detect a window, click to select, or drag a scrolling region",
       scrollPreparing: "Preparing scrolling capture...",
       scrollMerged: (frames: number) => `Scrolling capture merged: ${frames} frames`,
       scrollMergedEditable: (frames: number) => `Long screenshot merged: ${frames} frames, ready to edit`,
-      recordingSelect: "Drag to select a recording region",
+      recordingSelect: "Hover to detect a window, click to select, or drag a recording region",
       recordingPreparing: "Preparing recording...",
       recordingCanceled: "Recording canceled",
       recordingSaved: (filePath: string) => `Recording saved: ${filePath}`,
@@ -1769,84 +1776,119 @@ async function captureScreenBuffer(width: number, height: number, display?: Disp
   }
 }
 
-async function detectCursorWindowRegion(display: DisplayLike): Promise<CaptureRegion | null> {
-  if (process.platform !== "win32") {
-    return null;
-  }
-
+async function detectWindowRegions(display: DisplayLike): Promise<CaptureRegion[]> {
+  if (process.platform !== "win32") return [];
   const scaleFactor = display.scaleFactor || 1;
-  const cursorPoint = screen.getCursorScreenPoint();
-  const physicalX = Math.round(cursorPoint.x * scaleFactor);
-  const physicalY = Math.round(cursorPoint.y * scaleFactor);
+  const physicalOrigin = screen.dipToScreenPoint({ x: display.bounds.x, y: display.bounds.y });
+  const physicalWidth = Math.round(display.size.width * scaleFactor);
+  const physicalHeight = Math.round(display.size.height * scaleFactor);
   const script = `
 Add-Type @"
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Text;
 
-public static class WindowProbe {
-  [StructLayout(LayoutKind.Sequential)]
-  public struct POINT { public int X; public int Y; }
-
+public static class WindowCatalog {
   [StructLayout(LayoutKind.Sequential)]
   public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
 
   [DllImport("user32.dll")]
-  public static extern IntPtr WindowFromPoint(POINT point);
+  private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr lParam);
 
   [DllImport("user32.dll")]
-  public static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
+  private static extern bool IsWindowVisible(IntPtr hwnd);
 
   [DllImport("user32.dll")]
-  public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+  private static extern bool IsIconic(IntPtr hwnd);
 
   [DllImport("user32.dll")]
-  public static extern bool IsWindowVisible(IntPtr hwnd);
+  private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
 
-  public static string Probe(int x, int y) {
-    var point = new POINT { X = x, Y = y };
-    var hwnd = WindowFromPoint(point);
-    if (hwnd == IntPtr.Zero) return "{}";
-    hwnd = GetAncestor(hwnd, 2);
-    if (hwnd == IntPtr.Zero || !IsWindowVisible(hwnd)) return "{}";
-    RECT rect;
-    if (!GetWindowRect(hwnd, out rect)) return "{}";
-    return rect.Left + "," + rect.Top + "," + rect.Right + "," + rect.Bottom;
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+  private static extern int GetClassName(IntPtr hwnd, StringBuilder className, int maxCount);
+
+  [DllImport("dwmapi.dll")]
+  private static extern int DwmGetWindowAttribute(IntPtr hwnd, int attribute, out RECT value, int size);
+
+  [DllImport("dwmapi.dll")]
+  private static extern int DwmGetWindowAttribute(IntPtr hwnd, int attribute, out int value, int size);
+
+  private delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
+
+  public static string List(int excludedProcessId, int displayLeft, int displayTop, int displayRight, int displayBottom) {
+    var rows = new List<string>();
+    EnumWindows((hwnd, _) => {
+      if (!IsWindowVisible(hwnd) || IsIconic(hwnd)) return true;
+      uint processId;
+      GetWindowThreadProcessId(hwnd, out processId);
+      if (processId == excludedProcessId) return true;
+
+      var className = new StringBuilder(256);
+      GetClassName(hwnd, className, className.Capacity);
+      var name = className.ToString();
+      if (name == "Shell_TrayWnd" || name == "Shell_SecondaryTrayWnd" || name == "Progman" || name == "WorkerW") return true;
+
+      int cloaked;
+      if (DwmGetWindowAttribute(hwnd, 14, out cloaked, sizeof(int)) == 0 && cloaked != 0) return true;
+      RECT rect;
+      if (DwmGetWindowAttribute(hwnd, 9, out rect, Marshal.SizeOf<RECT>()) != 0) return true;
+      if (rect.Right <= displayLeft || rect.Bottom <= displayTop || rect.Left >= displayRight || rect.Top >= displayBottom) return true;
+      var left = Math.Max(displayLeft, rect.Left);
+      var top = Math.Max(displayTop, rect.Top);
+      var right = Math.Min(displayRight, rect.Right);
+      var bottom = Math.Min(displayBottom, rect.Bottom);
+      if (right - left < 80 || bottom - top < 60) return true;
+      rows.Add(left + "," + top + "," + right + "," + bottom);
+      return true;
+    }, IntPtr.Zero);
+    return string.Join("|", rows);
   }
 }
 
 "@
-[WindowProbe]::Probe(${physicalX}, ${physicalY})
+[WindowCatalog]::List(${process.pid}, ${physicalOrigin.x}, ${physicalOrigin.y}, ${physicalOrigin.x + physicalWidth}, ${physicalOrigin.y + physicalHeight})
 `;
 
   try {
-    const { stdout } = await execFileAsync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
-      windowsHide: true,
-      timeout: 2500,
-      maxBuffer: 1024 * 64
-    });
-    const raw = stdout.trim();
-    if (!raw || raw === "{}") return null;
-    const [left, top, right, bottom] = raw.split(",").map((value) => Number(value.trim()));
-    if (![left, top, right, bottom].every(Number.isFinite)) return null;
-
-    const region = {
-      x: Math.round(left / scaleFactor),
-      y: Math.round(top / scaleFactor),
-      width: Math.round((right - left) / scaleFactor),
-      height: Math.round((bottom - top) / scaleFactor)
-    };
-    const displayRight = display.bounds.x + display.bounds.width;
-    const displayBottom = display.bounds.y + display.bounds.height;
-    const x1 = Math.max(display.bounds.x, Math.min(displayRight, region.x));
-    const y1 = Math.max(display.bounds.y, Math.min(displayBottom, region.y));
-    const x2 = Math.max(display.bounds.x, Math.min(displayRight, region.x + region.width));
-    const y2 = Math.max(display.bounds.y, Math.min(displayBottom, region.y + region.height));
-    const clamped = { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
-    if (clamped.width < 80 || clamped.height < 60) return null;
-    return clamped;
+    const probePath = app.isPackaged
+      ? path.join(process.resourcesPath, "window-probe", "ZhuagepingWindowProbe.exe")
+      : path.join(process.cwd(), "build", "window-probe", "ZhuagepingWindowProbe.exe");
+    const args = [
+      String(process.pid),
+      String(physicalOrigin.x),
+      String(physicalOrigin.y),
+      String(physicalOrigin.x + physicalWidth),
+      String(physicalOrigin.y + physicalHeight)
+    ];
+    const { stdout } = fsSync.existsSync(probePath)
+      ? await execFileAsync(probePath, args, { windowsHide: true, timeout: 1000, maxBuffer: 1024 * 64 })
+      : await execFileAsync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], {
+          windowsHide: true,
+          timeout: 2500,
+          maxBuffer: 1024 * 64
+        });
+    const seen = new Set<string>();
+    return stdout
+      .trim()
+      .split("|")
+      .map((row) => row.split(",").map((value) => Number(value.trim())))
+      .filter((values) => values.length === 4 && values.every(Number.isFinite))
+      .map(([left, top, right, bottom]) => ({
+        x: Math.round((left - physicalOrigin.x) / scaleFactor),
+        y: Math.round((top - physicalOrigin.y) / scaleFactor),
+        width: Math.round((right - left) / scaleFactor),
+        height: Math.round((bottom - top) / scaleFactor)
+      }))
+      .filter((region) => {
+        const key = `${region.x},${region.y},${region.width},${region.height}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return region.width >= 80 && region.height >= 60;
+      });
   } catch (error) {
-    console.warn("Window region probe failed.", error);
-    return null;
+    console.warn("Window catalog probe failed.", error);
+    return [];
   }
 }
 
@@ -2107,9 +2149,26 @@ async function recognizeOcrFromInlinePayload(payload: InlineCapturePayload): Pro
 }
 
 async function selectScreenRegionOnly(selectionHint: string): Promise<CaptureRegion | null> {
+  const displays = getDisplaysCursorFirst();
+  const cursorDisplay = displays[0];
+  const cursorPoint = screen.getCursorScreenPoint();
+  const windowRegionChannel = `window-regions-request-${crypto.randomUUID()}`;
+  const windowRegionActiveChannel = `window-regions-active-${crypto.randomUUID()}`;
+  const requestedDisplays = new Set<number>();
+  const requestWindowRegions = (display: DisplayLike, overlay: BrowserWindow) => {
+    if (requestedDisplays.has(display.id)) return;
+    requestedDisplays.add(display.id);
+    void detectWindowRegions(display).then((windowRegions) => {
+      if (!overlay.isDestroyed()) {
+        overlay.webContents.send("window-regions", {
+          regions: windowRegions,
+          cursor: { x: cursorPoint.x - display.bounds.x, y: cursorPoint.y - display.bounds.y }
+        });
+      }
+    });
+  };
   return new Promise((resolve) => {
     const editorPath = overlayEditorHtmlPath();
-    const displays = [getCursorDisplay()];
     const selectionChannel = `scroll-region-selected-${crypto.randomUUID()}`;
     const overlays = displays.map((display) => {
       const overlay = new BrowserWindow({
@@ -2148,6 +2207,7 @@ async function selectScreenRegionOnly(selectionHint: string): Promise<CaptureReg
         if (overlay.isDestroyed()) return;
         overlay.showInactive();
         overlay.moveTop();
+        if (display.id === cursorDisplay.id) setTimeout(() => requestWindowRegions(display, overlay), 40);
       });
       void overlay.loadFile(editorPath, {
         query: {
@@ -2156,14 +2216,34 @@ async function selectScreenRegionOnly(selectionHint: string): Promise<CaptureReg
           offsetY: String(display.bounds.y),
           selectionChannel,
           selectionHint,
+          windowRegionChannel,
+          windowRegionActiveChannel,
+          cursorX: String(cursorPoint.x - display.bounds.x),
+          cursorY: String(cursorPoint.y - display.bounds.y),
           language: appSettings.language
         }
       });
       return { display, overlay };
     });
     let resolved = false;
+    const onWindowRegionRequest = (event: Electron.IpcMainEvent) => {
+      const entry = overlays.find(({ overlay }) => overlay.webContents.id === event.sender.id);
+      if (entry) requestWindowRegions(entry.display, entry.overlay);
+    };
+    ipcMain.on(windowRegionChannel, onWindowRegionRequest);
+    let activeWindowRegionSender = 0;
+    const onWindowRegionActive = (event: Electron.IpcMainEvent) => {
+      if (activeWindowRegionSender === event.sender.id) return;
+      activeWindowRegionSender = event.sender.id;
+      overlays.forEach(({ overlay }) => {
+        if (!overlay.isDestroyed() && overlay.webContents.id !== event.sender.id) {
+          overlay.webContents.send("window-regions-clear");
+        }
+      });
+    };
+    ipcMain.on(windowRegionActiveChannel, onWindowRegionActive);
 
-    const showActiveOverlays = () => {
+    const showActiveOverlays = (preferredWebContentsId?: number) => {
       overlays.forEach(({ overlay }) => {
         if (!overlay.isDestroyed()) {
           overlay.showInactive();
@@ -2171,7 +2251,10 @@ async function selectScreenRegionOnly(selectionHint: string): Promise<CaptureReg
           overlay.setAlwaysOnTop(true, "screen-saver");
         }
       });
-      overlays.find(({ overlay }) => !overlay.isDestroyed())?.overlay.focus();
+      const preferred = overlays.find(
+        ({ overlay }) => !overlay.isDestroyed() && overlay.webContents.id === preferredWebContentsId
+      );
+      (preferred ?? overlays.find(({ overlay }) => !overlay.isDestroyed()))?.overlay.focus();
     };
 
     const finish = (region: CaptureRegion | null) => {
@@ -2180,6 +2263,8 @@ async function selectScreenRegionOnly(selectionHint: string): Promise<CaptureReg
       ipcMain.removeListener(selectionChannel, onRegionSelected);
       ipcMain.removeListener("inline-capture-cancel", onCancel);
       ipcMain.removeListener("overlay:ready", onOverlayReady);
+      ipcMain.removeListener(windowRegionChannel, onWindowRegionRequest);
+      ipcMain.removeListener(windowRegionActiveChannel, onWindowRegionActive);
       overlays.forEach(({ overlay }) => {
         if (!overlay.isDestroyed()) overlay.close();
       });
@@ -2194,7 +2279,7 @@ async function selectScreenRegionOnly(selectionHint: string): Promise<CaptureReg
 
     const onOverlayReady = (event: Electron.IpcMainEvent) => {
       if (resolved) return;
-      showActiveOverlays();
+      showActiveOverlays(event.sender.id);
       const readyEntry = overlays.find(({ overlay }) => !overlay.isDestroyed() && overlay.webContents.id === event.sender.id);
       if (!readyEntry || readyEntry.overlay.isDestroyed()) return;
       readyEntry.overlay.focus();
@@ -2211,9 +2296,26 @@ async function selectScreenRegionOnly(selectionHint: string): Promise<CaptureReg
 }
 
 async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
+  const displays = getDisplaysCursorFirst();
+  const cursorDisplay = displays[0];
+  const cursorPoint = screen.getCursorScreenPoint();
+  const windowRegionChannel = `window-regions-request-${crypto.randomUUID()}`;
+  const windowRegionActiveChannel = `window-regions-active-${crypto.randomUUID()}`;
+  const requestedDisplays = new Set<number>();
+  const requestWindowRegions = (display: DisplayLike, overlay: BrowserWindow) => {
+    if (requestedDisplays.has(display.id)) return;
+    requestedDisplays.add(display.id);
+    void detectWindowRegions(display).then((windowRegions) => {
+      if (!overlay.isDestroyed()) {
+        overlay.webContents.send("window-regions", {
+          regions: windowRegions,
+          cursor: { x: cursorPoint.x - display.bounds.x, y: cursorPoint.y - display.bounds.y }
+        });
+      }
+    });
+  };
   return new Promise((resolve) => {
     const editorPath = overlayEditorHtmlPath();
-    const displays = [getCursorDisplay()];
     const captureDisplayDataUrl = async (display: DisplayLike) => {
       const displayScaleFactor = display.scaleFactor || 1;
       const width = Math.round(display.size.width * displayScaleFactor);
@@ -2259,18 +2361,39 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
         if (overlay.isDestroyed()) return;
         overlay.showInactive();
         overlay.moveTop();
+        if (display.id === cursorDisplay.id) setTimeout(() => requestWindowRegions(display, overlay), 40);
       });
       void overlay.loadFile(editorPath, {
         query: {
           scaleFactor: String(display.scaleFactor || 1),
           offsetX: String(display.bounds.x),
           offsetY: String(display.bounds.y),
+          windowRegionChannel,
+          windowRegionActiveChannel,
+          cursorX: String(cursorPoint.x - display.bounds.x),
+          cursorY: String(cursorPoint.y - display.bounds.y),
           language: appSettings.language
         }
       });
       return { display, overlay };
     });
     const overlayDisplays = new Map(overlays.map(({ display, overlay }) => [overlay.webContents.id, display]));
+    const onWindowRegionRequest = (event: Electron.IpcMainEvent) => {
+      const entry = overlays.find(({ overlay }) => overlay.webContents.id === event.sender.id);
+      if (entry) requestWindowRegions(entry.display, entry.overlay);
+    };
+    let activeWindowRegionSender = 0;
+    const onWindowRegionActive = (event: Electron.IpcMainEvent) => {
+      if (activeWindowRegionSender === event.sender.id) return;
+      activeWindowRegionSender = event.sender.id;
+      overlays.forEach(({ overlay }) => {
+        if (!overlay.isDestroyed() && overlay.webContents.id !== event.sender.id) {
+          overlay.webContents.send("window-regions-clear");
+        }
+      });
+    };
+    ipcMain.on(windowRegionChannel, onWindowRegionRequest);
+    ipcMain.on(windowRegionActiveChannel, onWindowRegionActive);
     let resolved = false;
     let preparingCapture = false;
     let preparingPreview = false;
@@ -2406,7 +2529,7 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
       return captureDisplayDataUrl(display);
     };
 
-    const showActiveOverlays = () => {
+    const showActiveOverlays = (preferredWebContentsId?: number) => {
       overlays.forEach(({ overlay }) => {
         if (!overlay.isDestroyed()) {
           overlay.showInactive();
@@ -2414,7 +2537,10 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
           overlay.setAlwaysOnTop(true, "screen-saver");
         }
       });
-      overlays.find(({ overlay }) => !overlay.isDestroyed())?.overlay.focus();
+      const preferred = overlays.find(
+        ({ overlay }) => !overlay.isDestroyed() && overlay.webContents.id === preferredWebContentsId
+      );
+      (preferred ?? overlays.find(({ overlay }) => !overlay.isDestroyed()))?.overlay.focus();
     };
 
     const notifyCaptureError = () => {
@@ -2437,6 +2563,8 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
       ipcMain.removeListener("inline-capture-cancel", onCancel);
       ipcMain.removeListener("inline-region-selected", onRegionSelected);
       ipcMain.removeListener("overlay:ready", onOverlayReady);
+      ipcMain.removeListener(windowRegionChannel, onWindowRegionRequest);
+      ipcMain.removeListener(windowRegionActiveChannel, onWindowRegionActive);
       overlays.forEach(({ overlay }) => {
         if (!overlay.isDestroyed()) overlay.close();
       });
@@ -2452,7 +2580,7 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
         finish({ buffer: await buildCompositeBuffer(payload), action: "save" });
       } catch (error) {
         console.error("Inline capture failed.", error);
-        showActiveOverlays();
+        showActiveOverlays(_event.sender.id);
         notifyCaptureError();
         preparingCapture = false;
       }
@@ -2595,7 +2723,7 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
 
     const onOverlayReady = (event: Electron.IpcMainEvent) => {
       if (resolved) return;
-      showActiveOverlays();
+      showActiveOverlays(event.sender.id);
       const readyEntry = overlays.find(({ overlay }) => !overlay.isDestroyed() && overlay.webContents.id === event.sender.id);
       const readyOverlay = readyEntry?.overlay;
       if (readyEntry && readyOverlay && !readyOverlay.isDestroyed()) {
@@ -2616,7 +2744,7 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
       } catch (error) {
         console.warn("Inline preview capture failed.", error);
       } finally {
-        showActiveOverlays();
+        showActiveOverlays(event.sender.id);
         preparingPreview = false;
       }
       if (resolved || event.sender.isDestroyed()) return;
@@ -3038,80 +3166,77 @@ async function runNativeRecordingOverlay(
   mode: RecordingMode,
   displayId?: string
 ): Promise<NativeRecordingSelection | null> {
-  const display = getRecordingDisplay(displayId);
-  const windowRegion = mode === "region" ? await detectCursorWindowRegion(display) : null;
-  const localWindowRegion = windowRegion
-    ? {
-        x: Math.max(0, windowRegion.x - display.bounds.x),
-        y: Math.max(0, windowRegion.y - display.bounds.y),
-        width: Math.max(0, windowRegion.width),
-        height: Math.max(0, windowRegion.height)
-      }
-    : null;
-
-  return new Promise((resolve) => {
-    const overlay = new BrowserWindow({
-      x: display.bounds.x,
-      y: display.bounds.y,
-      width: display.bounds.width,
-      height: display.bounds.height,
-      frame: false,
-      transparent: true,
-      backgroundColor: "#00000000",
-      show: false,
-      resizable: false,
-      movable: false,
-      fullscreenable: false,
-      focusable: true,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      title: mt().dialog.recordingTitle,
-      webPreferences: {
-        nodeIntegration: true,
-        contextIsolation: false,
-        backgroundThrottling: false
+  const displays = mode === "region" ? getDisplaysCursorFirst() : [getRecordingDisplay(displayId)];
+  const cursorDisplay = displays[0];
+  const cursorPoint = screen.getCursorScreenPoint();
+  const windowRegionChannel = `window-regions-request-${crypto.randomUUID()}`;
+  const windowRegionActiveChannel = `window-regions-active-${crypto.randomUUID()}`;
+  const requestedDisplays = new Set<number>();
+  const requestWindowRegions = (display: DisplayLike, overlay: BrowserWindow) => {
+    if (mode !== "region" || requestedDisplays.has(display.id)) return;
+    requestedDisplays.add(display.id);
+    void detectWindowRegions(display).then((windowRegions) => {
+      if (!overlay.isDestroyed()) {
+        overlay.webContents.send("window-regions", {
+          regions: windowRegions,
+          cursor: { x: cursorPoint.x - display.bounds.x, y: cursorPoint.y - display.bounds.y }
+        });
       }
     });
-    activeRecordingOverlay = overlay;
+  };
+
+  return new Promise((resolve) => {
+    const overlays = displays.map((display) => {
+      const overlay = new BrowserWindow({
+        x: display.bounds.x,
+        y: display.bounds.y,
+        width: display.bounds.width,
+        height: display.bounds.height,
+        frame: false,
+        transparent: true,
+        backgroundColor: "#00000000",
+        show: false,
+        resizable: false,
+        movable: false,
+        fullscreenable: false,
+        focusable: true,
+        alwaysOnTop: true,
+        skipTaskbar: true,
+        title: mt().dialog.recordingTitle,
+        webPreferences: {
+          nodeIntegration: true,
+          contextIsolation: false,
+          backgroundThrottling: false
+        }
+      });
+      return { display, overlay };
+    });
+    activeRecordingOverlay = overlays[0]?.overlay ?? null;
     activeRecordingUsesNative = true;
     nativeRecordingSelectionCommitted = false;
     let settled = false;
-    let pointerPoll: NodeJS.Timeout | null = null;
-
-    const stopPointerPoll = () => {
-      if (!pointerPoll) return;
-      clearInterval(pointerPoll);
-      pointerPoll = null;
-    };
-    const startPointerPoll = () => {
-      if (mode !== "screen" || pointerPoll || overlay.isDestroyed()) return;
-      pointerPoll = setInterval(() => {
-        if (overlay.isDestroyed()) {
-          stopPointerPoll();
-          return;
-        }
-        const point = screen.getCursorScreenPoint();
-        overlay.webContents.send("recording-global-pointer", {
-          x: point.x - display.bounds.x,
-          y: point.y - display.bounds.y
-        });
-      }, 80);
-    };
 
     const removeSelectionListeners = () => {
       ipcMain.removeListener("recording-region-selected", onSelected);
       ipcMain.removeListener("recording-cancel", onCancel);
       ipcMain.removeListener("overlay:ready", onReady);
+      ipcMain.removeListener(windowRegionChannel, onWindowRegionRequest);
+      ipcMain.removeListener(windowRegionActiveChannel, onWindowRegionActive);
     };
     const cancel = () => {
       if (settled) return;
       settled = true;
       removeSelectionListeners();
       ipcMain.removeListener("recording-ignore-mouse", onIgnoreMouse);
-      closeRecordingOverlay(overlay);
+      overlays.forEach(({ overlay }) => {
+        if (!overlay.isDestroyed()) overlay.close();
+      });
+      activeRecordingOverlay = null;
+      activeRecordingUsesNative = false;
+      nativeRecordingSelectionCommitted = false;
       resolve(null);
     };
-    const showOverlay = () => {
+    const showOverlay = (overlay: BrowserWindow) => {
       if (overlay.isDestroyed()) return;
       overlay.showInactive();
       overlay.moveTop();
@@ -3119,17 +3244,35 @@ async function runNativeRecordingOverlay(
       overlay.focus();
     };
     const onReady = (event: Electron.IpcMainEvent) => {
-      if (event.sender.id === overlay.webContents.id) showOverlay();
+      const entry = overlays.find(({ overlay }) => overlay.webContents.id === event.sender.id);
+      if (entry) showOverlay(entry.overlay);
     };
     const onCancel = (event: Electron.IpcMainEvent) => {
-      if (event.sender.id === overlay.webContents.id) cancel();
+      if (overlays.some(({ overlay }) => overlay.webContents.id === event.sender.id)) cancel();
     };
     const onIgnoreMouse = (event: Electron.IpcMainEvent, ignore: boolean) => {
-      if (event.sender.id !== overlay.webContents.id || overlay.isDestroyed()) return;
-      overlay.setIgnoreMouseEvents(Boolean(ignore), { forward: true });
+      const entry = overlays.find(({ overlay }) => overlay.webContents.id === event.sender.id);
+      if (!entry || entry.overlay.isDestroyed()) return;
+      entry.overlay.setIgnoreMouseEvents(Boolean(ignore), { forward: true });
+    };
+    const onWindowRegionRequest = (event: Electron.IpcMainEvent) => {
+      const entry = overlays.find(({ overlay }) => overlay.webContents.id === event.sender.id);
+      if (entry) requestWindowRegions(entry.display, entry.overlay);
+    };
+    let activeWindowRegionSender = 0;
+    const onWindowRegionActive = (event: Electron.IpcMainEvent) => {
+      if (activeWindowRegionSender === event.sender.id) return;
+      activeWindowRegionSender = event.sender.id;
+      overlays.forEach(({ overlay }) => {
+        if (!overlay.isDestroyed() && overlay.webContents.id !== event.sender.id) {
+          overlay.webContents.send("window-regions-clear");
+        }
+      });
     };
     const onSelected = (event: Electron.IpcMainEvent, region: CaptureRegion) => {
-      if (settled || event.sender.id !== overlay.webContents.id) return;
+      const entry = overlays.find(({ overlay }) => overlay.webContents.id === event.sender.id);
+      if (settled || !entry) return;
+      const { display, overlay } = entry;
       const width = Math.max(2, Math.min(display.bounds.width, Math.round(region.width)));
       const height = Math.max(2, Math.min(display.bounds.height, Math.round(region.height)));
       const x = Math.max(0, Math.min(display.bounds.width - width, Math.round(region.x)));
@@ -3137,54 +3280,63 @@ async function runNativeRecordingOverlay(
       settled = true;
       nativeRecordingSelectionCommitted = true;
       removeSelectionListeners();
-      startPointerPoll();
+      ipcMain.removeListener("recording-ignore-mouse", onIgnoreMouse);
+      activeRecordingOverlay = overlay;
+      overlays.forEach(({ overlay: candidate }) => {
+        if (candidate !== overlay && !candidate.isDestroyed()) candidate.close();
+      });
       resolve({ display, region: { x, y, width, height }, overlay });
     };
 
-    overlay.setMenu(null);
-    overlay.setMenuBarVisibility(false);
-    overlay.setContentProtection(true);
-    overlay.setAlwaysOnTop(true, "screen-saver");
-    overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    overlay.once("ready-to-show", showOverlay);
-    overlay.webContents.once("did-finish-load", showOverlay);
-    overlay.on("closed", () => {
-      stopPointerPoll();
-      ipcMain.removeListener("recording-ignore-mouse", onIgnoreMouse);
-      if (!settled) cancel();
-      if (activeRecordingOverlay === overlay) {
-        activeRecordingOverlay = null;
-        activeRecordingUsesNative = false;
-        nativeRecordingSelectionCommitted = false;
-      }
-      if (activeNativeRecorderProcess?.stdin?.writable) activeNativeRecorderProcess.stdin.write("cancel\n");
+    overlays.forEach(({ display, overlay }) => {
+      overlay.setMenu(null);
+      overlay.setMenuBarVisibility(false);
+      overlay.setAlwaysOnTop(true, "screen-saver");
+      overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      overlay.once("ready-to-show", () => showOverlay(overlay));
+      overlay.webContents.once("did-finish-load", () => {
+        showOverlay(overlay);
+        if (display.id === cursorDisplay.id) setTimeout(() => requestWindowRegions(display, overlay), 40);
+      });
+      overlay.on("closed", () => {
+        if (!settled) cancel();
+        if (activeRecordingOverlay === overlay) {
+          activeRecordingOverlay = null;
+          activeRecordingUsesNative = false;
+          nativeRecordingSelectionCommitted = false;
+        }
+        if (activeNativeRecorderProcess?.stdin?.writable) activeNativeRecorderProcess.stdin.write("cancel\n");
+      });
+
+      void overlay.loadFile(recorderHtmlPath(), {
+        query: {
+          nativeMode: "true",
+          scaleFactor: String(display.scaleFactor || 1),
+          offsetX: String(display.bounds.x),
+          offsetY: String(display.bounds.y),
+          displayWidth: String(display.bounds.width),
+          displayHeight: String(display.bounds.height),
+          displayPixelWidth: String(Math.round(display.size.width * (display.scaleFactor || 1))),
+          displayPixelHeight: String(Math.round(display.size.height * (display.scaleFactor || 1))),
+          fps: String(settings.recordingFps),
+          countdown: String(settings.recordingCountdown),
+          mode,
+          windowRegionChannel,
+          windowRegionActiveChannel,
+          cursorX: String(cursorPoint.x - display.bounds.x),
+          cursorY: String(cursorPoint.y - display.bounds.y),
+          language: settings.language
+        }
+      });
     });
 
     ipcMain.on("recording-region-selected", onSelected);
     ipcMain.on("recording-cancel", onCancel);
     ipcMain.on("recording-ignore-mouse", onIgnoreMouse);
+    ipcMain.on(windowRegionChannel, onWindowRegionRequest);
+    ipcMain.on(windowRegionActiveChannel, onWindowRegionActive);
     ipcMain.on("overlay:ready", onReady);
 
-    void overlay.loadFile(recorderHtmlPath(), {
-      query: {
-        nativeMode: "true",
-        scaleFactor: String(display.scaleFactor || 1),
-        offsetX: String(display.bounds.x),
-        offsetY: String(display.bounds.y),
-        displayWidth: String(display.bounds.width),
-        displayHeight: String(display.bounds.height),
-        displayPixelWidth: String(Math.round(display.size.width * (display.scaleFactor || 1))),
-        displayPixelHeight: String(Math.round(display.size.height * (display.scaleFactor || 1))),
-        fps: String(settings.recordingFps),
-        countdown: String(settings.recordingCountdown),
-        mode,
-        windowX: String(localWindowRegion?.x ?? ""),
-        windowY: String(localWindowRegion?.y ?? ""),
-        windowWidth: String(localWindowRegion?.width ?? ""),
-        windowHeight: String(localWindowRegion?.height ?? ""),
-        language: settings.language
-      }
-    });
   });
 }
 
@@ -3284,6 +3436,13 @@ async function recordSelectedRegionNative(
   if (!selection) return null;
 
   const { display, region, overlay } = selection;
+  if (!overlay.isDestroyed()) {
+    overlay.hide();
+  }
+  // Desktop Duplication can capture or be disrupted by a transparent full-display
+  // Electron window. Keep the overlay for selection only, then let the desktop
+  // compositor settle before the native recorder starts.
+  await delay(120);
   const scaleFactor = display.scaleFactor || 1;
   const width = Math.max(2, Math.floor((region.width * scaleFactor) / 2) * 2);
   const height = Math.max(2, Math.floor((region.height * scaleFactor) / 2) * 2);
@@ -3327,15 +3486,8 @@ async function runRecordingOverlay(
 ): Promise<RecordingPayload | null> {
   const display = getRecordingDisplay(displayId);
   const sourceId = await desktopSourceIdForDisplay(display);
-  const windowRegion = mode === "region" ? await detectCursorWindowRegion(display) : null;
-  const localWindowRegion = windowRegion
-    ? {
-        x: Math.max(0, windowRegion.x - display.bounds.x),
-        y: Math.max(0, windowRegion.y - display.bounds.y),
-        width: Math.max(0, windowRegion.width),
-        height: Math.max(0, windowRegion.height)
-      }
-    : null;
+  const windowRegionsPromise = mode === "region" ? detectWindowRegions(display) : Promise.resolve([]);
+  const cursorPoint = screen.getCursorScreenPoint();
   return new Promise((resolve) => {
     const overlay = new BrowserWindow({
       x: display.bounds.x,
@@ -3408,7 +3560,17 @@ async function runRecordingOverlay(
     overlay.setAlwaysOnTop(true, "screen-saver");
     overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     overlay.once("ready-to-show", showOverlay);
-    overlay.webContents.once("did-finish-load", showOverlay);
+    overlay.webContents.once("did-finish-load", () => {
+      showOverlay();
+      void windowRegionsPromise.then((windowRegions) => {
+        if (!overlay.isDestroyed()) {
+          overlay.webContents.send("window-regions", {
+            regions: windowRegions,
+            cursor: { x: cursorPoint.x - display.bounds.x, y: cursorPoint.y - display.bounds.y }
+          });
+        }
+      });
+    });
     overlay.on("closed", () => finish(null));
 
     ipcMain.once("recording-complete", onComplete);
@@ -3432,10 +3594,8 @@ async function runRecordingOverlay(
         mic: String(settings.recordingMic),
         countdown: String(settings.recordingCountdown),
         mode,
-        windowX: String(localWindowRegion?.x ?? ""),
-        windowY: String(localWindowRegion?.y ?? ""),
-        windowWidth: String(localWindowRegion?.width ?? ""),
-        windowHeight: String(localWindowRegion?.height ?? ""),
+        cursorX: String(cursorPoint.x - display.bounds.x),
+        cursorY: String(cursorPoint.y - display.bounds.y),
         showCursor: String(settings.recordingShowCursor),
         clickHighlight: String(settings.recordingClickHighlight),
         language: settings.language

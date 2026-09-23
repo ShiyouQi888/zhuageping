@@ -13,6 +13,7 @@ const canvas = document.getElementById("annotationCanvas");
 const ctx = canvas.getContext("2d");
 const shade = document.getElementById("shade");
 const selectionEl = document.getElementById("selection");
+const selectionSize = document.getElementById("selectionSize");
 const objectBox = document.getElementById("objectBox");
 const toolbar = document.getElementById("toolbar");
 const statusEl = document.getElementById("status");
@@ -62,7 +63,7 @@ const editorMessages = {
   "zh-CN": {
     documentTitle: "抓个屏截图编辑器",
     toolbarLabel: "截图编辑工具",
-    selectionHint: "拖动选择截图区域",
+    selectionHint: "移动鼠标探测窗口，单击选中；拖动可自定义区域",
     help: "V 选择 · R 矩形 · T 文字 · M 马赛克 · U 模糊 · Ctrl+Shift+O OCR · Ctrl+Shift+F1 滚动截图 · F3 贴图 · Esc 取消 · Ctrl+C 复制 · Enter 完成",
     editableStatus: "可移动选区，也可选中对象后二次编辑",
     textPlaceholder: "输入文字",
@@ -134,7 +135,7 @@ const editorMessages = {
   "en-US": {
     documentTitle: "Zhuageping Screenshot Editor",
     toolbarLabel: "Screenshot editing tools",
-    selectionHint: "Drag to select a capture region",
+    selectionHint: "Hover to detect a window, click to select, or drag a custom region",
     help: "V Select · R Rectangle · T Text · M Mosaic · U Blur · Ctrl+Shift+O OCR · Ctrl+Shift+F1 Scroll · F3 Pin · Esc Cancel · Ctrl+C Copy · Enter Done",
     editableStatus: "Move the selection, or select objects for further editing",
     textPlaceholder: "Enter text",
@@ -207,11 +208,36 @@ const editorMessages = {
 const ui = editorMessages[overlayLanguage];
 const pixelRatio = Number(params.get("scaleFactor")) || window.devicePixelRatio || 1;
 const selectionChannel = params.get("selectionChannel") || "inline-region-selected";
+const windowRegionChannel = params.get("windowRegionChannel") || "";
+const windowRegionActiveChannel = params.get("windowRegionActiveChannel") || "";
 const selectionHint = params.get("selectionHint") || ui.selectionHint;
 const overlayOffset = {
   x: Number(params.get("offsetX")) || 0,
   y: Number(params.get("offsetY")) || 0
 };
+let windowRegions = (() => {
+  try {
+    const value = JSON.parse(params.get("windowRegions") || "[]");
+    return Array.isArray(value)
+      ? value.filter(
+          (rect) =>
+            rect &&
+            [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite) &&
+            rect.width >= 24 &&
+            rect.height >= 24
+        )
+      : [];
+  } catch {
+    return [];
+  }
+})();
+const initialCursor = {
+  x: Number(params.get("cursorX")),
+  y: Number(params.get("cursorY"))
+};
+let lastPointer = { ...initialCursor };
+let windowRegionsRequested = false;
+let lastWindowRegionActiveAt = 0;
 let activeScaleFactor = pixelRatio;
 const minSelectionSize = 24;
 
@@ -470,6 +496,7 @@ function renderSelection() {
   const previewSelection = selection || hoverSelection;
   if (!previewSelection || previewSelection.width < 2 || previewSelection.height < 2) {
     selectionEl.style.display = "none";
+    selectionSize.style.display = "none";
     toolbar.style.display = "none";
     helpEl.style.display = "none";
     return;
@@ -481,6 +508,10 @@ function renderSelection() {
   selectionEl.style.height = `${previewSelection.height}px`;
   selectionEl.classList.toggle("is-editing", phase === "editing");
   selectionEl.classList.toggle("is-hover", !selection && Boolean(hoverSelection));
+  selectionSize.style.display = phase === "selecting" ? "block" : "none";
+  selectionSize.textContent = `${Math.round(previewSelection.width * pixelRatio)} × ${Math.round(previewSelection.height * pixelRatio)}`;
+  selectionSize.style.left = `${Math.max(8, Math.min(window.innerWidth - 110, previewSelection.x))}px`;
+  selectionSize.style.top = `${Math.max(8, previewSelection.y - 30)}px`;
 
   toolbar.style.display = phase === "editing" && Boolean(selection) ? "flex" : "none";
   if (phase !== "editing") return;
@@ -494,6 +525,26 @@ function setHoverSelection(rect) {
   if (phase === "selecting" && !selecting && !pendingAutoSelection) {
     renderSelection();
   }
+}
+
+function windowRegionAt(x, y) {
+  return windowRegions.find(
+    (rect) => x >= rect.x && y >= rect.y && x <= rect.x + rect.width && y <= rect.y + rect.height
+  );
+}
+
+function requestWindowRegions() {
+  if (!windowRegionChannel || windowRegionsRequested) return;
+  windowRegionsRequested = true;
+  ipcRenderer.send(windowRegionChannel);
+}
+
+function announceActiveWindowRegionOverlay() {
+  if (!windowRegionActiveChannel) return;
+  const now = performance.now();
+  if (now - lastWindowRegionActiveAt < 60) return;
+  lastWindowRegionActiveAt = now;
+  ipcRenderer.send(windowRegionActiveChannel);
 }
 
 function positionToolbarNearSelection() {
@@ -1392,6 +1443,13 @@ window.addEventListener("mousedown", (event) => {
 });
 
 window.addEventListener("mousemove", (event) => {
+  requestWindowRegions();
+  announceActiveWindowRegionOverlay();
+  lastPointer = { x: event.clientX, y: event.clientY };
+  if (phase === "selecting" && !selecting && !pendingAutoSelection) {
+    setHoverSelection(windowRegionAt(event.clientX, event.clientY) || null);
+    return;
+  }
   if (resizeState?.mode === "crop") {
     selection = rectFromHandle(resizeState.handle, resizeState.origin, { x: event.clientX, y: event.clientY }, viewportBounds(), minSelectionSize);
     renderSelection();
@@ -1441,6 +1499,9 @@ window.addEventListener("mousemove", (event) => {
   }
   renderObjects();
   drawObject(ctx, drawingObject);
+});
+window.addEventListener("mouseleave", () => {
+  if (phase === "selecting" && !selecting && !pendingAutoSelection) setHoverSelection(null);
 });
 
 window.addEventListener("mouseup", () => {
@@ -1591,6 +1652,25 @@ window.addEventListener("keydown", (event) => {
 });
 
 ipcRenderer.on("inline-region-ready", (_event, rect) => enterEditMode(rect));
+ipcRenderer.on("window-regions", (_event, payload) => {
+  const regions = Array.isArray(payload?.regions) ? payload.regions : [];
+  windowRegions = regions.filter(
+    (rect) =>
+      rect &&
+      [rect.x, rect.y, rect.width, rect.height].every(Number.isFinite) &&
+      rect.width >= 24 &&
+      rect.height >= 24
+  );
+  if (Number.isFinite(payload?.cursor?.x) && Number.isFinite(payload?.cursor?.y)) {
+    lastPointer = { x: payload.cursor.x, y: payload.cursor.y };
+  }
+  if (phase === "selecting" && !selecting && !pendingAutoSelection) {
+    setHoverSelection(windowRegionAt(lastPointer.x, lastPointer.y) || null);
+  }
+});
+ipcRenderer.on("window-regions-clear", () => {
+  if (phase === "selecting" && !selecting && !pendingAutoSelection) setHoverSelection(null);
+});
 ipcRenderer.on("inline-capture-error", () => {
   setStatus(ui.captureError);
   document.body.style.cursor = "default";
@@ -1609,4 +1689,7 @@ ipcRenderer.on("inline-ocr-result", (_event, result) => {
 applyEditorLanguage();
 setStatus(selectionHint);
 setTool("rect", false);
+if (Number.isFinite(initialCursor.x) && Number.isFinite(initialCursor.y)) {
+  setHoverSelection(windowRegionAt(initialCursor.x, initialCursor.y) || null);
+}
 requestAnimationFrame(() => ipcRenderer.send("overlay:ready"));

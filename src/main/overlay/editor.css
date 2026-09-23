@@ -69,14 +69,35 @@ body {
 }
 
 #selection.is-hover {
-  border-color: #60a5fa;
+  border-color: #1687ff;
   box-shadow:
     0 0 0 9999px rgba(0, 0, 0, 0.24),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.32);
+    0 0 0 1px rgba(255, 255, 255, 0.8),
+    0 0 14px rgba(22, 135, 255, 0.5),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.38);
 }
 
 #selection.is-hover .handle {
   display: none;
+}
+
+#selectionSize {
+  position: fixed;
+  z-index: 7;
+  display: none;
+  min-width: 82px;
+  height: 24px;
+  padding: 0 8px;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 24px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(22, 135, 255, 0.5);
+  border-radius: 5px;
+  box-shadow: 0 5px 16px rgba(15, 23, 42, 0.2);
+  pointer-events: none;
 }
 
 #objectBox {
