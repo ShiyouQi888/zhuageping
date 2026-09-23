@@ -39,26 +39,26 @@ Download the latest installer from GitHub Releases:
 
 Current version:
 
-- Version: `0.1.17`
+- Version: `0.1.18`
 - Platform: Windows x64
-- Installer: `zhuageping-Setup-0.1.17-x64.exe`
-- SHA256: `A071DB093DA0629655332F27453B3E479F41DA61B4CCFC60FBB7E7143AAA20F5`
-- Release: [Zhuageping v0.1.17](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.17)
+- Installer: `zhuageping-Setup-0.1.18-x64.exe`
+- SHA256: `BEB2D91B64CE8175A1580B67C2C1D199F6DC8EEB759794550E0DC4DC5CA6F20B`
+- Release: [Zhuageping v0.1.18](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.18)
 
 Note: the current installer is not signed with a commercial code-signing certificate. Windows may show an unknown publisher warning during installation. This is expected for an unsigned installer and does not mean the app connects to the cloud or uploads your data.
 
 ## Latest Updates
 
-Highlights in `v0.1.17`:
+Highlights in `v0.1.18`:
 
-- Added fast top-level window detection for screenshots and region recording: hover to preview a window, click to select it, or drag a custom region.
-- Added multi-monitor sensing overlays with per-display DPI conversion and automatic clearing of stale highlights when the pointer moves between screens.
-- Bundled a NativeAOT Windows window-probe helper, reducing measured probe startup from about one second to roughly 30–50 ms without requiring an external runtime.
-- Restored true full-display recording dimensions instead of reserving pixels for the recording controls.
-- Fixed black frames in custom-region recording by separating the selection overlay from native Desktop Duplication capture.
-- Full-screen recording now shows an inward-drawn preview/countdown frame, then hides the overlay before native recording so the frame is not captured.
-- Improved native MP4/H.264 recording reliability across two displays while retaining system audio, optional microphone, cursor, click highlight, quality, and frame-rate settings.
-- Existing screenshot editing, scrolling capture, OCR, watermark, pinning, auto-update, multilingual UI, and startup reliability improvements remain included.
+- Reorganized preferences into clearer Startup & Runtime, Software Update, Advanced Settings, Language & Appearance, and Window Behavior sections.
+- Reduced the preferences window width while retaining complete Chinese and English labels and scrollable content.
+- Consolidated screenshot and recording storage locations, formats, and history information in the Output tab.
+- Removed the duplicate recording-folder action from the Record tab.
+- Software Update no longer shows an update-source label and now displays the GitHub Release notes directly in the app.
+- The restart-to-install prompt includes the release notes, so users can review changes before applying an update.
+- Fixed update-state races that could leave a completed manual check showing “Checking for updates.”
+- Fixed settings cards being compressed and clipped when their content exceeds the available window height.
 
 ## Screenshots
 

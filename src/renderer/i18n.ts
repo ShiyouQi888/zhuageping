@@ -78,7 +78,8 @@ export const messages = {
       checkingUpdate: "正在检查更新..."
     },
     general: {
-      language: "显示语言:",
+      runtime: "启动与运行",
+      advanced: "高级设置",
       launchAtStartup: "开机启动",
       runAsAdmin: "以管理员身份",
       autoBackup: "自动备份",
@@ -91,6 +92,7 @@ export const messages = {
         silent: "静默"
       },
       configLocation: "配置文件存储位置",
+      openConfigFolder: "打开配置目录",
       path: "路径:",
       restartAsAdmin: "以管理员身份重启"
     },
@@ -98,10 +100,11 @@ export const messages = {
       title: "软件更新",
       currentVersion: "当前版本",
       latestVersion: "最新版本",
-      source: "更新源：GitHub Releases",
+      whatsNew: "本次更新内容",
+      noReleaseNotes: "此版本暂未提供更新说明。",
       idle: "可手动检查新版本，正式安装版启动后也会自动静默检查。",
       disabled: "开发环境不检查更新，请在安装版中测试。",
-      checking: "正在检查 GitHub Releases...",
+      checking: "正在检查更新...",
       available: "发现新版本，正在自动下载。",
       notAvailable: "当前已是最新版本。",
       downloading: "正在下载更新",
@@ -109,6 +112,9 @@ export const messages = {
       error: "更新检查失败，请稍后再试。"
     },
     interface: {
+      appearance: "语言与外观",
+      windowBehavior: "窗口行为",
+      language: "显示语言:",
       windowMode: "窗口模式:",
       preferencesOnly: "仅首选项小窗口",
       trayOnly: "仅托盘",
@@ -171,10 +177,15 @@ export const messages = {
       autoPin: "截图完成后自动贴到桌面"
     },
     output: {
+      files: "文件存储",
       screenshotLocation: "截图文件存储位置",
+      recordingLocation: "录屏文件存储位置",
       path: "路径:",
       format: "输出格式:",
-      historyCount: (count: number) => `当前历史：${count} 张`
+      formatAndHistory: "格式与历史",
+      recordingFormat: "录屏格式:",
+      historyCount: (count: number) => `截图历史：${count} 张`,
+      recordingHistoryCount: (count: number) => `录屏历史：${count} 个`
     },
     control: {
       shortcutsLabel: "快捷键",
@@ -252,7 +263,8 @@ export const messages = {
       checkingUpdate: "Checking for updates..."
     },
     general: {
-      language: "Language:",
+      runtime: "Startup & Runtime",
+      advanced: "Advanced Settings",
       launchAtStartup: "Launch at startup",
       runAsAdmin: "Run as administrator",
       autoBackup: "Auto backup",
@@ -265,6 +277,7 @@ export const messages = {
         silent: "Silent"
       },
       configLocation: "Configuration Storage Location",
+      openConfigFolder: "Open Config Folder",
       path: "Path:",
       restartAsAdmin: "Restart as administrator"
     },
@@ -272,10 +285,11 @@ export const messages = {
       title: "Software Update",
       currentVersion: "Current version",
       latestVersion: "Latest version",
-      source: "Update source: GitHub Releases",
+      whatsNew: "What's new",
+      noReleaseNotes: "No release notes were provided for this version.",
       idle: "You can check manually. Packaged builds also check quietly after launch.",
       disabled: "Update checks run in packaged builds only.",
-      checking: "Checking GitHub Releases...",
+      checking: "Checking for updates...",
       available: "A new version is available and downloading.",
       notAvailable: "You are on the latest version.",
       downloading: "Downloading update",
@@ -283,6 +297,9 @@ export const messages = {
       error: "Update check failed. Please try again later."
     },
     interface: {
+      appearance: "Language & Appearance",
+      windowBehavior: "Window Behavior",
+      language: "Language:",
       windowMode: "Window mode:",
       preferencesOnly: "Preferences window only",
       trayOnly: "Tray only",
@@ -345,10 +362,15 @@ export const messages = {
       autoPin: "Auto pin captures to desktop"
     },
     output: {
+      files: "File Storage",
       screenshotLocation: "Screenshot Storage Location",
+      recordingLocation: "Recording Storage Location",
       path: "Path:",
       format: "Output format:",
-      historyCount: (count: number) => `${count} item${count === 1 ? "" : "s"} in history`
+      formatAndHistory: "Formats & History",
+      recordingFormat: "Recording format:",
+      historyCount: (count: number) => `${count} screenshot${count === 1 ? "" : "s"} in history`,
+      recordingHistoryCount: (count: number) => `${count} recording${count === 1 ? "" : "s"} in history`
     },
     control: {
       shortcutsLabel: "Shortcuts",

@@ -234,8 +234,9 @@ export function App() {
 
   async function chooseScreenshotDir() {
     const updatedSettings = await window.screenshotApp.chooseScreenshotDir();
+    const updatedPaths = await window.screenshotApp.getStoragePaths();
     setSettings({ ...updatedSettings, language: normalizeLanguage(updatedSettings.language), theme: normalizeTheme(updatedSettings.theme) });
-    setStoragePaths((current) => (current ? { ...current, screenshotDir: updatedSettings.screenshotDir } : current));
+    setStoragePaths(updatedPaths);
     setStatus(t.status.screenshotDirUpdated);
   }
 
@@ -286,50 +287,34 @@ export function App() {
       <section className="content">
         {activeTab === "general" ? (
           <>
-            <label className="field-row">
-              <span>{t.general.language}</span>
-              <select value={language} onChange={(event) => updateSetting("language", event.target.value as AppLanguage)}>
-                {languageOptions.map((option) => (
-                  <option value={option.value} key={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="checkbox-grid">
-              <label>
-                <input checked={settings.launchAtStartup} onChange={() => toggleSetting("launchAtStartup")} type="checkbox" />
-                {t.general.launchAtStartup}
-              </label>
-              <label>
-                <input checked={settings.runAsAdmin} onChange={() => toggleSetting("runAsAdmin")} type="checkbox" />
-                {t.general.runAsAdmin}
-              </label>
-              <label>
-                <input checked={settings.autoBackup} onChange={() => toggleSetting("autoBackup")} type="checkbox" />
-                {t.general.autoBackup}
-              </label>
-              <label>
-                <input checked={settings.keepResponsive} onChange={() => toggleSetting("keepResponsive")} type="checkbox" />
-                {t.general.keepResponsive}
-              </label>
-              <label>
-                <input checked={settings.trayMenu} onChange={() => toggleSetting("trayMenu")} type="checkbox" />
-                {t.general.trayMenu}
-              </label>
-            </div>
-            <label className="field-row">
-              <span>{t.general.logLevel}</span>
-              <select value={settings.logLevel} onChange={(event) => updateSetting("logLevel", event.target.value as AppSettings["logLevel"])}>
-                <option value="normal">{t.general.logLevelOptions.normal}</option>
-                <option value="verbose">{t.general.logLevelOptions.verbose}</option>
-                <option value="silent">{t.general.logLevelOptions.silent}</option>
-              </select>
-            </label>
+            <section className="settings-section">
+              <h2>{t.general.runtime}</h2>
+              <div className="settings-section-body checkbox-grid">
+                <label>
+                  <input checked={settings.launchAtStartup} onChange={() => toggleSetting("launchAtStartup")} type="checkbox" />
+                  {t.general.launchAtStartup}
+                </label>
+                <label>
+                  <input checked={settings.keepResponsive} onChange={() => toggleSetting("keepResponsive")} type="checkbox" />
+                  {t.general.keepResponsive}
+                </label>
+                <label>
+                  <input checked={settings.autoBackup} onChange={() => toggleSetting("autoBackup")} type="checkbox" />
+                  {t.general.autoBackup}
+                </label>
+                <label>
+                  <input checked={settings.trayMenu} onChange={() => toggleSetting("trayMenu")} type="checkbox" />
+                  {t.general.trayMenu}
+                </label>
+                <label>
+                  <input checked={settings.runAsAdmin} onChange={() => toggleSetting("runAsAdmin")} type="checkbox" />
+                  {t.general.runAsAdmin}
+                </label>
+              </div>
+            </section>
             <section className="update-panel" aria-live="polite">
               <div className="update-panel-header">
                 <strong>{t.update.title}</strong>
-                <span>{t.update.source}</span>
               </div>
               <div className="update-meta">
                 <span>{t.update.currentVersion}</span>
@@ -341,6 +326,12 @@ export function App() {
               {typeof updateStatus?.percent === "number" ? (
                 <div className="update-progress" aria-label={t.update.downloading}>
                   <span style={{ width: `${Math.max(0, Math.min(100, updateStatus.percent))}%` }} />
+                </div>
+              ) : null}
+              {updateStatus?.latestVersion && updateState !== "not-available" ? (
+                <div className="release-notes">
+                  <strong>{t.update.whatsNew}</strong>
+                  <p>{updateStatus.releaseNotes || t.update.noReleaseNotes}</p>
                 </div>
               ) : null}
               <div className="button-row compact">
@@ -355,43 +346,73 @@ export function App() {
                 ) : null}
               </div>
             </section>
-            <fieldset>
-              <legend>{t.general.configLocation}</legend>
-              <label className="field-row stacked">
-                <span>{t.general.path}</span>
-                <input readOnly value={storagePaths?.dataDir ?? t.common.loading} />
-              </label>
-              <div className="button-row">
-                <button onClick={() => void openPath(storagePaths?.dataDir)}>{t.common.openFolder}</button>
-                <button onClick={() => void openPath(storagePaths?.dataDir)}>{t.common.open}</button>
+            <section className="settings-section">
+              <h2>{t.general.advanced}</h2>
+              <div className="settings-section-body">
+                <label className="field-row">
+                  <span>{t.general.logLevel}</span>
+                  <select value={settings.logLevel} onChange={(event) => updateSetting("logLevel", event.target.value as AppSettings["logLevel"])}>
+                    <option value="normal">{t.general.logLevelOptions.normal}</option>
+                    <option value="verbose">{t.general.logLevelOptions.verbose}</option>
+                    <option value="silent">{t.general.logLevelOptions.silent}</option>
+                  </select>
+                </label>
+                <label className="field-row stacked">
+                  <span>{t.general.path}</span>
+                  <input readOnly value={storagePaths?.dataDir ?? t.common.loading} />
+                </label>
+                <div className="button-row">
+                  <button onClick={() => void openPath(storagePaths?.dataDir)}>
+                    <FolderOpen size={16} aria-hidden="true" />
+                    {t.general.openConfigFolder}
+                  </button>
+                  <button onClick={() => void restartAsAdmin()}>
+                    <Shield size={16} aria-hidden="true" />
+                    {t.general.restartAsAdmin}
+                  </button>
+                </div>
               </div>
-            </fieldset>
-            <div className="button-row">
-              <button onClick={() => void restartAsAdmin()}>
-                <Shield size={16} aria-hidden="true" />
-                {t.general.restartAsAdmin}
-              </button>
-            </div>
+            </section>
           </>
         ) : null}
 
         {activeTab === "interface" ? (
           <>
-            <label className="field-row">
-              <span>{t.interface.windowMode}</span>
-              <select defaultValue="preferences">
-                <option value="preferences">{t.interface.preferencesOnly}</option>
-                <option value="tray">{t.interface.trayOnly}</option>
-              </select>
-            </label>
-            <label className="field-row">
-              <span>{t.interface.theme}</span>
-              <select value={settings.theme} onChange={(event) => updateSetting("theme", event.target.value as AppTheme)}>
-                <option value="system">{t.interface.systemTheme}</option>
-                <option value="light">{t.interface.lightTheme}</option>
-                <option value="dark">{t.interface.darkTheme}</option>
-              </select>
-            </label>
+            <section className="settings-section">
+              <h2>{t.interface.appearance}</h2>
+              <div className="settings-section-body">
+                <label className="field-row">
+                  <span>{t.interface.language}</span>
+                  <select value={language} onChange={(event) => updateSetting("language", event.target.value as AppLanguage)}>
+                    {languageOptions.map((option) => (
+                      <option value={option.value} key={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field-row">
+                  <span>{t.interface.theme}</span>
+                  <select value={settings.theme} onChange={(event) => updateSetting("theme", event.target.value as AppTheme)}>
+                    <option value="system">{t.interface.systemTheme}</option>
+                    <option value="light">{t.interface.lightTheme}</option>
+                    <option value="dark">{t.interface.darkTheme}</option>
+                  </select>
+                </label>
+              </div>
+            </section>
+            <section className="settings-section">
+              <h2>{t.interface.windowBehavior}</h2>
+              <div className="settings-section-body">
+                <label className="field-row">
+                  <span>{t.interface.windowMode}</span>
+                  <select defaultValue="preferences">
+                    <option value="preferences">{t.interface.preferencesOnly}</option>
+                    <option value="tray">{t.interface.trayOnly}</option>
+                  </select>
+                </label>
+              </div>
+            </section>
           </>
         ) : null}
 
@@ -479,10 +500,6 @@ export function App() {
               <button disabled={!recordings[0]} onClick={() => void openPath(recordings[0]?.filePath)}>
                 {t.recording.openLatest}
               </button>
-              <button onClick={() => void window.screenshotApp.openRecordingFolder()}>
-                <FolderOpen size={16} aria-hidden="true" />
-                {t.recording.openFolder}
-              </button>
             </div>
             <label className="field-row">
               <span>{t.recording.fps}</span>
@@ -553,28 +570,57 @@ export function App() {
 
         {activeTab === "output" ? (
           <>
-            <fieldset>
-              <legend>{t.output.screenshotLocation}</legend>
-              <label className="field-row stacked">
-                <span>{t.output.path}</span>
-                <input readOnly value={settings.screenshotDir || storagePaths?.screenshotDir || t.common.loading} />
-              </label>
-              <div className="button-row">
-                <button onClick={() => void openPath(settings.screenshotDir || storagePaths?.screenshotDir)}>
-                  <FolderOpen size={16} aria-hidden="true" />
-                  {t.common.openFolder}
-                </button>
-                <button onClick={() => void chooseScreenshotDir()}>{t.common.change}</button>
+            <section className="settings-section">
+              <h2>{t.output.screenshotLocation}</h2>
+              <div className="settings-section-body">
+                <label className="field-row stacked">
+                  <span>{t.output.path}</span>
+                  <input readOnly value={settings.screenshotDir || storagePaths?.screenshotDir || t.common.loading} />
+                </label>
+                <div className="button-row">
+                  <button onClick={() => void openPath(settings.screenshotDir || storagePaths?.screenshotDir)}>
+                    <FolderOpen size={16} aria-hidden="true" />
+                    {t.common.openFolder}
+                  </button>
+                  <button onClick={() => void chooseScreenshotDir()}>{t.common.change}</button>
+                </div>
               </div>
-            </fieldset>
-            <label className="field-row">
-              <span>{t.output.format}</span>
-              <select value={settings.outputFormat} onChange={(event) => updateSetting("outputFormat", event.target.value as AppSettings["outputFormat"])}>
-                <option value="png">PNG</option>
-                <option value="jpg">JPG</option>
-              </select>
-            </label>
-            <p className="subtle">{t.output.historyCount(history.length)}</p>
+            </section>
+            <section className="settings-section">
+              <h2>{t.output.recordingLocation}</h2>
+              <div className="settings-section-body">
+                <label className="field-row stacked">
+                  <span>{t.output.path}</span>
+                  <input readOnly value={storagePaths?.recordingDir || t.common.loading} />
+                </label>
+                <div className="button-row">
+                  <button onClick={() => void window.screenshotApp.openRecordingFolder()}>
+                    <FolderOpen size={16} aria-hidden="true" />
+                    {t.common.openFolder}
+                  </button>
+                </div>
+              </div>
+            </section>
+            <section className="settings-section">
+              <h2>{t.output.formatAndHistory}</h2>
+              <div className="settings-section-body">
+                <label className="field-row">
+                  <span>{t.output.format}</span>
+                  <select value={settings.outputFormat} onChange={(event) => updateSetting("outputFormat", event.target.value as AppSettings["outputFormat"])}>
+                    <option value="png">PNG</option>
+                    <option value="jpg">JPG</option>
+                  </select>
+                </label>
+                <label className="field-row">
+                  <span>{t.output.recordingFormat}</span>
+                  <strong>MP4</strong>
+                </label>
+                <div className="output-stats">
+                  <span>{t.output.historyCount(history.length)}</span>
+                  <span>{t.output.recordingHistoryCount(recordings.length)}</span>
+                </div>
+              </div>
+            </section>
           </>
         ) : null}
 

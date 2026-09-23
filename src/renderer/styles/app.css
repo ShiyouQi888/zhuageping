@@ -322,11 +322,41 @@ input[type="checkbox"] {
 .content {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   min-height: 0;
   padding: 14px 20px;
   overflow: auto;
   background: var(--surface);
+}
+
+.settings-section {
+  flex: 0 0 auto;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+}
+
+.settings-section > h2 {
+  margin: 0;
+  padding: 9px 12px 8px;
+  color: var(--brand-strong);
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.settings-section-body {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.settings-section-body.checkbox-grid {
+  display: grid;
+  padding: 12px;
 }
 
 .field-row {
@@ -391,8 +421,9 @@ legend {
 
 .update-panel {
   display: grid;
+  flex: 0 0 auto;
   gap: 8px;
-  padding: 12px;
+  padding: 0 12px 12px;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, white 6%) 0%, var(--surface-muted) 100%),
     var(--surface-muted);
@@ -404,9 +435,13 @@ legend {
 .update-panel-header {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 10px;
   min-width: 0;
+  margin: 0 -12px;
+  padding: 9px 12px 8px;
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--line);
 }
 
 .update-panel-header strong {
@@ -415,7 +450,6 @@ legend {
   font-weight: 800;
 }
 
-.update-panel-header span,
 .update-panel p {
   min-width: 0;
   margin: 0;
@@ -423,6 +457,28 @@ legend {
   font-size: 12px;
   font-weight: 700;
   overflow-wrap: anywhere;
+}
+
+.release-notes {
+  display: grid;
+  gap: 5px;
+  max-height: 150px;
+  padding: 9px 10px;
+  overflow: auto;
+  background: color-mix(in srgb, var(--surface) 78%, var(--brand-soft) 22%);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+.release-notes > strong {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.release-notes > p {
+  line-height: 18px;
+  white-space: pre-wrap;
 }
 
 .update-meta {
@@ -696,6 +752,15 @@ legend {
   margin: 0;
   color: var(--muted);
   font-size: 13px;
+  font-weight: 700;
+}
+
+.output-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  color: var(--muted);
+  font-size: 12px;
   font-weight: 700;
 }
 

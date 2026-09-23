@@ -220,6 +220,7 @@ type AppUpdateStatus = {
   currentVersion: string;
   latestVersion?: string;
   percent?: number;
+  releaseNotes?: string;
 };
 
 type OcrLine = {
@@ -314,6 +315,9 @@ let updaterReady = false;
 let updateCheckInProgress = false;
 let updateDownloaded = false;
 let downloadedUpdateVersion = "";
+let availableUpdateVersion = "";
+let availableUpdateNotes = "";
+let latestUpdateStatus: AppUpdateStatus | null = null;
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 let appSettings: AppSettings = {
   settingsSchemaVersion: SETTINGS_SCHEMA_VERSION,
@@ -422,6 +426,7 @@ const mainMessages = {
       chooseScreenshotDir: "选择截图保存目录",
       updateReadyTitle: "更新已准备好",
       updateReadyMessage: (version: string) => `抓个屏 ${version} 已下载完成。现在重启并安装吗？`,
+      updateDetails: "本次更新内容",
       restartNow: "立即重启",
       later: "稍后"
     },
@@ -512,6 +517,7 @@ const mainMessages = {
       chooseScreenshotDir: "Choose Screenshot Folder",
       updateReadyTitle: "Update Ready",
       updateReadyMessage: (version: string) => `Zhuageping ${version} has been downloaded. Restart and install now?`,
+      updateDetails: "What's new",
       restartNow: "Restart Now",
       later: "Later"
     },
@@ -541,11 +547,11 @@ function createWindow() {
   Menu.setApplicationMenu(null);
 
   mainWindow = new BrowserWindow({
-    width: 680,
+    width: 620,
     height: 500,
-    minWidth: 600,
+    minWidth: 580,
     minHeight: 476,
-    maxWidth: 760,
+    maxWidth: 680,
     maxHeight: 640,
     resizable: false,
     maximizable: false,
@@ -900,6 +906,7 @@ async function writeSettings(settings: AppSettings) {
 }
 
 function sendUpdateStatus(status: AppUpdateStatus) {
+  latestUpdateStatus = status;
   mainWindow?.webContents.send("app:update-status", status);
   mainWindow?.webContents.send("app:status", status.message);
 }
@@ -917,14 +924,37 @@ function buildUpdateStatus(
   };
 }
 
-function showDownloadedUpdateDialog(version: string) {
+function normalizeReleaseNotes(
+  notes: string | Array<{ version: string; note: string | null }> | null | undefined
+) {
+  const raw = Array.isArray(notes)
+    ? notes
+        .map((entry) => [entry.version, entry.note].filter(Boolean).join("\n"))
+        .filter(Boolean)
+        .join("\n\n")
+    : notes ?? "";
+  const readable = raw
+    .replace(/<br\s*\/?\s*>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^\s*[-*+]\s+/gm, "• ")
+    .replace(/[`*_~]/g, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return readable.slice(0, 6000);
+}
+
+function showDownloadedUpdateDialog(version: string, releaseNotes = "") {
   const options: Electron.MessageBoxOptions = {
     type: "info",
     buttons: [mt().dialog.restartNow, mt().dialog.later],
     defaultId: 0,
     cancelId: 1,
     title: mt().dialog.updateReadyTitle,
-    message: mt().dialog.updateReadyMessage(version)
+    message: mt().dialog.updateReadyMessage(version),
+    ...(releaseNotes ? { detail: `${mt().dialog.updateDetails}\n\n${releaseNotes}` } : {})
   };
   const owner = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
   const prompt = owner ? dialog.showMessageBox(owner, options) : dialog.showMessageBox(options);
@@ -949,22 +979,38 @@ function setupAutoUpdater() {
   autoUpdater.on("update-available", (info) => {
     updateDownloaded = false;
     downloadedUpdateVersion = "";
-    sendUpdateStatus(buildUpdateStatus("available", mt().status.updateAvailable(info.version), { latestVersion: info.version }));
+    availableUpdateVersion = info.version;
+    availableUpdateNotes = normalizeReleaseNotes(info.releaseNotes);
+    sendUpdateStatus(buildUpdateStatus("available", mt().status.updateAvailable(info.version), {
+      latestVersion: info.version,
+      releaseNotes: availableUpdateNotes
+    }));
   });
   autoUpdater.on("download-progress", (progress) => {
     const percent = Math.max(0, Math.min(100, Math.round(progress.percent || 0)));
-    sendUpdateStatus(buildUpdateStatus("downloading", mt().status.updateDownloading(percent), { percent }));
+    sendUpdateStatus(buildUpdateStatus("downloading", mt().status.updateDownloading(percent), {
+      latestVersion: availableUpdateVersion || undefined,
+      percent,
+      releaseNotes: availableUpdateNotes || undefined
+    }));
   });
   autoUpdater.on("update-not-available", (info) => {
     updateCheckInProgress = false;
+    availableUpdateVersion = "";
+    availableUpdateNotes = "";
     sendUpdateStatus(buildUpdateStatus("not-available", mt().status.updateNotAvailable, { latestVersion: info.version }));
   });
   autoUpdater.on("update-downloaded", (info) => {
     updateCheckInProgress = false;
     updateDownloaded = true;
     downloadedUpdateVersion = info.version;
-    sendUpdateStatus(buildUpdateStatus("downloaded", mt().status.updateDownloaded(info.version), { latestVersion: info.version }));
-    showDownloadedUpdateDialog(info.version);
+    availableUpdateVersion = info.version;
+    availableUpdateNotes = normalizeReleaseNotes(info.releaseNotes) || availableUpdateNotes;
+    sendUpdateStatus(buildUpdateStatus("downloaded", mt().status.updateDownloaded(info.version), {
+      latestVersion: info.version,
+      releaseNotes: availableUpdateNotes || undefined
+    }));
+    showDownloadedUpdateDialog(info.version, availableUpdateNotes);
   });
   autoUpdater.on("error", (error) => {
     updateCheckInProgress = false;
@@ -984,7 +1030,10 @@ async function checkForAppUpdates(manual = false): Promise<AppUpdateStatus> {
   setupAutoUpdater();
   if (updateDownloaded) {
     const version = downloadedUpdateVersion || app.getVersion();
-    const status = buildUpdateStatus("downloaded", mt().status.updateDownloaded(version), { latestVersion: version });
+    const status = buildUpdateStatus("downloaded", mt().status.updateDownloaded(version), {
+      latestVersion: version,
+      releaseNotes: availableUpdateNotes || undefined
+    });
     sendUpdateStatus(status);
     return status;
   }
@@ -996,8 +1045,21 @@ async function checkForAppUpdates(manual = false): Promise<AppUpdateStatus> {
   try {
     updateCheckInProgress = true;
     const result = await autoUpdater.checkForUpdates();
+    if (latestUpdateStatus && latestUpdateStatus.state !== "checking") {
+      return latestUpdateStatus;
+    }
     const latestVersion = result?.updateInfo.version;
-    return buildUpdateStatus("checking", mt().status.checkingUpdate, latestVersion ? { latestVersion } : {});
+    const releaseNotes = normalizeReleaseNotes(result?.updateInfo.releaseNotes);
+    if (latestVersion) {
+      availableUpdateVersion = latestVersion;
+    }
+    if (releaseNotes) {
+      availableUpdateNotes = releaseNotes;
+    }
+    return buildUpdateStatus("checking", mt().status.checkingUpdate, latestVersion ? {
+      latestVersion,
+      releaseNotes: releaseNotes || undefined
+    } : {});
   } catch (error) {
     updateCheckInProgress = false;
     const message = error instanceof Error ? error.message : String(error);
@@ -4245,7 +4307,13 @@ app.whenReady().then(async () => {
   ipcMain.handle("app:copy-data-url", async (_event, dataUrl: string) => {
     clipboard.writeImage(nativeImage.createFromDataURL(dataUrl));
   });
-  ipcMain.handle("app:get-storage-paths", async () => ({ rootDir, dataDir, screenshotDir: appSettings.screenshotDir, backupDir }));
+  ipcMain.handle("app:get-storage-paths", async () => ({
+    rootDir,
+    dataDir,
+    screenshotDir: appSettings.screenshotDir,
+    recordingDir: recordingDir(),
+    backupDir
+  }));
 });
 
 app.on("window-all-closed", () => {

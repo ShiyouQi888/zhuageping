@@ -76,6 +76,7 @@ export type StoragePaths = {
   rootDir: string;
   dataDir: string;
   screenshotDir: string;
+  recordingDir: string;
   backupDir: string;
 };
 
@@ -85,6 +86,7 @@ export type AppUpdateStatus = {
   currentVersion: string;
   latestVersion?: string;
   percent?: number;
+  releaseNotes?: string;
 };
 
 declare global {
