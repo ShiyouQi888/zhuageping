@@ -20,6 +20,7 @@ const colorMagnifier = document.getElementById("colorMagnifier");
 const colorPickerCoordinate = document.getElementById("colorPickerCoordinate");
 const colorPickerValue = document.getElementById("colorPickerValue");
 const colorPickerHint = document.getElementById("colorPickerHint");
+const colorPickerHistory = document.getElementById("colorPickerHistory");
 const colorMagnifierCtx = colorMagnifier.getContext("2d", { alpha: false });
 const objectBox = document.getElementById("objectBox");
 const toolbar = document.getElementById("toolbar");
@@ -288,6 +289,7 @@ let textOutline = false;
 let contextualVisible = false;
 let colorPickerFormat = "rgb";
 let sampledColor = null;
+const copiedColorHistory = [];
 let colorSourceImage = null;
 const colorSourceCanvas = document.createElement("canvas");
 const colorSourceCtx = colorSourceCanvas.getContext("2d", { willReadFrequently: true });
@@ -506,11 +508,32 @@ function colorValueText(color) {
   return colorPickerFormat === "hex" ? `HEX: ${hex}` : `RGB: ${color.r}, ${color.g}, ${color.b}`;
 }
 
+function hexColorValue(color) {
+  return `#${[color.r, color.g, color.b].map((value) => value.toString(16).padStart(2, "0")).join("").toUpperCase()}`;
+}
+
+function renderColorHistory() {
+  colorPickerHistory.replaceChildren(
+    ...copiedColorHistory.map((color) => {
+      const chip = document.createElement("span");
+      chip.style.background = color;
+      chip.title = color;
+      return chip;
+    })
+  );
+}
+
 function copySampledColor() {
   if (!sampledColor) return;
   const value = colorPickerFormat === "hex"
-    ? `#${[sampledColor.r, sampledColor.g, sampledColor.b].map((item) => item.toString(16).padStart(2, "0")).join("").toUpperCase()}`
+    ? hexColorValue(sampledColor)
     : `rgb(${sampledColor.r}, ${sampledColor.g}, ${sampledColor.b})`;
+  const hex = hexColorValue(sampledColor);
+  const existingIndex = copiedColorHistory.indexOf(hex);
+  if (existingIndex >= 0) copiedColorHistory.splice(existingIndex, 1);
+  copiedColorHistory.unshift(hex);
+  copiedColorHistory.splice(4);
+  renderColorHistory();
   if (colorPickerCopyChannel) ipcRenderer.send(colorPickerCopyChannel, value);
   else clipboard.writeText(value);
   colorPickerHint.textContent = ui.colorPickerCopied;

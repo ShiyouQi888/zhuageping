@@ -38,6 +38,17 @@ test("pixelToScreen reverses high-DPI conversion", () => {
   });
 });
 
+test("screen coordinate conversion stays isolated across differently scaled displays", () => {
+  const leftDisplay = { x: -2560, y: 180 };
+  const rightDisplay = { x: 0, y: 0 };
+  const leftPixel = screenToPixel({ x: 380, y: 120, width: 640, height: 360 }, 1.25, leftDisplay);
+  const rightPixel = screenToPixel({ x: 380, y: 120, width: 640, height: 360 }, 2, rightDisplay);
+
+  assert.deepEqual(pixelToScreen(leftPixel, 1.25, leftDisplay), { x: 380, y: 120, width: 640, height: 360 });
+  assert.deepEqual(pixelToScreen(rightPixel, 2, rightDisplay), { x: 380, y: 120, width: 640, height: 360 });
+  assert.notDeepEqual(leftPixel, rightPixel);
+});
+
 test("rectFromHandle clamps resize inside viewport", () => {
   const rect = rectFromHandle(
     "se",

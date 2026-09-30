@@ -1,0 +1,33 @@
+name: Release Windows installer
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - run: npm ci
+      - run: npm run dist
+      - name: Publish installer and updater metadata
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/zhuageping-Setup-*-x64.exe
+            release/zhuageping-Setup-*-x64.exe.blockmap
+            release/latest.yml

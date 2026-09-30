@@ -38,6 +38,8 @@ contextBridge.exposeInMainWorld("screenshotApp", {
   openInFolder: (filePath: string) => ipcRenderer.invoke("app:open-in-folder", filePath),
   openPath: (targetPath: string) => ipcRenderer.invoke("app:open-path", targetPath),
   openRecordingFolder: () => ipcRenderer.invoke("app:open-recording-folder"),
+  openDiagnostics: () => ipcRenderer.invoke("app:open-diagnostics"),
+  copyDiagnostics: () => ipcRenderer.invoke("app:copy-diagnostics"),
   copyImage: (filePath: string) => ipcRenderer.invoke("app:copy-image", filePath),
   getStoragePaths: () => ipcRenderer.invoke("app:get-storage-paths"),
   onOpenPreferences: (callback: () => void) => {

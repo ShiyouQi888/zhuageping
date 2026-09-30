@@ -288,6 +288,8 @@ const rootDir = app.isPackaged ? path.join(appRuntimeDir, "local") : path.resolv
 const dataDir = path.join(rootDir, "data");
 const defaultScreenshotDir = path.join(rootDir, "screenshots");
 const backupDir = path.join(rootDir, "backups");
+const diagnosticsDir = path.join(dataDir, "diagnostics");
+const diagnosticLogPath = path.join(diagnosticsDir, "zhuageping.log");
 const historyPath = path.join(dataDir, "history.json");
 const recordingHistoryPath = path.join(dataDir, "recordings.json");
 const settingsPath = path.join(dataDir, "settings.json");
@@ -323,6 +325,34 @@ let availableUpdateVersion = "";
 let availableUpdateNotes = "";
 let latestUpdateStatus: AppUpdateStatus | null = null;
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
+
+function appendDiagnostic(event: string, details: Record<string, unknown> = {}) {
+  if (appSettings.logLevel === "silent" && !details.error) return;
+  const entry = JSON.stringify({ time: new Date().toISOString(), event, ...details });
+  void fs.mkdir(diagnosticsDir, { recursive: true })
+    .then(() => fs.appendFile(diagnosticLogPath, `${entry}\n`, "utf8"))
+    .catch(() => undefined);
+}
+
+async function diagnosticSummary() {
+  const log = await fs.readFile(diagnosticLogPath, "utf8").catch(() => "");
+  const displays = screen.getAllDisplays().map((display) => ({
+    id: display.id,
+    bounds: display.bounds,
+    scaleFactor: display.scaleFactor,
+    primary: display.id === screen.getPrimaryDisplay().id
+  }));
+  return JSON.stringify({
+    app: APP_NAME,
+    version: app.getVersion(),
+    platform: process.platform,
+    arch: process.arch,
+    packaged: app.isPackaged,
+    displays,
+    diagnosticsPath: diagnosticLogPath,
+    recentLog: log.slice(-12_000)
+  }, null, 2);
+}
 let appSettings: AppSettings = {
   settingsSchemaVersion: SETTINGS_SCHEMA_VERSION,
   location: "上海市",
@@ -846,6 +876,7 @@ async function ensureStorage() {
   await fs.mkdir(appProfileDir, { recursive: true });
   await fs.mkdir(tempCaptureDir, { recursive: true });
   await fs.mkdir(dataDir, { recursive: true });
+  await fs.mkdir(diagnosticsDir, { recursive: true });
   await fs.mkdir(appSettings.screenshotDir, { recursive: true });
   await fs.mkdir(recordingDir(), { recursive: true });
   await fs.mkdir(backupDir, { recursive: true });
@@ -1019,6 +1050,7 @@ function setupAutoUpdater() {
   autoUpdater.on("error", (error) => {
     updateCheckInProgress = false;
     const message = error instanceof Error ? error.message : String(error);
+    appendDiagnostic("update.error", { error: message });
     sendUpdateStatus(buildUpdateStatus("error", mt().status.updateError(message)));
   });
 }
@@ -1067,6 +1099,7 @@ async function checkForAppUpdates(manual = false): Promise<AppUpdateStatus> {
   } catch (error) {
     updateCheckInProgress = false;
     const message = error instanceof Error ? error.message : String(error);
+    appendDiagnostic("update.check.failed", { error: message, manual });
     const status = buildUpdateStatus("error", mt().status.updateError(message));
     sendUpdateStatus(status);
     return status;
@@ -1236,6 +1269,7 @@ function runShortcutRecording() {
   }
   void startRegionRecording(appSettings).catch((error) => {
     console.error("Recording shortcut failed.", error);
+    appendDiagnostic("recording.shortcut.failed", { error: error instanceof Error ? error.message : String(error) });
   });
 }
 
@@ -1251,7 +1285,11 @@ function startRegionRecording(
   pendingNativeRecorderCommand = null;
   updateTrayMenu();
   globalShortcut.register("Escape", () => runShortcutRecording());
-  return recordSelectedRegion(settings, mode, displayId).finally(() => {
+  appendDiagnostic("recording.start", { mode, displayId: displayId ?? null, fps: settings.recordingFps, quality: settings.recordingQuality });
+  return recordSelectedRegion(settings, mode, displayId).catch((error) => {
+    appendDiagnostic("recording.failed", { mode, error: error instanceof Error ? error.message : String(error) });
+    throw error;
+  }).finally(() => {
     recordingRunning = false;
     pendingNativeRecorderCommand = null;
     globalShortcut.unregister("Escape");
@@ -1657,6 +1695,23 @@ function runFfmpeg(args: string[]) {
       reject(new Error(Buffer.concat(stderr).toString("utf8") || `ffmpeg exited with code ${code}`));
     });
   });
+}
+
+async function verifyNativeRecordingFile(filePath: string) {
+  let previousSize = -1;
+  let settled: Awaited<ReturnType<typeof fs.stat>> | null = null;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const current = await fs.stat(filePath);
+    if (current.isFile() && current.size >= 10 * 1024 && current.size === previousSize) {
+      settled = current;
+      break;
+    }
+    previousSize = current.size;
+    await delay(150);
+  }
+  if (!settled) throw new Error("Recording output did not finish writing.");
+  await runFfmpeg(["-v", "error", "-i", filePath, "-map", "0:v:0", "-frames:v", "1", "-f", "null", "-"]);
+  return settled;
 }
 
 async function transcodeRecordingToMp4(
@@ -3662,8 +3717,7 @@ async function saveNativeRecordingRecord(
   width: number,
   height: number
 ): Promise<RecordingRecord> {
-  const stat = await fs.stat(filePath);
-  if (stat.size < 1024) throw new Error("录屏文件为空，请稍后重试。");
+  const stat = await verifyNativeRecordingFile(filePath);
   const createdAt = new Date();
   const record: RecordingRecord = {
     id: crypto.randomUUID(),
@@ -3678,6 +3732,7 @@ async function saveNativeRecordingRecord(
   await writeRecordingHistory([record, ...records].slice(0, 200));
   mainWindow?.webContents.send("app:recording-created", record);
   mainWindow?.webContents.send("app:status", mt().status.recordingSaved(filePath));
+  appendDiagnostic("recording.completed", { filePath, bytes: stat.size, width, height, durationMs: record.durationMs });
   return record;
 }
 
@@ -4522,6 +4577,13 @@ app.whenReady().then(async () => {
   ipcMain.handle("app:open-recording-folder", async () => {
     await fs.mkdir(recordingDir(), { recursive: true });
     await shell.openPath(recordingDir());
+  });
+  ipcMain.handle("app:open-diagnostics", async () => {
+    await fs.mkdir(diagnosticsDir, { recursive: true });
+    await shell.openPath(diagnosticsDir);
+  });
+  ipcMain.handle("app:copy-diagnostics", async () => {
+    clipboard.writeText(await diagnosticSummary());
   });
   ipcMain.handle("app:copy-image", async (_event, filePath: string) => {
     clipboard.writeImage(nativeImage.createFromPath(filePath));

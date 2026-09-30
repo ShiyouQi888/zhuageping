@@ -115,6 +115,8 @@ declare global {
       openInFolder: (filePath: string) => Promise<void>;
       openPath: (targetPath: string) => Promise<void>;
       openRecordingFolder: () => Promise<void>;
+      openDiagnostics: () => Promise<void>;
+      copyDiagnostics: () => Promise<void>;
       copyImage: (filePath: string) => Promise<void>;
       getStoragePaths: () => Promise<StoragePaths>;
       onOpenPreferences: (callback: () => void) => () => void;

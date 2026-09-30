@@ -93,6 +93,9 @@ export const messages = {
       },
       configLocation: "配置文件存储位置",
       openConfigFolder: "打开配置目录",
+      diagnostics: "诊断与日志",
+      openDiagnostics: "打开日志目录",
+      copyDiagnostics: "复制诊断信息",
       path: "路径:",
       restartAsAdmin: "以管理员身份重启"
     },
@@ -283,6 +286,9 @@ export const messages = {
       },
       configLocation: "Configuration Storage Location",
       openConfigFolder: "Open Config Folder",
+      diagnostics: "Diagnostics & Logs",
+      openDiagnostics: "Open Log Folder",
+      copyDiagnostics: "Copy Diagnostic Info",
       path: "Path:",
       restartAsAdmin: "Restart as administrator"
     },

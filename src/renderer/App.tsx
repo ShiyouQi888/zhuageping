@@ -400,6 +400,14 @@ export function App() {
                     <FolderOpen size={16} aria-hidden="true" />
                     {t.general.openConfigFolder}
                   </button>
+                  <button onClick={() => void window.screenshotApp.openDiagnostics()}>
+                    <FolderOpen size={16} aria-hidden="true" />
+                    {t.general.openDiagnostics}
+                  </button>
+                  <button onClick={() => void window.screenshotApp.copyDiagnostics()}>
+                    <Info size={16} aria-hidden="true" />
+                    {t.general.copyDiagnostics}
+                  </button>
                   <button onClick={() => void restartAsAdmin()}>
                     <Shield size={16} aria-hidden="true" />
                     {t.general.restartAsAdmin}
