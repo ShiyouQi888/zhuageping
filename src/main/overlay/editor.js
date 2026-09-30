@@ -19,6 +19,12 @@ const colorPicker = document.getElementById("colorPicker");
 const colorMagnifier = document.getElementById("colorMagnifier");
 const colorPickerCoordinate = document.getElementById("colorPickerCoordinate");
 const colorPickerValue = document.getElementById("colorPickerValue");
+const colorPickerTitle = document.getElementById("colorPickerTitle");
+const colorPickerMode = document.getElementById("colorPickerMode");
+const colorPickerCoordinateLabel = document.getElementById("colorPickerCoordinateLabel");
+const colorPickerValueLabel = document.getElementById("colorPickerValueLabel");
+const colorPickerSwatch = document.getElementById("colorPickerSwatch");
+const colorPickerHistoryLabel = document.getElementById("colorPickerHistoryLabel");
 const colorPickerHint = document.getElementById("colorPickerHint");
 const colorPickerHistory = document.getElementById("colorPickerHistory");
 const colorMagnifierCtx = colorMagnifier.getContext("2d", { alpha: false });
@@ -72,6 +78,10 @@ const editorMessages = {
     documentTitle: "抓个屏截图编辑器",
     toolbarLabel: "截图编辑工具",
     selectionHint: "移动鼠标探测窗口，单击选中；拖动可自定义区域",
+    colorPickerTitle: "取色器",
+    colorPickerCoordinate: "坐标",
+    colorPickerValue: "颜色",
+    colorPickerRecent: "最近复制",
     colorPickerHint: "C 复制颜色 · Shift 切换 RGB/HEX",
     colorPickerCopied: "已复制颜色值",
     help: "V 选择 · R 矩形 · T 文字 · M 马赛克 · U 模糊 · Ctrl+Shift+O OCR · Ctrl+Shift+F1 滚动截图 · F3 贴图 · Esc 取消 · Ctrl+C 复制 · Enter 完成",
@@ -146,6 +156,10 @@ const editorMessages = {
     documentTitle: "Zhuageping Screenshot Editor",
     toolbarLabel: "Screenshot editing tools",
     selectionHint: "Hover to detect a window, click to select, or drag a custom region",
+    colorPickerTitle: "Color picker",
+    colorPickerCoordinate: "Position",
+    colorPickerValue: "Color value",
+    colorPickerRecent: "Recent",
     colorPickerHint: "C copy color · Shift toggle RGB/HEX",
     colorPickerCopied: "Color copied",
     help: "V Select · R Rectangle · T Text · M Mosaic · U Blur · Ctrl+Shift+O OCR · Ctrl+Shift+F1 Scroll · F3 Pin · Esc Cancel · Ctrl+C Copy · Enter Done",
@@ -305,6 +319,10 @@ function applyEditorLanguage() {
   ocrText.placeholder = ui.ocr.empty;
   ocrTip.textContent = ui.ocr.tip;
   ocrCopyButton.textContent = ui.ocr.copyButton;
+  colorPickerTitle.textContent = ui.colorPickerTitle;
+  colorPickerCoordinateLabel.textContent = ui.colorPickerCoordinate;
+  colorPickerValueLabel.textContent = ui.colorPickerValue;
+  colorPickerHistoryLabel.textContent = ui.colorPickerRecent;
   colorPickerHint.textContent = ui.colorPickerHint;
   ocrCloseButton.title = ui.ocr.close;
   const saveLabel = document.querySelector("#save span");
@@ -512,6 +530,12 @@ function hexColorValue(color) {
   return `#${[color.r, color.g, color.b].map((value) => value.toString(16).padStart(2, "0")).join("").toUpperCase()}`;
 }
 
+function renderSampledColor() {
+  colorPickerMode.textContent = colorPickerFormat.toUpperCase();
+  colorPickerValue.textContent = colorValueText(sampledColor);
+  colorPickerSwatch.style.background = sampledColor ? hexColorValue(sampledColor) : "#000000";
+}
+
 function renderColorHistory() {
   colorPickerHistory.replaceChildren(
     ...copiedColorHistory.map((color) => {
@@ -595,17 +619,15 @@ function updateColorPicker(clientX, clientY) {
   const sampleY = Math.max(0, Math.min(Math.round(clientY * sourceScaleY), Math.max(0, colorSourceCanvas.height - 1)));
   const coordinateX = Math.round(overlayOffset.x * sourceScaleX + sampleX);
   const coordinateY = Math.round(overlayOffset.y * sourceScaleY + sampleY);
-  colorPickerCoordinate.textContent = overlayLanguage === "en-US"
-    ? `XY: ${coordinateX}, ${coordinateY}`
-    : `坐标: ${coordinateX}, ${coordinateY}`;
+  colorPickerCoordinate.textContent = `${coordinateX}, ${coordinateY}`;
 
   const [r, g, b] = colorSourceCtx.getImageData(sampleX, sampleY, 1, 1).data;
   sampledColor = { r, g, b };
-  colorPickerValue.textContent = colorValueText(sampledColor);
+  renderSampledColor();
   drawColorMagnifier(sampleX, sampleY);
 
-  const pickerWidth = colorPicker.offsetWidth || 184;
-  const pickerHeight = colorPicker.offsetHeight || 264;
+  const pickerWidth = colorPicker.offsetWidth || 258;
+  const pickerHeight = colorPicker.offsetHeight || 224;
   const placeLeft = clientX + 26;
   const placeTop = clientY + 26;
   const left = placeLeft + pickerWidth > window.innerWidth - 10 ? Math.max(10, clientX - pickerWidth - 26) : placeLeft;
@@ -1757,7 +1779,7 @@ window.addEventListener("keydown", (event) => {
     if (event.key === "Shift" && !event.repeat) {
       event.preventDefault();
       colorPickerFormat = colorPickerFormat === "rgb" ? "hex" : "rgb";
-      colorPickerValue.textContent = colorValueText(sampledColor);
+      renderSampledColor();
       return;
     }
   }
@@ -1829,7 +1851,7 @@ ipcRenderer.on("inline-color-picker-hotkey", (_event, payload) => {
   if (payload?.action === "copy") copySampledColor();
   if (payload?.action === "toggle-format") {
     colorPickerFormat = colorPickerFormat === "rgb" ? "hex" : "rgb";
-    colorPickerValue.textContent = colorValueText(sampledColor);
+    renderSampledColor();
   }
 });
 ipcRenderer.on("window-regions", (_event, payload) => {

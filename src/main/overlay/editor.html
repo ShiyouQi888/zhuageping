@@ -22,11 +22,27 @@
     <div id="selectionSize"></div>
     <div id="colorCrosshair" aria-hidden="true"></div>
     <div id="colorPicker" aria-live="polite">
-      <canvas id="colorMagnifier" width="132" height="132"></canvas>
-      <div class="color-picker-details">
-        <strong id="colorPickerCoordinate">坐标: -</strong>
-        <span id="colorPickerValue">RGB: -</span>
-        <div id="colorPickerHistory" aria-label="最近复制的颜色"></div>
+      <div class="color-picker-header">
+        <span id="colorPickerTitle">取色器</span>
+        <span id="colorPickerMode">RGB</span>
+      </div>
+      <div class="color-picker-main">
+        <div class="color-magnifier-wrap">
+          <canvas id="colorMagnifier" width="120" height="120"></canvas>
+        </div>
+        <div class="color-picker-details">
+          <span class="color-field-label" id="colorPickerCoordinateLabel">坐标</span>
+          <strong id="colorPickerCoordinate">-</strong>
+          <span class="color-field-label" id="colorPickerValueLabel">颜色</span>
+          <span id="colorPickerValue">RGB: -</span>
+          <span id="colorPickerSwatch" aria-hidden="true"></span>
+        </div>
+      </div>
+      <div class="color-picker-footer">
+        <div class="color-history-row">
+          <span class="color-history-label" id="colorPickerHistoryLabel">最近复制</span>
+          <div id="colorPickerHistory" aria-label="最近复制的颜色"></div>
+        </div>
         <small id="colorPickerHint">C 复制颜色 · Shift 切换 RGB/HEX</small>
       </div>
     </div>

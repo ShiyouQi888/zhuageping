@@ -139,67 +139,155 @@ body {
   position: fixed;
   z-index: 9;
   display: none;
-  width: 184px;
-  min-height: 288px;
+  width: 258px;
   overflow: hidden;
-  color: #f8fafc;
-  background: rgba(15, 23, 42, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.88);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.36);
+  color: #e8eef5;
+  background: rgba(20, 27, 36, 0.96);
+  border: 1px solid rgba(177, 201, 221, 0.72);
+  border-radius: 8px;
+  box-shadow: 0 16px 34px rgba(2, 6, 12, 0.42);
   pointer-events: none;
+}
+
+.color-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  padding: 0 10px 0 12px;
+  color: #f4f7fb;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(177, 201, 221, 0.18);
+}
+
+#colorPickerMode {
+  min-width: 36px;
+  padding: 3px 6px;
+  color: #b9d9ff;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  background: rgba(67, 149, 232, 0.16);
+  border: 1px solid rgba(108, 176, 242, 0.36);
+  border-radius: 3px;
+}
+
+.color-picker-main {
+  display: flex;
+  gap: 11px;
+  padding: 11px 12px;
+}
+
+.color-magnifier-wrap {
+  position: relative;
+  flex: 0 0 120px;
+  width: 120px;
+  height: 120px;
+  overflow: hidden;
+  background: #0d131c;
+  border: 1px solid rgba(255, 255, 255, 0.48);
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3);
 }
 
 #colorMagnifier {
   display: block;
-  width: 132px;
-  height: 132px;
-  margin: 10px auto 0;
-  border: 1px solid rgba(255, 255, 255, 0.26);
+  width: 120px;
+  height: 120px;
   image-rendering: pixelated;
 }
 
 .color-picker-details {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  padding: 11px 13px 13px;
-  font-size: 12px;
-  line-height: 1.25;
+  min-width: 0;
+  flex: 1;
+  gap: 3px;
+  padding: 2px 0;
+}
+
+.color-field-label {
+  margin-top: 2px;
+  color: #8f9dab;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
 }
 
 .color-picker-details strong,
-.color-picker-details span {
-  color: #ffffff;
+#colorPickerValue {
+  overflow: hidden;
+  color: #f7fafc;
   font-family: "Cascadia Mono", Consolas, monospace;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.color-picker-details span {
-  color: #9cc9ff;
+#colorPickerValue {
+  color: #9fcbff;
 }
 
-.color-picker-details small {
-  margin-top: 4px;
-  color: rgba(226, 232, 240, 0.9);
+#colorPickerSwatch {
+  display: block;
+  width: 100%;
+  height: 22px;
+  margin-top: auto;
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+.color-picker-footer {
+  padding: 8px 12px 10px;
+  background: rgba(255, 255, 255, 0.035);
+  border-top: 1px solid rgba(177, 201, 221, 0.14);
+}
+
+.color-history-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+}
+
+.color-history-label {
+  flex: 0 0 auto;
+  color: #8f9dab;
   font-size: 10px;
-  line-height: 1.45;
+  font-weight: 600;
 }
 
 #colorPickerHistory {
   display: flex;
-  gap: 5px;
-  min-height: 18px;
+  gap: 4px;
+  min-height: 16px;
   overflow: hidden;
 }
 
 #colorPickerHistory span {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
-  border: 1px solid rgba(255, 255, 255, 0.62);
-  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.72);
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgba(5, 10, 16, 0.74);
+}
+
+.color-picker-footer small {
+  display: block;
+  margin-top: 7px;
+  color: #b9c5d1;
+  font-size: 10px;
+  line-height: 1.25;
 }
 
 body.is-selecting-drag #colorCrosshair,
