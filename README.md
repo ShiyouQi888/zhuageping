@@ -99,10 +99,19 @@ Highlights in `v0.1.20`:
   </tr>
 </table>
 
+### Pixel Color Picker
+
+<p align="center">
+  <img src="docs/readme-assets/capture-color-picker.png" alt="F1 capture overlay with the inline pixel color picker, magnifier, coordinates, and RGB value" width="900" />
+</p>
+
+Move the pointer after pressing `F1` to inspect the pixel beneath it. The picker shows a magnified sample, absolute screen coordinates, and the current color value. Press `C` to copy the value and `Shift` to switch between RGB and HEX.
+
 ## Core Features
 
 - Region capture: press `F1` to open the transparent capture overlay and drag to select a region.
 - Window auto-detection: hover a window during capture to highlight it, then click to select it.
+- Pixel color picker: inspect any screen pixel during F1 capture with a magnifier, coordinates, RGB/HEX values, `C` to copy, and `Shift` to switch formats.
 - Capture and copy: press `Ctrl+F1` to capture and copy the result to the clipboard.
 - Custom capture: press `Shift+F1` to enter the region capture flow.
 - Scrolling capture: press `Ctrl+Shift+F1` to select a scrollable area and stitch a long screenshot.
@@ -129,11 +138,12 @@ Highlights in `v0.1.20`:
 ## Screenshot Workflow
 
 1. Press `F1` to enter capture mode.
-2. Drag to select a region, or move the mouse over a window and click the auto-detected region.
-3. The screenshot editing toolbar appears below the selection.
-4. Add text, arrows, rectangles, mosaic, blur, and other annotations inside the current capture region.
-5. To recognize text, click OCR or press `Ctrl+Shift+O`.
-6. Click copy, pin, save, or finish.
+2. Move the pointer to inspect a pixel; press `C` to copy its RGB/HEX value or `Shift` to switch the displayed format.
+3. Drag to select a region, or move the mouse over a window and click the auto-detected region.
+4. The screenshot editing toolbar appears below the selection.
+5. Add text, arrows, rectangles, mosaic, blur, and other annotations inside the current capture region.
+6. To recognize text, click OCR or press `Ctrl+Shift+O`.
+7. Click copy, pin, save, or finish.
 
 Design rules:
 
