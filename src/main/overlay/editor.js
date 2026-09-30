@@ -14,6 +14,13 @@ const ctx = canvas.getContext("2d");
 const shade = document.getElementById("shade");
 const selectionEl = document.getElementById("selection");
 const selectionSize = document.getElementById("selectionSize");
+const colorCrosshair = document.getElementById("colorCrosshair");
+const colorPicker = document.getElementById("colorPicker");
+const colorMagnifier = document.getElementById("colorMagnifier");
+const colorPickerCoordinate = document.getElementById("colorPickerCoordinate");
+const colorPickerValue = document.getElementById("colorPickerValue");
+const colorPickerHint = document.getElementById("colorPickerHint");
+const colorMagnifierCtx = colorMagnifier.getContext("2d", { alpha: false });
 const objectBox = document.getElementById("objectBox");
 const toolbar = document.getElementById("toolbar");
 const statusEl = document.getElementById("status");
@@ -64,6 +71,8 @@ const editorMessages = {
     documentTitle: "抓个屏截图编辑器",
     toolbarLabel: "截图编辑工具",
     selectionHint: "移动鼠标探测窗口，单击选中；拖动可自定义区域",
+    colorPickerHint: "C 复制颜色 · Shift 切换 RGB/HEX",
+    colorPickerCopied: "已复制颜色值",
     help: "V 选择 · R 矩形 · T 文字 · M 马赛克 · U 模糊 · Ctrl+Shift+O OCR · Ctrl+Shift+F1 滚动截图 · F3 贴图 · Esc 取消 · Ctrl+C 复制 · Enter 完成",
     editableStatus: "可移动选区，也可选中对象后二次编辑",
     textPlaceholder: "输入文字",
@@ -136,6 +145,8 @@ const editorMessages = {
     documentTitle: "Zhuageping Screenshot Editor",
     toolbarLabel: "Screenshot editing tools",
     selectionHint: "Hover to detect a window, click to select, or drag a custom region",
+    colorPickerHint: "C copy color · Shift toggle RGB/HEX",
+    colorPickerCopied: "Color copied",
     help: "V Select · R Rectangle · T Text · M Mosaic · U Blur · Ctrl+Shift+O OCR · Ctrl+Shift+F1 Scroll · F3 Pin · Esc Cancel · Ctrl+C Copy · Enter Done",
     editableStatus: "Move the selection, or select objects for further editing",
     textPlaceholder: "Enter text",
@@ -210,6 +221,8 @@ const pixelRatio = Number(params.get("scaleFactor")) || window.devicePixelRatio 
 const selectionChannel = params.get("selectionChannel") || "inline-region-selected";
 const windowRegionChannel = params.get("windowRegionChannel") || "";
 const windowRegionActiveChannel = params.get("windowRegionActiveChannel") || "";
+const colorPickerHotkeyChannel = params.get("colorPickerHotkeyChannel") || "";
+const colorPickerCopyChannel = params.get("colorPickerCopyChannel") || "";
 const selectionHint = params.get("selectionHint") || ui.selectionHint;
 const overlayOffset = {
   x: Number(params.get("offsetX")) || 0,
@@ -273,6 +286,11 @@ let textBold = false;
 let textBackground = false;
 let textOutline = false;
 let contextualVisible = false;
+let colorPickerFormat = "rgb";
+let sampledColor = null;
+let colorSourceImage = null;
+const colorSourceCanvas = document.createElement("canvas");
+const colorSourceCtx = colorSourceCanvas.getContext("2d", { willReadFrequently: true });
 const history = [];
 
 function applyEditorLanguage() {
@@ -285,6 +303,7 @@ function applyEditorLanguage() {
   ocrText.placeholder = ui.ocr.empty;
   ocrTip.textContent = ui.ocr.tip;
   ocrCopyButton.textContent = ui.ocr.copyButton;
+  colorPickerHint.textContent = ui.colorPickerHint;
   ocrCloseButton.title = ui.ocr.close;
   const saveLabel = document.querySelector("#save span");
   if (saveLabel) saveLabel.textContent = overlayLanguage === "en-US" ? "Save" : "保存";
@@ -481,6 +500,115 @@ function screenSelectionToCaptureRegion(rect) {
   };
 }
 
+function colorValueText(color) {
+  if (!color) return colorPickerFormat === "hex" ? "HEX: -" : "RGB: -";
+  const hex = `#${[color.r, color.g, color.b].map((value) => value.toString(16).padStart(2, "0")).join("").toUpperCase()}`;
+  return colorPickerFormat === "hex" ? `HEX: ${hex}` : `RGB: ${color.r}, ${color.g}, ${color.b}`;
+}
+
+function copySampledColor() {
+  if (!sampledColor) return;
+  const value = colorPickerFormat === "hex"
+    ? `#${[sampledColor.r, sampledColor.g, sampledColor.b].map((item) => item.toString(16).padStart(2, "0")).join("").toUpperCase()}`
+    : `rgb(${sampledColor.r}, ${sampledColor.g}, ${sampledColor.b})`;
+  if (colorPickerCopyChannel) ipcRenderer.send(colorPickerCopyChannel, value);
+  else clipboard.writeText(value);
+  colorPickerHint.textContent = ui.colorPickerCopied;
+  setTimeout(() => {
+    if (phase === "selecting") colorPickerHint.textContent = ui.colorPickerHint;
+  }, 1000);
+}
+
+function drawColorMagnifier(sampleX, sampleY) {
+  if (!colorSourceImage) return;
+  const cells = 11;
+  const cellSize = colorMagnifier.width / cells;
+  const sourceX = Math.max(0, Math.min(colorSourceCanvas.width - 1, sampleX));
+  const sourceY = Math.max(0, Math.min(colorSourceCanvas.height - 1, sampleY));
+  const startX = Math.max(0, Math.min(colorSourceCanvas.width - cells, sourceX - Math.floor(cells / 2)));
+  const startY = Math.max(0, Math.min(colorSourceCanvas.height - cells, sourceY - Math.floor(cells / 2)));
+  colorMagnifierCtx.imageSmoothingEnabled = false;
+  colorMagnifierCtx.drawImage(
+    colorSourceCanvas,
+    startX,
+    startY,
+    Math.min(cells, colorSourceCanvas.width),
+    Math.min(cells, colorSourceCanvas.height),
+    0,
+    0,
+    colorMagnifier.width,
+    colorMagnifier.height
+  );
+  colorMagnifierCtx.strokeStyle = "rgba(255,255,255,.2)";
+  colorMagnifierCtx.lineWidth = 1;
+  for (let index = 0; index <= cells; index += 1) {
+    const position = Math.round(index * cellSize) + 0.5;
+    colorMagnifierCtx.beginPath();
+    colorMagnifierCtx.moveTo(position, 0);
+    colorMagnifierCtx.lineTo(position, colorMagnifier.height);
+    colorMagnifierCtx.moveTo(0, position);
+    colorMagnifierCtx.lineTo(colorMagnifier.width, position);
+    colorMagnifierCtx.stroke();
+  }
+  colorMagnifierCtx.strokeStyle = "#ffffff";
+  colorMagnifierCtx.lineWidth = 2;
+  colorMagnifierCtx.strokeRect(Math.floor(cells / 2) * cellSize + 1, Math.floor(cells / 2) * cellSize + 1, cellSize - 2, cellSize - 2);
+}
+
+function updateColorPicker(clientX, clientY) {
+  if (phase !== "selecting" || selecting || pendingAutoSelection) return;
+  if (!colorSourceCanvas.width || !colorSourceCanvas.height) {
+    hideColorPicker();
+    return;
+  }
+  colorCrosshair.style.display = "block";
+  colorCrosshair.style.left = `${clientX}px`;
+  colorCrosshair.style.top = `${clientY}px`;
+  colorPicker.style.display = "block";
+
+  const sourceScaleX = colorSourceCanvas.width ? colorSourceCanvas.width / window.innerWidth : pixelRatio;
+  const sourceScaleY = colorSourceCanvas.height ? colorSourceCanvas.height / window.innerHeight : pixelRatio;
+  const sampleX = Math.max(0, Math.min(Math.round(clientX * sourceScaleX), Math.max(0, colorSourceCanvas.width - 1)));
+  const sampleY = Math.max(0, Math.min(Math.round(clientY * sourceScaleY), Math.max(0, colorSourceCanvas.height - 1)));
+  const coordinateX = Math.round(overlayOffset.x * sourceScaleX + sampleX);
+  const coordinateY = Math.round(overlayOffset.y * sourceScaleY + sampleY);
+  colorPickerCoordinate.textContent = overlayLanguage === "en-US"
+    ? `XY: ${coordinateX}, ${coordinateY}`
+    : `坐标: ${coordinateX}, ${coordinateY}`;
+
+  const [r, g, b] = colorSourceCtx.getImageData(sampleX, sampleY, 1, 1).data;
+  sampledColor = { r, g, b };
+  colorPickerValue.textContent = colorValueText(sampledColor);
+  drawColorMagnifier(sampleX, sampleY);
+
+  const pickerWidth = colorPicker.offsetWidth || 184;
+  const pickerHeight = colorPicker.offsetHeight || 264;
+  const placeLeft = clientX + 26;
+  const placeTop = clientY + 26;
+  const left = placeLeft + pickerWidth > window.innerWidth - 10 ? Math.max(10, clientX - pickerWidth - 26) : placeLeft;
+  const top = placeTop + pickerHeight > window.innerHeight - 10 ? Math.max(10, clientY - pickerHeight - 26) : placeTop;
+  colorPicker.style.left = `${Math.round(left)}px`;
+  colorPicker.style.top = `${Math.round(top)}px`;
+}
+
+function hideColorPicker() {
+  colorCrosshair.style.display = "none";
+  colorPicker.style.display = "none";
+}
+
+function setColorPickerImage(dataUrl) {
+  if (!dataUrl || phase !== "selecting") return;
+  const image = new Image();
+  image.onload = () => {
+    colorSourceImage = image;
+    colorSourceCanvas.width = image.naturalWidth;
+    colorSourceCanvas.height = image.naturalHeight;
+    colorSourceCtx.drawImage(image, 0, 0);
+    updateColorPicker(lastPointer.x, lastPointer.y);
+  };
+  image.src = dataUrl;
+}
+
 function eventPoint(event) {
   if (!canvasRect) {
     return { x: event.clientX * pixelRatio, y: event.clientY * pixelRatio };
@@ -674,6 +802,9 @@ function moveCrop(nextRect) {
 
 function enterEditMode(rect) {
   phase = "editing";
+  if (colorPickerHotkeyChannel) ipcRenderer.send(colorPickerHotkeyChannel, false);
+  hideColorPicker();
+  document.body.classList.remove("is-selecting-drag");
   hoverSelection = null;
   pendingAutoSelection = null;
   pendingAutoStart = null;
@@ -1428,6 +1559,7 @@ canvas.addEventListener("dblclick", (event) => {
 
 window.addEventListener("mousedown", (event) => {
   if (phase !== "selecting" || event.button !== 0 || toolbar.contains(event.target)) return;
+  document.body.classList.add("is-selecting-drag");
   if (hoverSelection) {
     pendingAutoSelection = { ...hoverSelection };
     pendingAutoStart = { x: event.clientX, y: event.clientY };
@@ -1446,6 +1578,7 @@ window.addEventListener("mousemove", (event) => {
   requestWindowRegions();
   announceActiveWindowRegionOverlay();
   lastPointer = { x: event.clientX, y: event.clientY };
+  updateColorPicker(event.clientX, event.clientY);
   if (phase === "selecting" && !selecting && !pendingAutoSelection) {
     setHoverSelection(windowRegionAt(event.clientX, event.clientY) || null);
     return;
@@ -1501,10 +1634,12 @@ window.addEventListener("mousemove", (event) => {
   drawObject(ctx, drawingObject);
 });
 window.addEventListener("mouseleave", () => {
+  hideColorPicker();
   if (phase === "selecting" && !selecting && !pendingAutoSelection) setHoverSelection(null);
 });
 
 window.addEventListener("mouseup", () => {
+  document.body.classList.remove("is-selecting-drag");
   if (resizeState?.mode === "crop") {
     const nextRect = { ...selection };
     resizeState = null;
@@ -1590,6 +1725,19 @@ window.addEventListener("keydown", (event) => {
     return;
   }
   if (activeTextEditor) return;
+  if (phase === "selecting" && !selecting && !pendingAutoSelection) {
+    if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLowerCase() === "c") {
+      event.preventDefault();
+      copySampledColor();
+      return;
+    }
+    if (event.key === "Shift" && !event.repeat) {
+      event.preventDefault();
+      colorPickerFormat = colorPickerFormat === "rgb" ? "hex" : "rgb";
+      colorPickerValue.textContent = colorValueText(sampledColor);
+      return;
+    }
+  }
   if (event.key === "Escape") ipcRenderer.send("inline-capture-cancel");
   const toolFromKey = toolHotkeys[event.key.toLowerCase()];
   if (toolFromKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
@@ -1652,6 +1800,15 @@ window.addEventListener("keydown", (event) => {
 });
 
 ipcRenderer.on("inline-region-ready", (_event, rect) => enterEditMode(rect));
+ipcRenderer.on("inline-color-picker-image", (_event, payload) => setColorPickerImage(payload?.dataUrl));
+ipcRenderer.on("inline-color-picker-hotkey", (_event, payload) => {
+  if (phase !== "selecting" || selecting || pendingAutoSelection) return;
+  if (payload?.action === "copy") copySampledColor();
+  if (payload?.action === "toggle-format") {
+    colorPickerFormat = colorPickerFormat === "rgb" ? "hex" : "rgb";
+    colorPickerValue.textContent = colorValueText(sampledColor);
+  }
+});
 ipcRenderer.on("window-regions", (_event, payload) => {
   const regions = Array.isArray(payload?.regions) ? payload.regions : [];
   windowRegions = regions.filter(
@@ -1687,6 +1844,7 @@ ipcRenderer.on("inline-ocr-result", (_event, result) => {
   openOcrDialog(result);
 });
 applyEditorLanguage();
+if (colorPickerHotkeyChannel) ipcRenderer.send(colorPickerHotkeyChannel, true);
 setStatus(selectionHint);
 setTool("rect", false);
 if (Number.isFinite(initialCursor.x) && Number.isFinite(initialCursor.y)) {

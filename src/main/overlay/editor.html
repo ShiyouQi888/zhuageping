@@ -20,6 +20,15 @@
       <i class="handle h8" data-handle="w"></i>
     </div>
     <div id="selectionSize"></div>
+    <div id="colorCrosshair" aria-hidden="true"></div>
+    <div id="colorPicker" aria-live="polite">
+      <canvas id="colorMagnifier" width="132" height="132"></canvas>
+      <div class="color-picker-details">
+        <strong id="colorPickerCoordinate">坐标: -</strong>
+        <span id="colorPickerValue">RGB: -</span>
+        <small id="colorPickerHint">Ctrl+C 复制颜色 · Shift 切换 RGB/HEX</small>
+      </div>
+    </div>
     <div id="objectBox">
       <i class="handle h1" data-handle="nw"></i>
       <i class="handle h2" data-handle="n"></i>

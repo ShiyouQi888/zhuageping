@@ -100,6 +100,98 @@ body {
   pointer-events: none;
 }
 
+#colorCrosshair {
+  position: fixed;
+  z-index: 8;
+  display: none;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.88);
+  pointer-events: none;
+}
+
+#colorCrosshair::before,
+#colorCrosshair::after {
+  position: absolute;
+  content: "";
+  background: rgba(36, 124, 255, 0.95);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7);
+}
+
+#colorCrosshair::before {
+  left: -7px;
+  top: 10px;
+  width: 36px;
+  height: 2px;
+}
+
+#colorCrosshair::after {
+  left: 10px;
+  top: -7px;
+  width: 2px;
+  height: 36px;
+}
+
+#colorPicker {
+  position: fixed;
+  z-index: 9;
+  display: none;
+  width: 184px;
+  min-height: 264px;
+  overflow: hidden;
+  color: #f8fafc;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.36);
+  pointer-events: none;
+}
+
+#colorMagnifier {
+  display: block;
+  width: 132px;
+  height: 132px;
+  margin: 10px auto 0;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  image-rendering: pixelated;
+}
+
+.color-picker-details {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 11px 13px 13px;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.color-picker-details strong,
+.color-picker-details span {
+  color: #ffffff;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.color-picker-details span {
+  color: #9cc9ff;
+}
+
+.color-picker-details small {
+  margin-top: 4px;
+  color: rgba(226, 232, 240, 0.9);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+body.is-selecting-drag #colorCrosshair,
+body.is-selecting-drag #colorPicker {
+  display: none !important;
+}
+
 #objectBox {
   position: fixed;
   z-index: 6;

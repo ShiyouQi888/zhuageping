@@ -39,17 +39,20 @@
 
 当前版本：
 
-- 版本：`0.1.19`
+- 版本：`0.1.20`
 - 平台：Windows x64
-- 安装包：`zhuageping-Setup-0.1.19-x64.exe`
-- SHA256：`6B9B09A6512128654D0EAFE32F7BB859F635D26607ADFD55DB70D4E1B516799A`
-- Release：[抓个屏 v0.1.19](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.19)
+- 安装包：`zhuageping-Setup-0.1.20-x64.exe`
+- SHA256：`68FA7073731D5F48CBACB92E976FAD36EDAF4155D621D78955A36FE92E7AB85A`
+- Release：[抓个屏 v0.1.20](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.20)
 
 说明：当前安装包暂未购买商业代码签名证书。安装时 Windows 可能提示未知发布者，这是未签名安装包的正常现象，不代表软件连接云端或上传数据。
 
 ## 最新功能
 
-`v0.1.19` 重点更新：
+`v0.1.20` 重点更新：
+
+- F1 截图新增鼠标取色器：提供放大镜、屏幕坐标、RGB/HEX，按 `C` 复制颜色值，按 `Shift` 切换格式。
+- 修复多屏 F1 截图：仅鼠标所在显示器显示截图与窗口感知层，跨屏移动会自动切换。
 
 - 重新优化首选项的导航、排版、字体与间距，让常用设置更易查找。
 - 改进录屏控制条，并让录制边框在录制期间不拦截鼠标操作。

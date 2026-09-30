@@ -39,17 +39,20 @@ Download the latest installer from GitHub Releases:
 
 Current version:
 
-- Version: `0.1.19`
+- Version: `0.1.20`
 - Platform: Windows x64
-- Installer: `zhuageping-Setup-0.1.19-x64.exe`
-- SHA256: `6B9B09A6512128654D0EAFE32F7BB859F635D26607ADFD55DB70D4E1B516799A`
-- Release: [Zhuageping v0.1.19](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.19)
+- Installer: `zhuageping-Setup-0.1.20-x64.exe`
+- SHA256: `68FA7073731D5F48CBACB92E976FAD36EDAF4155D621D78955A36FE92E7AB85A`
+- Release: [Zhuageping v0.1.20](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.20)
 
 Note: the current installer is not signed with a commercial code-signing certificate. Windows may show an unknown publisher warning during installation. This is expected for an unsigned installer and does not mean the app connects to the cloud or uploads your data.
 
 ## Latest Updates
 
-Highlights in `v0.1.19`:
+Highlights in `v0.1.20`:
+
+- Added an inline pixel color picker to the F1 capture flow, with magnification, screen coordinates, RGB/HEX output, `C` to copy, and `Shift` to switch formats.
+- Fixed multi-monitor F1 selection so only the monitor under the cursor shows the capture and window-detection layer.
 
 - Refined the preferences layout, typography, spacing, and navigation for a clearer desktop interface.
 - Improved recording controls and made the recording frame mouse-transparent during capture.

@@ -12,7 +12,9 @@ internal sealed record GuardSettings(
     string? ShortcutScrollCapture,
     string? ShortcutRecord,
     string? ShortcutPin,
-    string? ShortcutTogglePins
+    string? ShortcutTogglePins,
+    string? ShortcutColorCopy,
+    string? ShortcutColorFormat
 );
 
 internal sealed record Hotkey(string Action, int VirtualKey, bool Ctrl, bool Shift, bool Alt);
@@ -125,7 +127,9 @@ internal static class Program
                 ParseHotkey("scroll", settings.ShortcutScrollCapture),
                 ParseHotkey("record", settings.ShortcutRecord),
                 ParseHotkey("pin", settings.ShortcutPin),
-                ParseHotkey("toggle-pins", settings.ShortcutTogglePins)
+                ParseHotkey("toggle-pins", settings.ShortcutTogglePins),
+                ParseHotkey("color-copy", settings.ShortcutColorCopy),
+                ParseHotkey("color-format", settings.ShortcutColorFormat)
             }
             .Where(hotkey => hotkey is not null)
             .Select(hotkey => hotkey!)
@@ -181,6 +185,7 @@ internal static class Program
                     break;
                 case "SHIFT":
                     shift = true;
+                    if (parts.Length == 1) key = 0x10;
                     break;
                 case "ALT":
                 case "OPTION":
@@ -280,8 +285,21 @@ internal static class Program
 
     private static bool Matches(Hotkey hotkey, int virtualKey)
     {
-        return hotkey.VirtualKey == virtualKey
-            && IsCtrlPressed() == hotkey.Ctrl
+        var isShiftKey = virtualKey is 0x10 or 0xA0 or 0xA1;
+        var keyMatches = hotkey.VirtualKey == 0x10 ? isShiftKey : hotkey.VirtualKey == virtualKey;
+        if (!keyMatches)
+        {
+            return false;
+        }
+
+        // Low-level hooks report left/right Shift independently. Treat a standalone
+        // Shift press as its own hotkey instead of requiring the generic modifier state.
+        if (hotkey.VirtualKey == 0x10)
+        {
+            return !hotkey.Ctrl && !hotkey.Alt;
+        }
+
+        return IsCtrlPressed() == hotkey.Ctrl
             && IsShiftPressed() == hotkey.Shift
             && IsAltPressed() == hotkey.Alt;
     }

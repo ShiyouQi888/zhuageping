@@ -311,6 +311,8 @@ let hotkeyGuardProcess: ChildProcess | null = null;
 let hotkeyGuardRestartTimer: NodeJS.Timeout | null = null;
 let hotkeyGuardOutputBuffer = "";
 let hotkeyGuardIntentionalStop = false;
+let colorPickerHotkeyProcess: ChildProcess | null = null;
+let colorPickerHotkeyOutputBuffer = "";
 let ocrWorker: OCR | null = null;
 let ocrWorkerEnginePath = "";
 let updaterReady = false;
@@ -1423,6 +1425,38 @@ function startHotkeyGuard() {
   });
 }
 
+function stopColorPickerHotkeyGuard() {
+  const child = colorPickerHotkeyProcess;
+  colorPickerHotkeyProcess = null;
+  colorPickerHotkeyOutputBuffer = "";
+  if (child && !child.killed) child.kill();
+}
+
+function startColorPickerHotkeyGuard(onAction: (action: "color-copy" | "color-format") => void) {
+  if (process.platform !== "win32") return;
+  stopColorPickerHotkeyGuard();
+  const guardPath = hotkeyGuardPath();
+  if (!fsSync.existsSync(guardPath)) return;
+  const payload = Buffer.from(
+    JSON.stringify({ shortcutColorCopy: "C", shortcutColorFormat: "Shift" }),
+    "utf8"
+  ).toString("base64");
+  const child = spawn(guardPath, [payload], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+  colorPickerHotkeyProcess = child;
+  child.stdout.on("data", (chunk: Buffer) => {
+    colorPickerHotkeyOutputBuffer += chunk.toString("utf8");
+    const lines = colorPickerHotkeyOutputBuffer.split(/\r?\n/);
+    colorPickerHotkeyOutputBuffer = lines.pop() ?? "";
+    for (const line of lines) {
+      const action = line.trim();
+      if (action === "color-copy" || action === "color-format") onAction(action);
+    }
+  });
+  child.on("exit", () => {
+    if (colorPickerHotkeyProcess === child) colorPickerHotkeyProcess = null;
+  });
+}
+
 async function backupLocalData() {
   if (!appSettings.autoBackup) {
     return;
@@ -2369,28 +2403,52 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
   const cursorPoint = screen.getCursorScreenPoint();
   const windowRegionChannel = `window-regions-request-${crypto.randomUUID()}`;
   const windowRegionActiveChannel = `window-regions-active-${crypto.randomUUID()}`;
+  const colorPickerHotkeyChannel = `color-picker-hotkey-${crypto.randomUUID()}`;
+  const colorPickerCopyChannel = `color-picker-copy-${crypto.randomUUID()}`;
+  let activeDisplayId = cursorDisplay.id;
+  let displayPoll: NodeJS.Timeout | null = null;
   const requestedDisplays = new Set<number>();
   const requestWindowRegions = (display: DisplayLike, overlay: BrowserWindow) => {
     if (requestedDisplays.has(display.id)) return;
     requestedDisplays.add(display.id);
     void detectWindowRegions(display).then((windowRegions) => {
       if (!overlay.isDestroyed()) {
+        const cursor = screen.getCursorScreenPoint();
         overlay.webContents.send("window-regions", {
           regions: windowRegions,
-          cursor: { x: cursorPoint.x - display.bounds.x, y: cursorPoint.y - display.bounds.y }
+          cursor: { x: cursor.x - display.bounds.x, y: cursor.y - display.bounds.y }
         });
       }
     });
   };
+  const captureDisplayDataUrl = async (display: DisplayLike) => {
+    const displayScaleFactor = display.scaleFactor || 1;
+    // Display bounds use DIP while the GDI source expects physical pixels.
+    // `display.size` is already physical in Electron and multiplying it again
+    // shifts the sample area on high-DPI monitors, often into a black region.
+    const width = Math.round(display.bounds.width * displayScaleFactor);
+    const height = Math.round(display.bounds.height * displayScaleFactor);
+    const capturedBuffer = await captureScreenBuffer(width, height, display);
+    return `data:image/png;base64,${capturedBuffer.toString("base64")}`;
+  };
+  // Capture before the transparent editor overlay is created, so pixel sampling
+  // always reads the real desktop rather than its dimmed selection layer.
+  const colorPickerSources = new Map<number, string>();
+  let acceptingColorPickerSources = true;
+  const colorPickerCaptureTasks = displays.map(async (display) => {
+    try {
+      const dataUrl = await captureDisplayDataUrl(display);
+      if (acceptingColorPickerSources) colorPickerSources.set(display.id, dataUrl);
+    } catch (error) {
+      console.warn("Color picker source capture failed.", error);
+    }
+  });
+  const cursorDisplayIndex = displays.findIndex((display) => display.id === cursorDisplay.id);
+  await colorPickerCaptureTasks[Math.max(0, cursorDisplayIndex)];
+  acceptingColorPickerSources = false;
   return new Promise((resolve) => {
     const editorPath = overlayEditorHtmlPath();
-    const captureDisplayDataUrl = async (display: DisplayLike) => {
-      const displayScaleFactor = display.scaleFactor || 1;
-      const width = Math.round(display.size.width * displayScaleFactor);
-      const height = Math.round(display.size.height * displayScaleFactor);
-      const capturedBuffer = await captureScreenBuffer(width, height, display);
-      return `data:image/png;base64,${capturedBuffer.toString("base64")}`;
-    };
+    const colorPickerActiveSenders = new Set<number>();
 
     const overlays = displays.map((display) => {
       const overlay = new BrowserWindow({
@@ -2417,18 +2475,34 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
       });
       overlay.setMenu(null);
       overlay.setMenuBarVisibility(false);
+      overlay.webContents.on("before-input-event", (event, input) => {
+        if (!colorPickerActiveSenders.has(overlay.webContents.id) || input.type !== "keyDown") return;
+        const key = input.key.toLowerCase();
+        const action = key === "shift" ? "toggle-format" : input.control && key === "c" ? "copy" : null;
+        if (!action) return;
+        event.preventDefault();
+        overlay.webContents.send("inline-color-picker-hotkey", { action });
+      });
       overlay.setAlwaysOnTop(true, "screen-saver");
       overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
       overlay.once("ready-to-show", () => {
         if (overlay.isDestroyed()) return;
-        overlay.showInactive();
-        overlay.moveTop();
-        overlay.focus();
+        if (display.id === activeDisplayId) {
+          overlay.showInactive();
+          overlay.moveTop();
+          overlay.focus();
+        }
       });
       overlay.webContents.once("did-finish-load", () => {
         if (overlay.isDestroyed()) return;
-        overlay.showInactive();
-        overlay.moveTop();
+        if (display.id === activeDisplayId) {
+          overlay.showInactive();
+          overlay.moveTop();
+        }
+        const colorPickerDataUrl = colorPickerSources.get(display.id);
+        if (colorPickerDataUrl) {
+          overlay.webContents.send("inline-color-picker-image", { dataUrl: colorPickerDataUrl });
+        }
         if (display.id === cursorDisplay.id) setTimeout(() => requestWindowRegions(display, overlay), 40);
       });
       void overlay.loadFile(editorPath, {
@@ -2438,6 +2512,8 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
           offsetY: String(display.bounds.y),
           windowRegionChannel,
           windowRegionActiveChannel,
+          colorPickerHotkeyChannel,
+          colorPickerCopyChannel,
           cursorX: String(cursorPoint.x - display.bounds.x),
           cursorY: String(cursorPoint.y - display.bounds.y),
           language: appSettings.language
@@ -2446,6 +2522,17 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
       return { display, overlay };
     });
     const overlayDisplays = new Map(overlays.map(({ display, overlay }) => [overlay.webContents.id, display]));
+    const isCaptureOverlaySender = (sender: Electron.WebContents) =>
+      !sender.isDestroyed() && overlays.some(({ overlay }) => !overlay.isDestroyed() && overlay.webContents === sender);
+    const onColorPickerHotkeyActive = (event: Electron.IpcMainEvent, active: boolean) => {
+      if (!isCaptureOverlaySender(event.sender)) return;
+      if (active) colorPickerActiveSenders.add(event.sender.id);
+      else colorPickerActiveSenders.delete(event.sender.id);
+    };
+    const onColorPickerCopy = (event: Electron.IpcMainEvent, value: string) => {
+      if (!isCaptureOverlaySender(event.sender) || typeof value !== "string" || !value.trim()) return;
+      clipboard.writeText(value.trim());
+    };
     const onWindowRegionRequest = (event: Electron.IpcMainEvent) => {
       const entry = overlays.find(({ overlay }) => overlay.webContents.id === event.sender.id);
       if (entry) requestWindowRegions(entry.display, entry.overlay);
@@ -2462,10 +2549,21 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
     };
     ipcMain.on(windowRegionChannel, onWindowRegionRequest);
     ipcMain.on(windowRegionActiveChannel, onWindowRegionActive);
+    ipcMain.on(colorPickerHotkeyChannel, onColorPickerHotkeyActive);
+    ipcMain.on(colorPickerCopyChannel, onColorPickerCopy);
     let resolved = false;
     let preparingCapture = false;
     let preparingPreview = false;
     let preparingOcr = false;
+    const sendColorPickerAction = (action: "color-copy" | "color-format") => {
+      if (resolved) return;
+      const displayId = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id;
+      const target = overlays.find(({ display, overlay }) => display.id === displayId && !overlay.isDestroyed())?.overlay;
+      target?.webContents.send("inline-color-picker-hotkey", {
+        action: action === "color-copy" ? "copy" : "toggle-format"
+      });
+    };
+    startColorPickerHotkeyGuard(sendColorPickerAction);
 
     const buildCompositeBuffer = async (payload: InlineCapturePayload) => {
       overlays.forEach(({ overlay }) => {
@@ -2598,18 +2696,41 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
     };
 
     const showActiveOverlays = (preferredWebContentsId?: number) => {
-      overlays.forEach(({ overlay }) => {
-        if (!overlay.isDestroyed()) {
+      overlays.forEach(({ display, overlay }) => {
+        if (overlay.isDestroyed()) return;
+        if (display.id === activeDisplayId) {
           overlay.showInactive();
           overlay.moveTop();
           overlay.setAlwaysOnTop(true, "screen-saver");
+        } else {
+          overlay.hide();
         }
       });
       const preferred = overlays.find(
-        ({ overlay }) => !overlay.isDestroyed() && overlay.webContents.id === preferredWebContentsId
+        ({ display, overlay }) =>
+          display.id === activeDisplayId && !overlay.isDestroyed() && overlay.webContents.id === preferredWebContentsId
       );
-      (preferred ?? overlays.find(({ overlay }) => !overlay.isDestroyed()))?.overlay.focus();
+      (preferred ?? overlays.find(({ display, overlay }) => display.id === activeDisplayId && !overlay.isDestroyed()))?.overlay.focus();
     };
+
+    const stopDisplayPoll = () => {
+      if (displayPoll) clearInterval(displayPoll);
+      displayPoll = null;
+    };
+
+    if (overlays.length > 1) {
+      displayPoll = setInterval(() => {
+        if (resolved || preparingCapture || preparingPreview) return;
+        const nextDisplayId = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id;
+        if (nextDisplayId === activeDisplayId) return;
+        const next = overlays.find(({ display, overlay }) => display.id === nextDisplayId && !overlay.isDestroyed());
+        if (!next) return;
+        activeDisplayId = nextDisplayId;
+        activeWindowRegionSender = 0;
+        showActiveOverlays();
+        requestWindowRegions(next.display, next.overlay);
+      }, 50);
+    }
 
     const notifyCaptureError = () => {
       overlays.forEach(({ overlay }) => {
@@ -2622,6 +2743,8 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
         return;
       }
       resolved = true;
+      stopDisplayPoll();
+      stopColorPickerHotkeyGuard();
       ipcMain.removeListener("inline-capture-complete", onComplete);
       ipcMain.removeListener("inline-capture-save-as", onSaveAs);
       ipcMain.removeListener("inline-capture-copy", onCopy);
@@ -2633,6 +2756,8 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
       ipcMain.removeListener("overlay:ready", onOverlayReady);
       ipcMain.removeListener(windowRegionChannel, onWindowRegionRequest);
       ipcMain.removeListener(windowRegionActiveChannel, onWindowRegionActive);
+      ipcMain.removeListener(colorPickerHotkeyChannel, onColorPickerHotkeyActive);
+      ipcMain.removeListener(colorPickerCopyChannel, onColorPickerCopy);
       overlays.forEach(({ overlay }) => {
         if (!overlay.isDestroyed()) overlay.close();
       });
@@ -2806,6 +2931,7 @@ async function selectAndEditRegion(): Promise<InlineCaptureResult | null> {
       const display = overlayDisplays.get(event.sender.id);
       if (!display) return;
       preparingPreview = true;
+      stopDisplayPoll();
       let backgroundDataUrl: string | undefined;
       try {
         backgroundDataUrl = await captureDisplayPreviewDataUrl(display);
@@ -4426,6 +4552,7 @@ app.on("activate", () => {
 
 app.on("will-quit", () => {
   stopHotkeyGuard();
+  stopColorPickerHotkeyGuard();
   globalShortcut.unregisterAll();
   resetOcrWorker();
 });
