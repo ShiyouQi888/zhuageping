@@ -32,6 +32,8 @@ internal static class Program
     private static Recorder? recorder;
     private static RecorderHostConfig? config;
     private static int exitCode;
+    private static int stopRequested;
+    private static int paused;
 
     public static int Main()
     {
@@ -165,23 +167,54 @@ internal static class Program
                 return;
             }
 
-            var command = line.Trim().ToLowerInvariant();
-            switch (command)
-            {
-                case "pause":
-                    recorder?.Pause();
-                    break;
-                case "resume":
-                    recorder?.Resume();
-                    break;
-                case "stop":
-                    recorder?.Stop();
-                    break;
-                case "cancel":
-                    exitCode = 3;
-                    recorder?.Stop();
-                    break;
-            }
+            HandleCommand(line.Trim().ToLowerInvariant());
+        }
+    }
+
+    private static void HandleCommand(string command)
+    {
+        if (ExitSignal.IsSet) return;
+
+        switch (command)
+        {
+            case "pause" when Volatile.Read(ref stopRequested) == 0 && Interlocked.Exchange(ref paused, 1) == 0:
+                Emit("command", new { command });
+                _ = Task.Run(() => InvokeRecorder(command, static value => value.Pause()));
+                break;
+            case "resume" when Volatile.Read(ref stopRequested) == 0 && Interlocked.Exchange(ref paused, 0) == 1:
+                Emit("command", new { command });
+                _ = Task.Run(() => InvokeRecorder(command, static value => value.Resume()));
+                break;
+            case "stop":
+                RequestStop(cancel: false);
+                break;
+            case "cancel":
+                RequestStop(cancel: true);
+                break;
+        }
+    }
+
+    private static void RequestStop(bool cancel)
+    {
+        if (cancel) exitCode = 3;
+        if (Interlocked.Exchange(ref stopRequested, 1) != 0) return;
+        Emit("command", new { command = cancel ? "cancel" : "stop" });
+        _ = Task.Run(() => InvokeRecorder("stop", static value => value.Stop()));
+    }
+
+    private static void InvokeRecorder(string command, Action<Recorder> action)
+    {
+        try
+        {
+            var current = recorder;
+            if (current is null) return;
+            action(current);
+        }
+        catch (Exception exception)
+        {
+            exitCode = 1;
+            Emit("error", new { message = $"Unable to {command} recording.", detail = exception.ToString() });
+            ExitSignal.Set();
         }
     }
 

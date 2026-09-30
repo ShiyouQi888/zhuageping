@@ -78,10 +78,10 @@ app.whenReady().then(async () => {
       showClickHighlight: false, excludeWindowHandles: [handle,
         control.getNativeWindowHandle().readBigUInt64LE().toString()] }) + '\n');
     const timeout = setTimeout(() => child.kill(), 20000);
-    let controlCommands = 0;
+    const controlCommands = [];
     const onCommand = (event, command) => {
       if (event.sender.id === control.webContents.id) {
-        controlCommands++;
+        controlCommands.push(command);
         child.stdin.write(command + '\n');
       }
     };
@@ -94,7 +94,14 @@ app.whenReady().then(async () => {
     const afterClicks = await background.webContents.executeJavaScript('window.testClicks');
     if (afterClicks <= beforeClicks) throw new Error(`${mode}: full-screen recording overlay blocked the desktop click`);
     await wait(2200);
-    // Exercise the actual hit target and its IPC route.
+    // Exercise pause/resume and stop through the actual hit targets and IPC route.
+    const clickControl = async (x) => {
+      control.webContents.sendInputEvent({ type: 'mouseDown', x, y: 12, button: 'left', clickCount: 1 });
+      control.webContents.sendInputEvent({ type: 'mouseUp', x, y: 12, button: 'left', clickCount: 1 });
+      await wait(220);
+    };
+    await clickControl(barWidth - 40);
+    await clickControl(barWidth - 40);
     const controlX = bounds.x + barX + barWidth - 16;
     const controlY = bounds.y + barY + 12;
     const target = await control.webContents.executeJavaScript(`document.elementFromPoint(${barWidth - 16},12)?.id`);
@@ -103,12 +110,10 @@ app.whenReady().then(async () => {
     console.log(mode, 'control bounds', JSON.stringify(control.getBounds()), 'click', controlX, controlY,
       'handle', controlHandle, 'hit', hit);
     if (hit !== controlHandle || target !== 'stop') throw new Error(`${mode}: stop button is not the OS hit target`);
-    control.webContents.sendInputEvent({ type: 'mouseDown', x: barWidth - 16, y: 12, button: 'left', clickCount: 1 });
-    control.webContents.sendInputEvent({ type: 'mouseUp', x: barWidth - 16, y: 12, button: 'left', clickCount: 1 });
-    await wait(250);
-    if (!controlCommands) {
+    await clickControl(barWidth - 16);
+    if (!controlCommands.includes('pause') || !controlCommands.includes('resume') || !controlCommands.includes('stop')) {
       child.stdin.write('stop\n');
-      throw new Error(`${mode}: control click missed (DOM target=${target}, background clicks=${await background.webContents.executeJavaScript('window.testClicks')})`);
+      throw new Error(`${mode}: control command missed (${controlCommands.join(', ') || 'none'}; DOM target=${target})`);
     }
     await completion.finally(() => clearTimeout(timeout));
     ipcMain.removeListener('recording-native-command', onCommand);

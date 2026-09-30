@@ -307,7 +307,9 @@ let activeRecordingControl: BrowserWindow | null = null;
 let activeNativeRecorderProcess: ChildProcess | null = null;
 let activeRecordingUsesNative = false;
 let nativeRecordingSelectionCommitted = false;
-let pendingNativeRecorderCommand: "stop" | "cancel" | null = null;
+type NativeRecorderCommand = "pause" | "resume" | "stop" | "cancel";
+let pendingNativeRecorderCommands: NativeRecorderCommand[] = [];
+let nativeRecorderStopFallback: NodeJS.Timeout | null = null;
 let cancelPendingRecordingSelection: (() => void) | null = null;
 let hotkeyGuardProcess: ChildProcess | null = null;
 let hotkeyGuardRestartTimer: NodeJS.Timeout | null = null;
@@ -1257,13 +1259,12 @@ function runShortcutRecording() {
     cancelPendingRecordingSelection();
     return;
   }
-  if (recordingRunning && activeNativeRecorderProcess?.stdin?.writable) {
-    activeNativeRecorderProcess.stdin.write("stop\n");
+  if (recordingRunning && activeRecordingUsesNative) {
+    sendNativeRecorderCommand("stop", "shortcut");
     return;
   }
   if (recordingRunning && activeRecordingOverlay && !activeRecordingOverlay.isDestroyed()) {
     const command = activeRecordingUsesNative && !nativeRecordingSelectionCommitted ? "cancel" : "stop";
-    if (activeRecordingUsesNative && nativeRecordingSelectionCommitted) pendingNativeRecorderCommand = "stop";
     activeRecordingOverlay.webContents.send("recording-command", command);
     return;
   }
@@ -1282,7 +1283,7 @@ function startRegionRecording(
     return Promise.resolve(null);
   }
   recordingRunning = true;
-  pendingNativeRecorderCommand = null;
+  pendingNativeRecorderCommands = [];
   updateTrayMenu();
   globalShortcut.register("Escape", () => runShortcutRecording());
   appendDiagnostic("recording.start", { mode, displayId: displayId ?? null, fps: settings.recordingFps, quality: settings.recordingQuality });
@@ -1291,7 +1292,9 @@ function startRegionRecording(
     throw error;
   }).finally(() => {
     recordingRunning = false;
-    pendingNativeRecorderCommand = null;
+    pendingNativeRecorderCommands = [];
+    if (nativeRecorderStopFallback) clearTimeout(nativeRecorderStopFallback);
+    nativeRecorderStopFallback = null;
     globalShortcut.unregister("Escape");
     updateTrayMenu();
   });
@@ -1650,15 +1653,17 @@ async function desktopSourceIdForDisplay(display: DisplayLike) {
 }
 
 function recordingVideoBitsPerSecond(settings: AppSettings) {
-  if (settings.recordingQuality === "high") return 55_000_000;
-  if (settings.recordingQuality === "compact") return 10_000_000;
-  return 28_000_000;
+  // Keep the default below the point where an integrated GPU starts starving
+  // the desktop. High quality remains available for users who need it.
+  if (settings.recordingQuality === "high") return 36_000_000;
+  if (settings.recordingQuality === "compact") return 7_000_000;
+  return 18_000_000;
 }
 
 function recordingVideoQuality(settings: AppSettings) {
-  if (settings.recordingQuality === "high") return 100;
-  if (settings.recordingQuality === "compact") return 78;
-  return 92;
+  if (settings.recordingQuality === "high") return 94;
+  if (settings.recordingQuality === "compact") return 74;
+  return 84;
 }
 
 function recordingMp4Crf(settings: AppSettings) {
@@ -3611,7 +3616,7 @@ async function runNativeRecordingOverlay(
           activeRecordingUsesNative = false;
           nativeRecordingSelectionCommitted = false;
         }
-        if (activeNativeRecorderProcess?.stdin?.writable) activeNativeRecorderProcess.stdin.write("cancel\n");
+        if (activeNativeRecorderProcess) sendNativeRecorderCommand("cancel", "overlay-closed");
       });
 
       void overlay.loadFile(recorderHtmlPath(), {
@@ -3651,6 +3656,45 @@ async function runNativeRecordingOverlay(
 
 type NativeRecorderResult = { filePath: string; canceled: boolean };
 
+function sendNativeRecorderCommand(command: NativeRecorderCommand, source: string) {
+  const child = activeNativeRecorderProcess;
+  const writeCommand = (target: ChildProcess) => {
+    if (!target.stdin?.writable) return false;
+    try {
+      target.stdin.write(`${command}\n`);
+      appendDiagnostic("recording.command.sent", { command, source, processId: target.pid ?? null });
+      return true;
+    } catch (error) {
+      appendDiagnostic("recording.command.write_failed", {
+        command,
+        source,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return false;
+    }
+  };
+
+  if (!child || !writeCommand(child)) {
+    if (command === "stop" || command === "cancel") {
+      pendingNativeRecorderCommands = [command];
+    } else if (!pendingNativeRecorderCommands.includes(command)) {
+      pendingNativeRecorderCommands.push(command);
+    }
+    appendDiagnostic("recording.command.queued", { command, source });
+  }
+
+  if ((command === "stop" || command === "cancel") && !nativeRecorderStopFallback) {
+    const expectedChild = activeNativeRecorderProcess;
+    nativeRecorderStopFallback = setTimeout(() => {
+      nativeRecorderStopFallback = null;
+      if (expectedChild && activeNativeRecorderProcess === expectedChild && !expectedChild.killed) {
+        appendDiagnostic("recording.command.force_stop", { command, source, processId: expectedChild.pid ?? null });
+        expectedChild.kill();
+      }
+    }, 8_000);
+  }
+}
+
 function runNativeRecorder(config: Record<string, unknown>): Promise<NativeRecorderResult> {
   const executablePath = recorderHostPath();
   if (!fsSync.existsSync(executablePath)) {
@@ -3667,6 +3711,8 @@ function runNativeRecorder(config: Record<string, unknown>): Promise<NativeRecor
     const finish = (error: Error | null, result?: NativeRecorderResult) => {
       if (settled) return;
       settled = true;
+      if (nativeRecorderStopFallback) clearTimeout(nativeRecorderStopFallback);
+      nativeRecorderStopFallback = null;
       if (activeNativeRecorderProcess === child) activeNativeRecorderProcess = null;
       if (error) reject(error);
       else resolve(result ?? { filePath: "", canceled: true });
@@ -3674,13 +3720,22 @@ function runNativeRecorder(config: Record<string, unknown>): Promise<NativeRecor
     const processLine = (line: string) => {
       if (!line.trim()) return;
       try {
-        const event = JSON.parse(line) as { type?: string; payload?: { filePath?: string; message?: string; detail?: string } };
+        const event = JSON.parse(line) as {
+          type?: string;
+          payload?: { filePath?: string; message?: string; detail?: string; command?: string; status?: string };
+        };
         if (event.type === "completed" && event.payload?.filePath) {
           finish(null, { filePath: event.payload.filePath, canceled: false });
         } else if (event.type === "canceled") {
           finish(null, { filePath: "", canceled: true });
         } else if (event.type === "error") {
           finish(new Error(event.payload?.message || event.payload?.detail || "Native recorder failed."));
+        } else if (event.type === "command" || event.type === "status") {
+          appendDiagnostic(`recording.native.${event.type}`, event.payload ?? {});
+          const status = event.payload?.status ?? event.payload?.command;
+          for (const window of [activeRecordingOverlay, activeRecordingControl]) {
+            if (window && !window.isDestroyed()) window.webContents.send("recording-native-status", status);
+          }
         }
       } catch (error) {
         console.warn("Invalid native recorder event.", line, error);
@@ -3704,10 +3759,9 @@ function runNativeRecorder(config: Record<string, unknown>): Promise<NativeRecor
       if (!settled) finish(new Error(stderrBuffer.trim() || `Native recorder exited with code ${code}.`));
     });
     child.stdin?.write(`${JSON.stringify(config)}\n`);
-    if (pendingNativeRecorderCommand) {
-      child.stdin?.write(`${pendingNativeRecorderCommand}\n`);
-      pendingNativeRecorderCommand = null;
-    }
+    const queuedCommands = pendingNativeRecorderCommands;
+    pendingNativeRecorderCommands = [];
+    queuedCommands.forEach((command) => sendNativeRecorderCommand(command, "queued"));
   });
 }
 
@@ -4484,11 +4538,7 @@ app.whenReady().then(async () => {
     if (!isActiveRecordingWindow(activeRecordingOverlay) &&
         !isActiveRecordingWindow(activeRecordingControl)) return;
     if (!["pause", "resume", "stop", "cancel"].includes(command)) return;
-    if (activeNativeRecorderProcess?.stdin?.writable) {
-      activeNativeRecorderProcess.stdin.write(`${command}\n`);
-    } else if (activeRecordingUsesNative && (command === "stop" || command === "cancel")) {
-      pendingNativeRecorderCommand = command;
-    }
+    sendNativeRecorderCommand(command as NativeRecorderCommand, "recording-control");
   });
   setupAutoUpdater();
   setTimeout(() => {
