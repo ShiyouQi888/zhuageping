@@ -1,6 +1,6 @@
 import type { AppLanguage, WatermarkPosition } from "./types";
 
-export type TabKey = "general" | "interface" | "capture" | "recording" | "pin" | "output" | "control" | "about";
+export type TabKey = "general" | "capture" | "recording" | "pin" | "output" | "control" | "about";
 
 export const fallbackLanguage: AppLanguage = "zh-CN";
 
@@ -9,7 +9,7 @@ export const languageOptions: Array<{ value: AppLanguage; label: string }> = [
   { value: "en-US", label: "English" }
 ];
 
-export const tabKeys: TabKey[] = ["general", "interface", "capture", "recording", "pin", "output", "control", "about"];
+export const tabKeys: TabKey[] = ["general", "capture", "recording", "pin", "output", "control", "about"];
 
 export function normalizeLanguage(language: string | undefined): AppLanguage {
   return language === "en-US" ? "en-US" : fallbackLanguage;
@@ -124,6 +124,10 @@ export const messages = {
       darkTheme: "深色"
     },
     capture: {
+      actions: "截图操作",
+      details: "截图设置",
+      fullscreenCapture: "全屏截图",
+      fullscreenCopy: "全屏截图并复制",
       regionCapture: "区域截图",
       regionCaptureCopy: "区域截图并复制",
       scrollCapture: "滚动截图",
@@ -138,6 +142,7 @@ export const messages = {
       autoPin: "截图完成后自动贴图"
     },
     recording: {
+      options: "录制设置",
       start: "区域录屏",
       screen: "录制所选显示器",
       hint: "支持区域录制、指定显示器录制、暂停继续和本地 MP4 保存。",
@@ -309,6 +314,10 @@ export const messages = {
       darkTheme: "Dark"
     },
     capture: {
+      actions: "Capture",
+      details: "Capture Settings",
+      fullscreenCapture: "Full Screen",
+      fullscreenCopy: "Full Screen and Copy",
       regionCapture: "Region Capture",
       regionCaptureCopy: "Capture and Copy",
       scrollCapture: "Scrolling Capture",
@@ -323,6 +332,7 @@ export const messages = {
       autoPin: "Auto pin after capture"
     },
     recording: {
+      options: "Recording Settings",
       start: "Region Recording",
       screen: "Record Selected Display",
       hint: "Record a region or selected display with pause/resume and local MP4 saving.",

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self'; style-src 'self';" />
+  <link rel="stylesheet" href="./recorder-control.css" />
+</head>
+<body>
+  <main role="toolbar" aria-label="录屏控制">
+    <span id="size"></span>
+    <span class="state"><i id="dot"></i>REC</span>
+    <time id="timer">00:00</time>
+    <button id="pause" type="button" aria-label="暂停" title="暂停">Ⅱ</button>
+    <button id="stop" type="button" aria-label="停止" title="停止">■</button>
+  </main>
+  <script src="./recorder-control.js"></script>
+</body>
+</html>

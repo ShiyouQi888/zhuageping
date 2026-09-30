@@ -39,26 +39,23 @@ Download the latest installer from GitHub Releases:
 
 Current version:
 
-- Version: `0.1.18`
+- Version: `0.1.19`
 - Platform: Windows x64
-- Installer: `zhuageping-Setup-0.1.18-x64.exe`
-- SHA256: `BEB2D91B64CE8175A1580B67C2C1D199F6DC8EEB759794550E0DC4DC5CA6F20B`
-- Release: [Zhuageping v0.1.18](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.18)
+- Installer: `zhuageping-Setup-0.1.19-x64.exe`
+- SHA256: `6B9B09A6512128654D0EAFE32F7BB859F635D26607ADFD55DB70D4E1B516799A`
+- Release: [Zhuageping v0.1.19](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.19)
 
 Note: the current installer is not signed with a commercial code-signing certificate. Windows may show an unknown publisher warning during installation. This is expected for an unsigned installer and does not mean the app connects to the cloud or uploads your data.
 
 ## Latest Updates
 
-Highlights in `v0.1.18`:
+Highlights in `v0.1.19`:
 
-- Reorganized preferences into clearer Startup & Runtime, Software Update, Advanced Settings, Language & Appearance, and Window Behavior sections.
-- Reduced the preferences window width while retaining complete Chinese and English labels and scrollable content.
-- Consolidated screenshot and recording storage locations, formats, and history information in the Output tab.
-- Removed the duplicate recording-folder action from the Record tab.
-- Software Update no longer shows an update-source label and now displays the GitHub Release notes directly in the app.
-- The restart-to-install prompt includes the release notes, so users can review changes before applying an update.
-- Fixed update-state races that could leave a completed manual check showing “Checking for updates.”
-- Fixed settings cards being compressed and clipped when their content exceeds the available window height.
+- Refined the preferences layout, typography, spacing, and navigation for a clearer desktop interface.
+- Improved recording controls and made the recording frame mouse-transparent during capture.
+- Excluded the recording controls and frame from the captured video using protected windows and the native recording backend.
+- Improved F2/Esc recording-selection cancellation and multi-monitor overlay behavior.
+- Verified region and full-screen recordings contain no control bar, border, or black frames in integration tests.
 
 ## Screenshots
 

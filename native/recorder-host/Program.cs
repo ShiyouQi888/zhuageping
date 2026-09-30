@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Runtime.InteropServices;
 using ScreenRecorderLib;
 
 namespace ZhuagepingRecorderHost;
@@ -16,11 +17,16 @@ internal sealed record RecorderHostConfig(
     bool CaptureSystemAudio,
     bool CaptureMicrophone,
     bool ShowCursor,
-    bool ShowClickHighlight
+    bool ShowClickHighlight,
+    string[]? ExcludeWindowHandles
 );
 
 internal static class Program
 {
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetWindowDisplayAffinity(IntPtr window, out uint affinity);
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly ManualResetEventSlim ExitSignal = new(false);
     private static Recorder? recorder;
@@ -51,6 +57,16 @@ internal static class Program
             recorder.OnRecordingFailed += OnRecordingFailed;
             recorder.OnStatusChanged += OnStatusChanged;
 
+            // Electron owns these windows and sets display affinity after showing them.
+            foreach (var handleText in config.ExcludeWindowHandles ?? [])
+            {
+                if (!long.TryParse(handleText, out var handleValue) ||
+                    !GetWindowDisplayAffinity(new IntPtr(handleValue), out var affinity) || affinity != 0x11)
+                {
+                    throw new InvalidOperationException("Recording controls are not excluded from capture. Restart the application and try again.");
+                }
+            }
+
             Emit("ready", new { processId = Environment.ProcessId });
             recorder.Record(config.OutputPath);
             _ = Task.Run(ReadCommands);
@@ -75,7 +91,9 @@ internal static class Program
             ? DisplayRecordingSource.MainMonitor
             : new DisplayRecordingSource(value.DisplayName);
         source.IsVideoCaptureEnabled = true;
-        source.RecorderApi = RecorderApi.DesktopDuplication;
+        source.RecorderApi = RecorderApi.WindowsGraphicsCapture;
+        source.IsBorderRequired = false;
+        source.IsCursorCaptureEnabled = value.ShowCursor;
         if (value.Width > 0 && value.Height > 0)
         {
             source.SourceRect = new ScreenRect(value.X, value.Y, value.Width, value.Height);

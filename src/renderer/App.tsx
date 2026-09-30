@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Camera, FolderOpen, HelpCircle, Minus, Pin, RefreshCw, RotateCcw, ScrollText, Shield, Video, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Camera, FolderOpen, Info, Keyboard, Minus, Pin, RefreshCw, RotateCcw, ScrollText, Settings2, Shield, Video, X } from "lucide-react";
 import appLogoUrl from "./assets/app-logo.png";
 import wechatQrUrl from "./assets/weichat-qr.svg";
 import { fallbackLanguage, formatShortcutForWindows, languageOptions, messages, normalizeLanguage, tabKeys, type TabKey } from "./i18n";
@@ -16,6 +16,15 @@ const shortcutKeys: Array<keyof AppSettings> = [
 ];
 
 const watermarkValues: WatermarkPosition[] = ["top-left", "top-right", "bottom-left", "bottom-right", "bottom-bar"];
+const tabIcons = {
+  general: Settings2,
+  capture: Camera,
+  recording: Video,
+  pin: Pin,
+  output: FolderOpen,
+  control: Keyboard,
+  about: Info
+} satisfies Record<TabKey, typeof Camera>;
 
 function normalizeTheme(theme: string | undefined): AppTheme {
   return theme === "dark" || theme === "light" ? theme : "system";
@@ -58,6 +67,7 @@ const defaultSettings: AppSettings = {
 
 export function App() {
   const [activeTab, setActiveTab] = useState<TabKey>("general");
+  const contentRef = useRef<HTMLElement>(null);
   const [storagePaths, setStoragePaths] = useState<StoragePaths | null>(null);
   const [history, setHistory] = useState<ScreenshotRecord[]>([]);
   const [recordings, setRecordings] = useState<RecordingRecord[]>([]);
@@ -276,15 +286,20 @@ export function App() {
           </button>
         </div>
       </header>
-      <nav className="tabs" aria-label={t.control.shortcutsLabel}>
-        {tabKeys.map((tab) => (
-          <button key={tab} className={activeTab === tab ? "active" : ""} onClick={() => setActiveTab(tab)}>
-            {t.tabs[tab]}
-          </button>
-        ))}
+      <nav className="tabs" aria-label={t.appName}>
+        {tabKeys.map((tab) => {
+          const Icon = tabIcons[tab];
+          return (
+            <button key={tab} type="button" className={activeTab === tab ? "active" : ""} aria-current={activeTab === tab ? "page" : undefined} onClick={() => { contentRef.current?.scrollTo(0, 0); setActiveTab(tab); }}>
+              <Icon size={17} strokeWidth={1.8} aria-hidden="true" />
+              <span>{t.tabs[tab]}</span>
+            </button>
+          );
+        })}
       </nav>
 
-      <section className="content">
+      <section className="content" ref={contentRef} data-tab={activeTab} aria-label={t.tabs[activeTab]}>
+        <header className="page-heading"><h1>{t.tabs[activeTab]}</h1></header>
         {activeTab === "general" ? (
           <>
             <section className="settings-section">
@@ -309,6 +324,25 @@ export function App() {
                 <label>
                   <input checked={settings.runAsAdmin} onChange={() => toggleSetting("runAsAdmin")} type="checkbox" />
                   {t.general.runAsAdmin}
+                </label>
+              </div>
+            </section>
+            <section className="settings-section">
+              <h2>{t.interface.appearance}</h2>
+              <div className="settings-section-body">
+                <label className="field-row">
+                  <span>{t.interface.language}</span>
+                  <select value={language} onChange={(event) => updateSetting("language", event.target.value as AppLanguage)}>
+                    {languageOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
+                  </select>
+                </label>
+                <label className="field-row">
+                  <span>{t.interface.theme}</span>
+                  <select value={settings.theme} onChange={(event) => updateSetting("theme", event.target.value as AppTheme)}>
+                    <option value="system">{t.interface.systemTheme}</option>
+                    <option value="light">{t.interface.lightTheme}</option>
+                    <option value="dark">{t.interface.darkTheme}</option>
+                  </select>
                 </label>
               </div>
             </section>
@@ -376,54 +410,16 @@ export function App() {
           </>
         ) : null}
 
-        {activeTab === "interface" ? (
-          <>
-            <section className="settings-section">
-              <h2>{t.interface.appearance}</h2>
-              <div className="settings-section-body">
-                <label className="field-row">
-                  <span>{t.interface.language}</span>
-                  <select value={language} onChange={(event) => updateSetting("language", event.target.value as AppLanguage)}>
-                    {languageOptions.map((option) => (
-                      <option value={option.value} key={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field-row">
-                  <span>{t.interface.theme}</span>
-                  <select value={settings.theme} onChange={(event) => updateSetting("theme", event.target.value as AppTheme)}>
-                    <option value="system">{t.interface.systemTheme}</option>
-                    <option value="light">{t.interface.lightTheme}</option>
-                    <option value="dark">{t.interface.darkTheme}</option>
-                  </select>
-                </label>
-              </div>
-            </section>
-            <section className="settings-section">
-              <h2>{t.interface.windowBehavior}</h2>
-              <div className="settings-section-body">
-                <label className="field-row">
-                  <span>{t.interface.windowMode}</span>
-                  <select defaultValue="preferences">
-                    <option value="preferences">{t.interface.preferencesOnly}</option>
-                    <option value="tray">{t.interface.trayOnly}</option>
-                  </select>
-                </label>
-              </div>
-            </section>
-          </>
-        ) : null}
-
         {activeTab === "capture" ? (
           <>
-            <div className="action-grid">
+            <section className="settings-section">
+              <h2>{t.capture.actions}</h2>
+              <div className="settings-section-body"><div className="action-grid">
               <button className="primary" onClick={() => void captureNow(false)}>
                 <Camera size={16} aria-hidden="true" />
-                {t.capture.regionCapture}
+                {t.capture.fullscreenCapture}
               </button>
-              <button onClick={() => void captureNow(true)}>{t.capture.regionCaptureCopy}</button>
+              <button onClick={() => void captureNow(true)}>{t.capture.fullscreenCopy}</button>
               <button onClick={() => void captureArea(false)}>{t.capture.regionCapture}</button>
               <button onClick={() => void captureScroll(false)}>
                 <ScrollText size={16} aria-hidden="true" />
@@ -433,7 +429,11 @@ export function App() {
                 <Pin size={16} aria-hidden="true" />
                 {t.capture.pin}
               </button>
-            </div>
+              </div></div>
+            </section>
+            <section className="settings-section">
+              <h2>{t.capture.details}</h2>
+              <div className="settings-section-body">
             <label className="field-row">
               <span>{t.capture.location}</span>
               <input value={settings.location} onChange={(event) => updateSetting("location", event.target.value)} />
@@ -472,15 +472,16 @@ export function App() {
               <input checked={settings.autoPinAfterCapture} onChange={() => toggleSetting("autoPinAfterCapture")} type="checkbox" />
               {t.capture.autoPin}
             </label>
+              </div>
+            </section>
           </>
         ) : null}
 
         {activeTab === "recording" ? (
           <>
-            <div className="note-box">
-              <strong>{t.tabs.recording}</strong>
-              <span>{t.recording.hint}</span>
-            </div>
+            <section className="settings-section">
+              <h2>{t.recording.start}</h2>
+              <div className="settings-section-body">
             <label className="field-row">
               <span>{t.recording.display}</span>
               <select value={recordingDisplayId} onChange={(event) => setRecordingDisplayId(event.target.value)}>
@@ -501,6 +502,11 @@ export function App() {
                 {t.recording.openLatest}
               </button>
             </div>
+              </div>
+            </section>
+            <section className="settings-section">
+              <h2>{t.recording.options}</h2>
+              <div className="settings-section-body">
             <label className="field-row">
               <span>{t.recording.fps}</span>
               <select value={settings.recordingFps} onChange={(event) => updateSetting("recordingFps", Number(event.target.value))}>
@@ -533,6 +539,11 @@ export function App() {
               <input checked={settings.recordingClickHighlight} onChange={() => toggleSetting("recordingClickHighlight")} type="checkbox" />
               {t.recording.clickHighlight}
             </label>
+              </div>
+            </section>
+            <section className="settings-section">
+              <h2>{t.recording.recent}</h2>
+              <div className="settings-section-body">
             <p className="subtle">{t.recording.historyCount(recordings.length)}</p>
             {recordings.length ? (
               <div className="recording-list" aria-label={t.recording.recent}>
@@ -544,16 +555,16 @@ export function App() {
                 ))}
               </div>
             ) : null}
+              </div>
+            </section>
           </>
         ) : null}
 
         {activeTab === "pin" ? (
           <>
-            <div className="note-box">
-              <strong>{t.pin.title}</strong>
-              <span>{t.pin.line1}</span>
-              <span>{t.pin.line2}</span>
-            </div>
+            <section className="settings-section">
+              <h2>{t.pin.title}</h2>
+              <div className="settings-section-body">
             <div className="button-row">
               <button onClick={() => void pinLatest()}>
                 <Pin size={16} aria-hidden="true" />
@@ -565,6 +576,8 @@ export function App() {
               <input checked={settings.autoPinAfterCapture} onChange={() => toggleSetting("autoPinAfterCapture")} type="checkbox" />
               {t.pin.autoPin}
             </label>
+              </div>
+            </section>
           </>
         ) : null}
 
@@ -626,17 +639,23 @@ export function App() {
 
         {activeTab === "control" ? (
           <>
+            <section className="settings-section">
+              <h2>{t.control.shortcutsLabel}</h2>
+              <div className="settings-section-body">
             <div className="shortcut-list">
               {shortcutKeys.map((key) => (
                 <div className="shortcut-item editable" key={key}>
                   <span>{t.control.shortcuts[key as keyof typeof t.control.shortcuts]}</span>
                   <input
+                    aria-label={t.control.shortcuts[key as keyof typeof t.control.shortcuts]}
                     value={formatShortcutForWindows(String(settings[key]))}
                     onChange={(event) => updateSetting(key, formatShortcutForWindows(event.target.value))}
                   />
                 </div>
               ))}
             </div>
+              </div>
+            </section>
             <button onClick={clearHistory}>{t.control.clearHistory}</button>
           </>
         ) : null}
@@ -665,9 +684,6 @@ export function App() {
       </section>
 
       <footer className="footer">
-        <button className="help" title={t.common.help}>
-          <HelpCircle size={16} aria-hidden="true" />
-        </button>
         <span>{status}</span>
         <button onClick={() => void restoreDefaults()}>
           <RotateCcw size={16} aria-hidden="true" />

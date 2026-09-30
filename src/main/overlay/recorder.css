@@ -59,6 +59,10 @@ body.is-recording #selection {
   display: none !important;
 }
 
+body.is-recording #cancel {
+  display: none;
+}
+
 #recordingFrame,
 #edgeReveal {
   position: fixed;
@@ -68,8 +72,8 @@ body.is-recording #selection {
 }
 
 #recordingFrame {
-  border: 2px solid #4395e8;
-  border-radius: 2px;
+  border: 1px solid #547b92;
+  border-radius: 0;
 }
 
 #edgeReveal {
@@ -119,7 +123,7 @@ body.hide-recording-frame #selection {
 
 #selectionHint button {
   min-width: 48px;
-  height: 28px;
+  height: 24px;
   padding: 0 10px;
   color: #7b341e;
   background: #fff7ed;
@@ -167,42 +171,29 @@ body.hide-recording-frame #selection {
   display: none;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  height: 34px;
-  min-width: 248px;
-  padding: 0 4px 0 10px;
+  gap: 8px;
+  height: 28px;
+  min-width: 0;
+  padding: 0 4px 0 8px;
   color: #e8eef5;
-  background: rgba(27, 35, 46, 0.96);
-  border: 1px solid rgba(110, 132, 155, 0.48);
-  border-bottom-color: #4395e8;
-  border-radius: 4px 4px 0 0;
-  box-shadow:
-    0 8px 24px rgba(3, 10, 18, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(14px) saturate(1.05);
-  -webkit-backdrop-filter: blur(14px) saturate(1.05);
+  background: #252b32;
+  border: 0;
+  border-bottom: 1px solid #547b92;
+  border-radius: 0;
+  box-shadow: none;
 }
 
-#controlBar.is-below {
-  border-top-color: #4395e8;
-  border-bottom-color: rgba(110, 132, 155, 0.48);
-  border-radius: 0 0 4px 4px;
+#controlBar.is-frame-bar {
+  border-radius: 0;
 }
 
-#controlBar.is-screen-bar {
-  border-top-color: rgba(110, 132, 155, 0.48);
-  border-bottom-color: #4395e8;
-  border-radius: 0 0 4px 4px;
-  transition:
-    opacity 140ms ease,
-    transform 180ms ease;
+body.is-recording #controlSize {
+  display: inline;
 }
 
-#controlBar.is-screen-bar.is-auto-hidden {
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(calc(-100% - 4px));
-}
+body.is-recording #edgeReveal { display: none; }
+.recording-summary { flex: 1; }
+#controlSize { order: -1; margin-right: auto; }
 
 .recording-summary,
 .recording-actions,
@@ -285,9 +276,9 @@ button.danger {
 
 #controlBar .icon-button {
   display: inline-flex;
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
   align-items: center;
   justify-content: center;
   padding: 0;

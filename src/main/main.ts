@@ -301,10 +301,12 @@ let pinsVisible = true;
 let shortcutCaptureRunning = false;
 let recordingRunning = false;
 let activeRecordingOverlay: BrowserWindow | null = null;
+let activeRecordingControl: BrowserWindow | null = null;
 let activeNativeRecorderProcess: ChildProcess | null = null;
 let activeRecordingUsesNative = false;
 let nativeRecordingSelectionCommitted = false;
 let pendingNativeRecorderCommand: "stop" | "cancel" | null = null;
+let cancelPendingRecordingSelection: (() => void) | null = null;
 let hotkeyGuardProcess: ChildProcess | null = null;
 let hotkeyGuardRestartTimer: NodeJS.Timeout | null = null;
 let hotkeyGuardOutputBuffer = "";
@@ -1216,6 +1218,10 @@ function runShortcutScrollCapture(copyAfterCapture = appSettings.autoCopy) {
 }
 
 function runShortcutRecording() {
+  if (recordingRunning && cancelPendingRecordingSelection) {
+    cancelPendingRecordingSelection();
+    return;
+  }
   if (recordingRunning && activeNativeRecorderProcess?.stdin?.writable) {
     activeNativeRecorderProcess.stdin.write("stop\n");
     return;
@@ -3213,7 +3219,15 @@ function recorderHostPath() {
   return fsSync.existsSync(builtPath) ? builtPath : packagedPath;
 }
 
+function nativeWindowHandle(window: BrowserWindow) {
+  const handle = window.getNativeWindowHandle();
+  if (handle.length >= 8) return handle.readBigUInt64LE(0).toString();
+  return String(handle.readUInt32LE(0));
+}
+
 function closeRecordingOverlay(overlay: BrowserWindow) {
+  if (activeRecordingControl && !activeRecordingControl.isDestroyed()) activeRecordingControl.close();
+  activeRecordingControl = null;
   if (!overlay.isDestroyed()) {
     overlay.setIgnoreMouseEvents(false);
     overlay.close();
@@ -3274,9 +3288,21 @@ async function runNativeRecordingOverlay(
       return { display, overlay };
     });
     activeRecordingOverlay = overlays[0]?.overlay ?? null;
+    const findOverlayForSender = (sender: Electron.WebContents) => {
+      if (sender.isDestroyed()) return undefined;
+      return overlays.find(({ overlay }) => !overlay.isDestroyed() && overlay.webContents === sender);
+    };
     activeRecordingUsesNative = true;
     nativeRecordingSelectionCommitted = false;
     let settled = false;
+    let activeDisplayId = cursorDisplay.id;
+    let displayPoll: NodeJS.Timeout | null = null;
+    const selectionTimeout = setTimeout(() => cancel(), 90_000);
+
+    const stopDisplayPoll = () => {
+      if (displayPoll) clearInterval(displayPoll);
+      displayPoll = null;
+    };
 
     const removeSelectionListeners = () => {
       ipcMain.removeListener("recording-region-selected", onSelected);
@@ -3288,6 +3314,9 @@ async function runNativeRecordingOverlay(
     const cancel = () => {
       if (settled) return;
       settled = true;
+      clearTimeout(selectionTimeout);
+      cancelPendingRecordingSelection = null;
+      stopDisplayPoll();
       removeSelectionListeners();
       ipcMain.removeListener("recording-ignore-mouse", onIgnoreMouse);
       overlays.forEach(({ overlay }) => {
@@ -3298,31 +3327,52 @@ async function runNativeRecordingOverlay(
       nativeRecordingSelectionCommitted = false;
       resolve(null);
     };
+    cancelPendingRecordingSelection = cancel;
     const showOverlay = (overlay: BrowserWindow) => {
       if (overlay.isDestroyed()) return;
+      const entry = overlays.find((item) => item.overlay === overlay);
+      if (!entry || entry.display.id !== activeDisplayId) return;
       overlay.showInactive();
+      // Showing a transparent Chromium window can reset display affinity.
+      overlay.setContentProtection(true);
       overlay.moveTop();
       overlay.setAlwaysOnTop(true, "screen-saver");
       overlay.focus();
     };
+    if (mode === "region" && overlays.length > 1) {
+      displayPoll = setInterval(() => {
+        if (settled) return;
+        const nextId = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id;
+        if (nextId === activeDisplayId) return;
+        const next = overlays.find(({ display }) => display.id === nextId);
+        if (!next || next.overlay.isDestroyed()) return;
+        const previous = overlays.find(({ display }) => display.id === activeDisplayId)?.overlay;
+        if (previous && !previous.isDestroyed()) previous.hide();
+        activeDisplayId = nextId;
+        activeRecordingOverlay = next.overlay;
+        showOverlay(next.overlay);
+        requestWindowRegions(next.display, next.overlay);
+      }, 50);
+    }
     const onReady = (event: Electron.IpcMainEvent) => {
-      const entry = overlays.find(({ overlay }) => overlay.webContents.id === event.sender.id);
+      const entry = findOverlayForSender(event.sender);
       if (entry) showOverlay(entry.overlay);
     };
     const onCancel = (event: Electron.IpcMainEvent) => {
-      if (overlays.some(({ overlay }) => overlay.webContents.id === event.sender.id)) cancel();
+      if (findOverlayForSender(event.sender)) cancel();
     };
     const onIgnoreMouse = (event: Electron.IpcMainEvent, ignore: boolean) => {
-      const entry = overlays.find(({ overlay }) => overlay.webContents.id === event.sender.id);
+      const entry = findOverlayForSender(event.sender);
       if (!entry || entry.overlay.isDestroyed()) return;
       entry.overlay.setIgnoreMouseEvents(Boolean(ignore), { forward: true });
     };
     const onWindowRegionRequest = (event: Electron.IpcMainEvent) => {
-      const entry = overlays.find(({ overlay }) => overlay.webContents.id === event.sender.id);
+      const entry = findOverlayForSender(event.sender);
       if (entry) requestWindowRegions(entry.display, entry.overlay);
     };
     let activeWindowRegionSender = 0;
     const onWindowRegionActive = (event: Electron.IpcMainEvent) => {
+      if (event.sender.isDestroyed()) return;
       if (activeWindowRegionSender === event.sender.id) return;
       activeWindowRegionSender = event.sender.id;
       overlays.forEach(({ overlay }) => {
@@ -3332,7 +3382,7 @@ async function runNativeRecordingOverlay(
       });
     };
     const onSelected = (event: Electron.IpcMainEvent, region: CaptureRegion) => {
-      const entry = overlays.find(({ overlay }) => overlay.webContents.id === event.sender.id);
+      const entry = findOverlayForSender(event.sender);
       if (settled || !entry) return;
       const { display, overlay } = entry;
       const width = Math.max(2, Math.min(display.bounds.width, Math.round(region.width)));
@@ -3340,10 +3390,15 @@ async function runNativeRecordingOverlay(
       const x = Math.max(0, Math.min(display.bounds.width - width, Math.round(region.x)));
       const y = Math.max(0, Math.min(display.bounds.height - height, Math.round(region.y)));
       settled = true;
+      clearTimeout(selectionTimeout);
+      cancelPendingRecordingSelection = null;
+      stopDisplayPoll();
       nativeRecordingSelectionCommitted = true;
       removeSelectionListeners();
-      ipcMain.removeListener("recording-ignore-mouse", onIgnoreMouse);
       activeRecordingOverlay = overlay;
+      overlay.setIgnoreMouseEvents(true);
+      overlay.setContentProtection(true);
+      overlay.webContents.send("recording-frame-only");
       overlays.forEach(({ overlay: candidate }) => {
         if (candidate !== overlay && !candidate.isDestroyed()) candidate.close();
       });
@@ -3351,8 +3406,15 @@ async function runNativeRecordingOverlay(
     };
 
     overlays.forEach(({ display, overlay }) => {
+      overlay.webContents.on("before-input-event", (keyEvent, input) => {
+        if (!settled && input.type === "keyDown" && (input.key === "Escape" || input.key === "F2")) {
+          keyEvent.preventDefault();
+          cancel();
+        }
+      });
       overlay.setMenu(null);
       overlay.setMenuBarVisibility(false);
+      overlay.setContentProtection(true);
       overlay.setAlwaysOnTop(true, "screen-saver");
       overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
       overlay.once("ready-to-show", () => showOverlay(overlay));
@@ -3363,6 +3425,7 @@ async function runNativeRecordingOverlay(
       overlay.on("closed", () => {
         if (!settled) cancel();
         if (activeRecordingOverlay === overlay) {
+          ipcMain.removeListener("recording-ignore-mouse", onIgnoreMouse);
           activeRecordingOverlay = null;
           activeRecordingUsesNative = false;
           nativeRecordingSelectionCommitted = false;
@@ -3389,6 +3452,9 @@ async function runNativeRecordingOverlay(
           cursorY: String(cursorPoint.y - display.bounds.y),
           language: settings.language
         }
+      }).catch((error) => {
+        console.error("Recording selection overlay failed to load.", error);
+        cancel();
       });
     });
 
@@ -3498,12 +3564,37 @@ async function recordSelectedRegionNative(
   if (!selection) return null;
 
   const { display, region, overlay } = selection;
-  if (!overlay.isDestroyed()) {
-    overlay.hide();
+  overlay.setContentProtection(true);
+  const barWidth = Math.min(display.bounds.width, mode === "screen" ? 260 : Math.max(196, region.width));
+  const barX = display.bounds.x + (mode === "screen"
+    ? Math.max(0, display.bounds.width - barWidth - 8)
+    : Math.max(0, Math.min(region.x, display.bounds.width - barWidth)));
+  const barY = display.bounds.y + (mode === "screen" ? 8 : region.y >= 26 ? region.y - 26 : Math.max(0, region.y));
+  const control = new BrowserWindow({
+    x: Math.round(barX), y: Math.round(barY), width: Math.round(barWidth), height: 24,
+    frame: false, transparent: true, backgroundColor: "#00000000", show: false,
+    resizable: false, movable: false, alwaysOnTop: true, skipTaskbar: true,
+    webPreferences: { nodeIntegration: true, contextIsolation: false, backgroundThrottling: false }
+  });
+  activeRecordingControl = control;
+  control.setAlwaysOnTop(true, "screen-saver");
+  try {
+    await control.loadFile(path.join(path.dirname(recorderHtmlPath()), "recorder-control.html"), {
+      query: { width: String(Math.round(region.width * (display.scaleFactor || 1))),
+        height: String(Math.round(region.height * (display.scaleFactor || 1))),
+        language: settings.language }
+    });
+    control.showInactive();
+    control.setAlwaysOnTop(true, "screen-saver");
+    control.setContentProtection(true);
+    control.moveTop();
+    control.focus();
+  } catch (error) {
+    closeRecordingOverlay(overlay);
+    throw error;
   }
-  // Desktop Duplication can capture or be disrupted by a transparent full-display
-  // Electron window. Keep the overlay for selection only, then let the desktop
-  // compositor settle before the native recorder starts.
+  // Keep the protected overlay visible so the recording frame and controls stay
+  // available while Windows capture excludes this window from the source.
   await delay(120);
   const scaleFactor = display.scaleFactor || 1;
   const width = Math.max(2, Math.floor((region.width * scaleFactor) / 2) * 2);
@@ -3529,7 +3620,8 @@ async function recordSelectedRegionNative(
       captureSystemAudio: true,
       captureMicrophone: settings.recordingMic,
       showCursor: settings.recordingShowCursor,
-      showClickHighlight: settings.recordingClickHighlight
+      showClickHighlight: settings.recordingClickHighlight,
+      excludeWindowHandles: [nativeWindowHandle(overlay), nativeWindowHandle(control)]
     });
     if (result.canceled) {
       await fs.unlink(filePath).catch(() => undefined);
@@ -4205,7 +4297,11 @@ app.whenReady().then(async () => {
   startHotkeyGuard();
   registerPinWindowIpc();
   ipcMain.on("recording-native-command", (event, command: string) => {
-    if (activeRecordingOverlay?.webContents.id !== event.sender.id) return;
+    if (event.sender.isDestroyed()) return;
+    const isActiveRecordingWindow = (window: BrowserWindow | null) =>
+      Boolean(window && !window.isDestroyed() && window.webContents === event.sender);
+    if (!isActiveRecordingWindow(activeRecordingOverlay) &&
+        !isActiveRecordingWindow(activeRecordingControl)) return;
     if (!["pause", "resume", "stop", "cancel"].includes(command)) return;
     if (activeNativeRecorderProcess?.stdin?.writable) {
       activeNativeRecorderProcess.stdin.write(`${command}\n`);

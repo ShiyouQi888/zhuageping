@@ -111,7 +111,6 @@ let canceled = false;
 let ignoringMouse = false;
 let nativeRecordingActive = false;
 let nativeRecordingPaused = false;
-let controlHideTimer = 0;
 
 const recordingFrameWidth = 2;
 
@@ -195,45 +194,17 @@ function positionRecordingFrame(rect) {
 }
 
 function placeControlBar(rect) {
-  if (recordingMode === "screen") {
-    controlBar.style.display = "flex";
-    controlBar.style.visibility = "visible";
-    controlBar.style.left = "2px";
-    controlBar.style.top = "2px";
-    controlBar.style.width = `${Math.max(248, window.innerWidth - 4)}px`;
-    controlBar.classList.add("is-screen-bar");
-    controlBar.classList.remove("is-below", "is-compact", "is-auto-hidden");
-    return true;
-  }
-
   controlBar.style.visibility = "hidden";
   controlBar.style.display = "flex";
-  const availableWidth = Math.max(0, window.innerWidth - 16);
-  const barWidth = Math.min(availableWidth, Math.max(248, rect.width));
-  const barHeight = Math.max(34, controlBar.offsetHeight);
-  const gap = 2;
-  const left = clamp(rect.x + rect.width / 2 - barWidth / 2, 8, window.innerWidth - barWidth - 8);
-  const above = rect.y - barHeight - gap;
-  const below = rect.y + rect.height + gap;
-  let top;
-  let isBelow = false;
-
-  if (above >= 8) {
-    top = above;
-  } else if (below + barHeight <= window.innerHeight - 8) {
-    top = below;
-    isBelow = true;
-  } else {
-    controlBar.style.display = "none";
-    controlBar.style.visibility = "visible";
-    return false;
-  }
-
+  const availableWidth = Math.max(0, window.innerWidth - 8);
+  const barWidth = Math.min(availableWidth, Math.max(196, rect.width));
+  const left = clamp(rect.x, 4, window.innerWidth - barWidth - 4);
+  const top = rect.y >= 26 ? rect.y - 26 : Math.max(0, rect.y);
   controlBar.style.width = `${barWidth}px`;
   controlBar.style.left = `${left}px`;
   controlBar.style.top = `${top}px`;
-  controlBar.classList.toggle("is-below", isBelow);
-  controlBar.classList.toggle("is-compact", barWidth < 330);
+  controlBar.classList.add("is-frame-bar");
+  controlBar.classList.remove("is-top-right", "is-centered", "is-screen-bar", "is-below", "is-compact", "is-auto-hidden");
   controlBar.style.visibility = "visible";
   return true;
 }
@@ -413,47 +384,8 @@ function pointInControlBar(x, y) {
   return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
 }
 
-function clearControlHideTimer() {
-  if (!controlHideTimer) return;
-  clearTimeout(controlHideTimer);
-  controlHideTimer = 0;
-}
-
-function showScreenControls() {
-  if (recordingMode !== "screen") return;
-  clearControlHideTimer();
-  controlBar.classList.remove("is-auto-hidden");
-}
-
-function scheduleScreenControlsHide(delay = 520) {
-  if (recordingMode !== "screen") return;
-  clearControlHideTimer();
-  controlHideTimer = window.setTimeout(() => {
-    controlHideTimer = 0;
-    controlBar.classList.add("is-auto-hidden");
-    setMouseIgnored(true);
-  }, delay);
-}
-
 function syncMousePassThrough(event) {
   if ((!recorder || recorder.state === "inactive") && !nativeRecordingActive) return;
-  if (recordingMode === "screen") {
-    const revealDistance = 10;
-    const nearScreenEdge =
-      event.clientX <= revealDistance ||
-      event.clientY <= revealDistance ||
-      event.clientX >= window.innerWidth - revealDistance ||
-      event.clientY >= window.innerHeight - revealDistance;
-    if (nearScreenEdge) showScreenControls();
-    const insideBar = pointInControlBar(event.clientX, event.clientY);
-    if (insideBar) {
-      showScreenControls();
-    } else if (!nearScreenEdge) {
-      scheduleScreenControlsHide();
-    }
-    setMouseIgnored(!insideBar);
-    return;
-  }
   setMouseIgnored(!pointInControlBar(event.clientX, event.clientY));
 }
 
@@ -483,7 +415,6 @@ async function startRecording(rect) {
         timerId = setInterval(updateTimer, 250);
         updateTimer();
       }
-      if (recordingMode === "screen") scheduleScreenControlsHide(2200);
       ipcRenderer.send("recording-region-selected", {
         x: Math.round(captureRect.x),
         y: Math.round(captureRect.y),
@@ -553,7 +484,6 @@ async function startRecording(rect) {
 
 function cancelRecording() {
   canceled = true;
-  clearControlHideTimer();
   setMouseIgnored(false);
   clearInterval(timerId);
   if (nativeMode && nativeRecordingActive) {
@@ -718,6 +648,10 @@ ipcRenderer.on("recording-command", (_event, command) => {
     return;
   }
   if (command === "stop" && recorder && recorder.state !== "inactive") recorder.stop();
+});
+ipcRenderer.on("recording-frame-only", () => {
+  controlBar.style.display = "none";
+  setMouseIgnored(true);
 });
 
 ipcRenderer.on("window-regions", (_event, payload) => {
