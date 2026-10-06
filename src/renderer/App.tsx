@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, FolderOpen, Info, Keyboard, Minus, Pin, RefreshCw, RotateCcw, ScrollText, Settings2, Shield, Video, X } from "lucide-react";
+import { Camera, ExternalLink, FolderOpen, Info, Keyboard, Minus, Pin, RefreshCw, RotateCcw, ScrollText, Settings2, Shield, Video, X } from "lucide-react";
 import appLogoUrl from "./assets/app-logo.png";
 import wechatQrUrl from "./assets/weichat-qr.svg";
 import { fallbackLanguage, formatShortcutForWindows, languageOptions, messages, normalizeLanguage, tabKeys, type TabKey } from "./i18n";
@@ -669,24 +669,47 @@ export function App() {
         ) : null}
 
         {activeTab === "about" ? (
-          <div className="about-box">
-            <div className="about-copy">
-              <div className="about-brand">
-                <img className="about-logo" src={appLogoUrl} alt={t.about.logoAlt} />
-                <div>
-                  <strong>{t.appName}</strong>
-                  <span>{t.about.subtitle}</span>
+          <div className="about-page">
+            <div className="about-box">
+              <div className="about-copy">
+                <div className="about-brand">
+                  <img className="about-logo" src={appLogoUrl} alt={t.about.logoAlt} />
+                  <div>
+                    <strong>{t.appName}</strong>
+                    <span>{t.about.subtitle}</span>
+                  </div>
                 </div>
+                <span>{t.about.author}</span>
+                <span>{t.about.email}</span>
+                <span>{t.about.description}</span>
+                <span>{t.about.privacy}</span>
               </div>
-              <span>{t.about.author}</span>
-              <span>{t.about.email}</span>
-              <span>{t.about.description}</span>
-              <span>{t.about.privacy}</span>
+              <button className="about-qr-trigger" type="button" aria-label={t.about.qrLabel}>
+                <img className="about-qr" src={wechatQrUrl} alt={t.about.qrAlt} />
+                <img className="about-qr-preview" src={wechatQrUrl} alt="" aria-hidden="true" />
+              </button>
             </div>
-            <button className="about-qr-trigger" type="button" aria-label={t.about.qrLabel}>
-              <img className="about-qr" src={wechatQrUrl} alt={t.about.qrAlt} />
-              <img className="about-qr-preview" src={wechatQrUrl} alt="" aria-hidden="true" />
-            </button>
+            <section className="privacy-policy" aria-labelledby="privacy-policy-title">
+              <div className="privacy-policy-heading">
+                <div>
+                  <h2 id="privacy-policy-title">{t.about.privacyPolicy}</h2>
+                  <span>{t.about.effectiveDate}</span>
+                </div>
+                <button type="button" onClick={() => void window.screenshotApp.openPrivacyPolicy(language)}>
+                  <ExternalLink size={15} aria-hidden="true" />
+                  {t.about.viewOnlinePolicy}
+                </button>
+              </div>
+              <p className="privacy-policy-intro">{t.about.privacyIntro}</p>
+              <div className="privacy-policy-list">
+                {t.about.policySections.map((section) => (
+                  <article key={section.title}>
+                    <h3>{section.title}</h3>
+                    <p>{section.body}</p>
+                  </article>
+                ))}
+              </div>
+            </section>
           </div>
         ) : null}
       </section>

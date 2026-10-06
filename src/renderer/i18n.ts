@@ -215,6 +215,36 @@ export const messages = {
       email: "邮箱：blacklaw@foxmail.com",
       description: "纯本地截图、贴图、时间戳与地点水印工具。",
       privacy: "无云端、无账号、无上传。",
+      privacyPolicy: "隐私政策",
+      effectiveDate: "生效日期：2026 年 10 月 6 日",
+      privacyIntro: "抓个屏以本地处理为原则。除检查或下载软件更新外，截图、录屏、OCR 识别结果与设置均不会由本软件上传至开发者服务器。",
+      viewOnlinePolicy: "查看在线政策",
+      policySections: [
+        {
+          title: "我们处理的信息",
+          body: "为提供截图、录屏、贴图、OCR 与水印功能，软件会在您的设备上处理您选择的屏幕内容、截图、录屏、可选麦克风音频，以及您填写的地点、项目、备注和偏好设置。这些内容可能包含个人信息，取决于您选择捕获或输入的内容。"
+        },
+        {
+          title: "用途、存储与安全",
+          body: "上述信息仅用于实现软件功能，并保存在您选择的本地输出目录及本地应用数据目录。软件不建立用户账户、不提供云同步、不投放广告，也不出售、出租或交易您的信息。文件安全由您的 Windows 账户、设备安全设置和您选择的存储位置共同保护。"
+        },
+        {
+          title: "网络连接与第三方",
+          body: "OCR 引擎在本机运行，不上传待识别图片或文字。软件仅在您检查更新、自动下载更新或打开在线政策时连接 GitHub Releases 或 GitHub；这些服务可能依其自身政策处理网络请求信息，例如 IP 地址。软件不集成分析、广告或第三方数据经纪服务。"
+        },
+        {
+          title: "您的控制权",
+          body: "您可随时更改截图与录屏保存位置、关闭麦克风录制、清空历史记录，并在文件资源管理器中查看、复制或删除已保存的截图、录屏、配置和备份。卸载软件不会自动删除您的本地文件；请在卸载前或卸载后按需删除这些内容。"
+        },
+        {
+          title: "共享与第三方信息",
+          body: "本软件不会主动向外部服务发布您的内容。若您自行复制、保存、分享截图或录屏，相关接收方及服务的处理规则由其自身政策决定。请在截取包含他人个人信息的内容前确认您拥有必要的授权。"
+        },
+        {
+          title: "儿童与政策更新",
+          body: "本软件不面向儿童，也不会主动收集儿童信息。我们可能随功能变化更新本政策，并在此页面及在线政策中更新生效日期。如有隐私问题、访问或删除请求，请通过 blacklaw@foxmail.com 联系我们。"
+        }
+      ],
       qrLabel: "放大微信二维码",
       qrAlt: "微信二维码"
     }
@@ -408,6 +438,36 @@ export const messages = {
       email: "Email: blacklaw@foxmail.com",
       description: "A local screenshot, pin, timestamp, and location watermark tool.",
       privacy: "No cloud, no account, no uploads.",
+      privacyPolicy: "Privacy Policy",
+      effectiveDate: "Effective date: October 6, 2026",
+      privacyIntro: "Zhuageping is local-first. Other than checking for or downloading software updates, screenshots, recordings, OCR results, and settings are not uploaded by the app to our servers.",
+      viewOnlinePolicy: "View online policy",
+      policySections: [
+        {
+          title: "Information we process",
+          body: "To provide capture, recording, pinning, OCR, and watermark features, the app processes on your device the screen content you choose, screenshots, recordings, optional microphone audio, and the location, project, notes, and preferences you enter. This content may contain personal information depending on what you choose to capture or enter."
+        },
+        {
+          title: "Use, storage, and security",
+          body: "This information is used only to provide the app's features and is stored in the local output folders and local app-data folder that you choose or the app creates. The app does not create user accounts, provide cloud sync, serve ads, or sell, rent, or trade your information. Your Windows account, device security settings, and chosen storage location help protect local files."
+        },
+        {
+          title: "Network connections and third parties",
+          body: "The OCR engine runs locally and does not upload images or recognized text. The app connects to GitHub Releases or GitHub only when you check for updates, download an update, or open the online policy. Those services may process network-request information, such as an IP address, under their own policies. The app contains no analytics, advertising, or third-party data-broker service."
+        },
+        {
+          title: "Your choices and controls",
+          body: "You can change screenshot and recording locations, turn off microphone recording, clear history, and use File Explorer to view, copy, or delete saved screenshots, recordings, configuration, and backups. Uninstalling the app does not automatically remove local files; delete them before or after uninstalling if desired."
+        },
+        {
+          title: "Sharing and other people's information",
+          body: "The app does not proactively publish your content to external services. If you copy, save, or share screenshots or recordings yourself, the recipient and service's own policies apply. Please confirm that you have the necessary authorization before capturing content that contains another person's personal information."
+        },
+        {
+          title: "Children and policy changes",
+          body: "The app is not directed to children and does not intentionally collect children's information. We may update this policy when functionality changes and will update the effective date here and in the online policy. For privacy questions or access or deletion requests, contact blacklaw@foxmail.com."
+        }
+      ],
       qrLabel: "Enlarge WeChat QR code",
       qrAlt: "WeChat QR code"
     }

@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld("screenshotApp", {
   clearHistory: () => ipcRenderer.invoke("app:clear-history"),
   openInFolder: (filePath: string) => ipcRenderer.invoke("app:open-in-folder", filePath),
   openPath: (targetPath: string) => ipcRenderer.invoke("app:open-path", targetPath),
+  openPrivacyPolicy: (language: string) => ipcRenderer.invoke("app:open-privacy-policy", language),
   openRecordingFolder: () => ipcRenderer.invoke("app:open-recording-folder"),
   openDiagnostics: () => ipcRenderer.invoke("app:open-diagnostics"),
   copyDiagnostics: () => ipcRenderer.invoke("app:copy-diagnostics"),

@@ -291,6 +291,7 @@ button.primary:not(.titlebar-controls button, .tabs button):hover:not(:disabled)
 .subtle, .output-stats { margin: 0; color: var(--muted); font-size: 12px; line-height: 18px; }
 .output-stats { display: flex; flex-wrap: wrap; gap: 4px 16px; }
 
+.about-page { display: grid; gap: 20px; min-width: 0; padding-bottom: 8px; }
 .about-box { display: grid; grid-template-columns: minmax(0,1fr) 96px; align-items: start; gap: 16px; min-width: 0; }
 .about-copy { display: grid; gap: 8px; min-width: 0; color: var(--muted); font-size: 13px; line-height: 19px; }
 .about-copy span { min-width: 0; overflow-wrap: anywhere; }
@@ -302,6 +303,18 @@ button.primary:not(.titlebar-controls button, .tabs button):hover:not(:disabled)
 .about-qr { width: 96px; height: 96px; padding: 5px; background: var(--window); border: 1px solid var(--border); border-radius: 5px; }
 .about-qr-preview { position: fixed; top: 55px; right: 20px; z-index: 20; width: 250px; height: 250px; padding: 10px; background: var(--window); border: 1px solid var(--border-strong); border-radius: 6px; box-shadow: 0 12px 30px #0003; opacity: 0; pointer-events: none; transition: opacity 130ms ease; }
 .about-qr-trigger:hover .about-qr-preview, .about-qr-trigger:focus-visible .about-qr-preview { opacity: 1; }
+
+.privacy-policy { min-width: 0; padding-top: 18px; border-top: 1px solid var(--border); }
+.privacy-policy-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; min-width: 0; }
+.privacy-policy-heading > div { display: grid; gap: 3px; min-width: 0; }
+.privacy-policy-heading h2 { margin: 0; color: var(--text); font-size: 15px; line-height: 21px; font-weight: 680; }
+.privacy-policy-heading span { color: var(--muted); font-size: 12px; line-height: 18px; }
+.privacy-policy-heading button { flex: 0 0 auto; white-space: nowrap; }
+.privacy-policy-intro { margin: 13px 0 0; color: var(--text); font-size: 13px; line-height: 20px; }
+.privacy-policy-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 18px; margin-top: 16px; }
+.privacy-policy-list article { min-width: 0; padding-left: 10px; border-left: 2px solid var(--accent-tint); }
+.privacy-policy-list h3 { margin: 0; color: var(--text); font-size: 12px; line-height: 18px; font-weight: 680; }
+.privacy-policy-list p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
 
 .footer {
   grid-column: 1 / -1;
@@ -323,4 +336,7 @@ button.primary:not(.titlebar-controls button, .tabs button):hover:not(:disabled)
   .tabs button { gap: 7px; padding: 0 8px; }
   .content { padding-right: 14px; padding-left: 14px; }
   .field-row { grid-template-columns: 105px minmax(0,1fr); }
+  .privacy-policy-list { grid-template-columns: 1fr; }
+  .privacy-policy-heading { align-items: stretch; flex-direction: column; }
+  .privacy-policy-heading button { align-self: flex-start; }
 }

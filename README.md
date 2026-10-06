@@ -530,7 +530,9 @@ The current version includes coordinate conversion tests for multi-monitor and h
 
 ## Privacy
 
-Zhuageping does not provide cloud sync and does not upload screenshot content.
+Zhuageping does not provide cloud sync and does not upload screenshot, recording, or OCR content. The app may connect to GitHub when checking or downloading software updates.
+
+Read the full [Privacy Policy](PRIVACY.md).
 
 Local data includes:
 

@@ -114,6 +114,7 @@ declare global {
       clearHistory: () => Promise<void>;
       openInFolder: (filePath: string) => Promise<void>;
       openPath: (targetPath: string) => Promise<void>;
+      openPrivacyPolicy: (language: AppLanguage) => Promise<void>;
       openRecordingFolder: () => Promise<void>;
       openDiagnostics: () => Promise<void>;
       copyDiagnostics: () => Promise<void>;

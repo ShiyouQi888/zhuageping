@@ -27,6 +27,10 @@ import { autoUpdater } from "electron-updater";
 const execFileAsync = promisify(execFile);
 const APP_NAME = "抓个屏";
 const APP_PROTOCOL = "zhuageping";
+const PRIVACY_POLICY_URLS = {
+  "zh-CN": "https://github.com/ShiyouQi888/zhuageping/blob/main/PRIVACY.zh-CN.md",
+  "en-US": "https://github.com/ShiyouQi888/zhuageping/blob/main/PRIVACY.md"
+} as const;
 const SETTINGS_SCHEMA_VERSION = 2;
 const WINDOWS_STARTUP_VALUE_NAME = "Zhuageping";
 const WINDOWS_RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
@@ -4623,6 +4627,9 @@ app.whenReady().then(async () => {
   });
   ipcMain.handle("app:open-path", async (_event, targetPath: string) => {
     await shell.openPath(targetPath);
+  });
+  ipcMain.handle("app:open-privacy-policy", async (_event, language: string) => {
+    await shell.openExternal(language === "en-US" ? PRIVACY_POLICY_URLS["en-US"] : PRIVACY_POLICY_URLS["zh-CN"]);
   });
   ipcMain.handle("app:open-recording-folder", async () => {
     await fs.mkdir(recordingDir(), { recursive: true });
