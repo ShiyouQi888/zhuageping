@@ -67,11 +67,9 @@ Highlights in `v0.1.20`:
 <table>
   <tr>
     <td width="50%"><img src="docs/readme-assets/preferences-general.png" alt="General preferences with software update settings" /></td>
-    <td width="50%"><img src="docs/readme-assets/preferences-interface.png" alt="Interface preferences with window mode and theme settings" /></td>
   </tr>
   <tr>
     <td align="center"><strong>General and software update</strong></td>
-    <td align="center"><strong>Interface and theme</strong></td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/readme-assets/preferences-capture.png" alt="Capture preferences with watermark and auto-copy settings" /></td>
