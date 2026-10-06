@@ -67,9 +67,11 @@ Highlights in `v0.1.20`:
 <table>
   <tr>
     <td width="50%"><img src="docs/readme-assets/preferences-general.png" alt="General preferences with software update settings" /></td>
+    <td width="50%"><img src="docs/readme-assets/preferences-general-advanced.png" alt="General preferences with advanced settings and diagnostic tools" /></td>
   </tr>
   <tr>
     <td align="center"><strong>General and software update</strong></td>
+    <td align="center"><strong>Advanced settings and diagnostics</strong></td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/readme-assets/preferences-capture.png" alt="Capture preferences with watermark and auto-copy settings" /></td>
