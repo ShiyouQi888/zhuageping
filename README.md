@@ -91,11 +91,11 @@ Highlights in `v0.1.20`:
   </tr>
   <tr>
     <td width="50%"><img src="docs/readme-assets/preferences-about.png" alt="About page with author information and QR code" /></td>
-    <td width="50%"><img src="docs/readme-assets/capture-editor-toolbar.png" alt="In-place screenshot editor with annotation toolbar" /></td>
+    <td width="50%"><img src="docs/readme-assets/preferences-record.png" alt="Recording preferences with display and quality settings" /></td>
   </tr>
   <tr>
     <td align="center"><strong>About</strong></td>
-    <td align="center"><strong>In-place capture editor</strong></td>
+    <td align="center"><strong>Recording settings</strong></td>
   </tr>
 </table>
 
