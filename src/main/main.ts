@@ -2134,6 +2134,7 @@ function imageDataUrlToBuffer(dataUrl: string) {
 function rapidOcrEngineCandidates() {
   const resourceRoot = process.resourcesPath || "";
   return [
+    path.join(appRuntimeDir, "ocr", "RapidOCR-json", "RapidOCR_json.exe"),
     path.join(resourceRoot, "ocr", "RapidOCR-json", "RapidOCR_json.exe"),
     path.join(resourceRoot, "ocr", "RapidOCR_json.exe"),
     path.join(process.cwd(), "build", "ocr", "RapidOCR-json", "RapidOCR_json.exe"),
@@ -2141,6 +2142,29 @@ function rapidOcrEngineCandidates() {
     path.join(appRuntimeDir, "ocr", "RapidOCR-json", "RapidOCR_json.exe"),
     path.join(appRuntimeDir, "ocr-v0.1.0", "RapidOCR-json", "RapidOCR_json.exe")
   ];
+}
+
+async function preparePackagedRapidOcr() {
+  if (!app.isPackaged) return;
+  const sourceRoot = path.join(process.resourcesPath, "ocr", "RapidOCR-json");
+  const targetRoot = path.join(appRuntimeDir, "ocr", "RapidOCR-json");
+  const sourceEngine = path.join(sourceRoot, "RapidOCR_json.exe");
+  const targetEngine = path.join(targetRoot, "RapidOCR_json.exe");
+  if (!fsSync.existsSync(sourceEngine)) return;
+
+  const versionMarker = path.join(targetRoot, ".engine-version");
+  let installedVersion = "";
+  try {
+    installedVersion = (await fs.readFile(versionMarker, "utf8")).trim();
+  } catch {
+    // The writable copy has not been initialized yet.
+  }
+  const currentVersion = app.getVersion();
+  if (installedVersion === currentVersion && fsSync.existsSync(targetEngine)) return;
+
+  await fs.mkdir(targetRoot, { recursive: true });
+  await fs.cp(sourceRoot, targetRoot, { recursive: true, force: true });
+  await fs.writeFile(versionMarker, currentVersion, "utf8");
 }
 
 function findRapidOcrEngine() {
@@ -2228,6 +2252,11 @@ async function prepareOcrImageBuffer(payload: InlineCapturePayload) {
 
 async function recognizeOcrFromInlinePayload(payload: InlineCapturePayload): Promise<OcrResult> {
   const startedAt = Date.now();
+  try {
+    await preparePackagedRapidOcr();
+  } catch (error) {
+    console.warn("Unable to prepare writable RapidOCR runtime; using packaged resources.", error);
+  }
   const enginePath = findRapidOcrEngine();
   if (!enginePath) {
     return {
