@@ -29,6 +29,7 @@
     "generate:latest": "node scripts/generate-latest-yml.js",
     "dist": "npm run build:icons && npm run build && npm run prepare:ocr && npm run prepare:hotkey && npm run prepare:recorder && npm run prepare:window-probe && electron-builder --win --publish never && npm run generate:latest",
     "dist:github": "npm run dist && node scripts/publish-github-release.js",
+    "dist:msix": "npm run build:icons && npm run build && npm run prepare:ocr && npm run prepare:hotkey && npm run prepare:recorder && npm run prepare:window-probe && electron-builder --win appx --publish never",
     "dist:dir": "npm run build:icons && npm run build && npm run prepare:ocr && npm run prepare:hotkey && npm run prepare:recorder && npm run prepare:window-probe && electron-builder --dir",
     "typecheck": "tsc --noEmit",
     "test": "node --test src/main/overlay/*.test.js scripts/*.test.js",
@@ -152,6 +153,22 @@
         "en_US"
       ],
       "deleteAppDataOnUninstall": false
+    },
+    "appx": {
+      "identityName": "46CE527F.596781F8213BC",
+      "applicationId": "Zhuageping",
+      "publisher": "CN=95F923A1-AAA6-4D57-A3B1-A08FABD5CF8D",
+      "publisherDisplayName": "北京科技有限责任公司",
+      "displayName": "抓个屏",
+      "backgroundColor": "#202C36",
+      "languages": [
+        "zh-CN",
+        "en-US"
+      ],
+      "capabilities": [
+        "runFullTrust"
+      ],
+      "setBuildNumber": true
     },
     "extraMetadata": {
       "name": "zhua-ge-ping",
