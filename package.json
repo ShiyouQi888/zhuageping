@@ -1,7 +1,7 @@
 {
   "name": "zhua-ge-ping",
   "productName": "抓个屏",
-  "version": "0.1.24",
+  "version": "0.1.25",
   "private": true,
   "description": "抓个屏：Windows 本地截图、贴图与水印工具。",
   "homepage": "https://local.zhuageping.app",
@@ -146,7 +146,7 @@
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
       "installerHeaderIcon": "build/icon.ico",
-      "displayLanguageSelector": true,
+      "displayLanguageSelector": false,
       "multiLanguageInstaller": true,
       "installerLanguages": [
         "zh_CN",
