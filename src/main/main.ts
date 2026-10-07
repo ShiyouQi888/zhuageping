@@ -3865,10 +3865,22 @@ async function recordSelectedRegionNative(
   // available while Windows capture excludes this window from the source.
   await delay(120);
   const scaleFactor = display.scaleFactor || 1;
-  const width = Math.max(2, Math.floor((region.width * scaleFactor) / 2) * 2);
-  const height = Math.max(2, Math.floor((region.height * scaleFactor) / 2) * 2);
-  const x = Math.max(0, Math.floor((region.x * scaleFactor) / 2) * 2);
-  const y = Math.max(0, Math.floor((region.y * scaleFactor) / 2) * 2);
+  const isFullDisplay = mode === "screen";
+  // Full-display capture must not receive a SourceRect. ScreenRecorderLib's
+  // display source can otherwise resolve the rectangle against the work area,
+  // which drops the taskbar/Dock strip at the bottom of the display.
+  const outputWidth = Math.max(
+    2,
+    Math.floor((isFullDisplay ? display.size.width : region.width * scaleFactor) / 2) * 2
+  );
+  const outputHeight = Math.max(
+    2,
+    Math.floor((isFullDisplay ? display.size.height : region.height * scaleFactor) / 2) * 2
+  );
+  const x = isFullDisplay ? 0 : Math.max(0, Math.floor((region.x * scaleFactor) / 2) * 2);
+  const y = isFullDisplay ? 0 : Math.max(0, Math.floor((region.y * scaleFactor) / 2) * 2);
+  const width = isFullDisplay ? 0 : outputWidth;
+  const height = isFullDisplay ? 0 : outputHeight;
   const filePath = await buildRecordingFilePath(new Date(), "mp4");
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   const displayName = await detectDisplayDeviceName(display);
@@ -3895,7 +3907,7 @@ async function recordSelectedRegionNative(
       await fs.unlink(filePath).catch(() => undefined);
       return null;
     }
-    return saveNativeRecordingRecord(result.filePath, startedAt, width, height);
+    return saveNativeRecordingRecord(result.filePath, startedAt, outputWidth, outputHeight);
   } finally {
     closeRecordingOverlay(overlay);
   }

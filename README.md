@@ -39,17 +39,17 @@ Download the latest installer from GitHub Releases:
 
 Current version:
 
-- Version: `0.1.25`
+- Version: `0.1.26`
 - Platform: Windows x64
-- Installer: `zhuageping-Setup-0.1.25-x64.exe`
+- Installer: `zhuageping-Setup-0.1.26-x64.exe`
 - SHA256: `68FA7073731D5F48CBACB92E976FAD36EDAF4155D621D78955A36FE92E7AB85A`
-- Release: [Zhuageping v0.1.25](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.25)
+- Release: [Zhuageping v0.1.26](https://github.com/ShiyouQi888/zhuageping/releases/tag/v0.1.26)
 
 Note: the current installer is not signed with a commercial code-signing certificate. Windows may show an unknown publisher warning during installation. This is expected for an unsigned installer and does not mean the app connects to the cloud or uploads your data.
 
 ## Latest Updates
 
-Highlights in `v0.1.25`:
+Highlights in `v0.1.26`:
 
 - Added an inline pixel color picker to the F1 capture flow, with magnification, screen coordinates, RGB/HEX output, `C` to copy, and `Shift` to switch formats.
 - Fixed multi-monitor F1 selection so only the monitor under the cursor shows the capture and window-detection layer.
