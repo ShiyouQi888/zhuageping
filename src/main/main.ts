@@ -308,6 +308,7 @@ let shortcutCaptureRunning = false;
 let recordingRunning = false;
 let activeRecordingOverlay: BrowserWindow | null = null;
 let activeRecordingControl: BrowserWindow | null = null;
+let activeRecordingFrames: BrowserWindow[] = [];
 let activeNativeRecorderProcess: ChildProcess | null = null;
 let activeRecordingUsesNative = false;
 let nativeRecordingSelectionCommitted = false;
@@ -3447,6 +3448,10 @@ function nativeWindowHandle(window: BrowserWindow) {
 function closeRecordingOverlay(overlay: BrowserWindow) {
   if (activeRecordingControl && !activeRecordingControl.isDestroyed()) activeRecordingControl.close();
   activeRecordingControl = null;
+  activeRecordingFrames.forEach((frame) => {
+    if (!frame.isDestroyed()) frame.close();
+  });
+  activeRecordingFrames = [];
   if (!overlay.isDestroyed()) {
     overlay.setIgnoreMouseEvents(false);
     overlay.close();
@@ -3454,6 +3459,47 @@ function closeRecordingOverlay(overlay: BrowserWindow) {
   if (activeRecordingOverlay === overlay) activeRecordingOverlay = null;
   activeRecordingUsesNative = false;
   nativeRecordingSelectionCommitted = false;
+}
+
+function createRecordingFrameWindows(display: DisplayLike, region: CaptureRegion) {
+  const thickness = 2;
+  const left = Math.round(display.bounds.x + region.x);
+  const top = Math.round(display.bounds.y + region.y);
+  const width = Math.max(thickness, Math.round(region.width));
+  const height = Math.max(thickness, Math.round(region.height));
+  const edgeBounds = [
+    { x: left, y: top, width, height: thickness },
+    { x: left, y: top + height - thickness, width, height: thickness },
+    { x: left, y: top + thickness, width: thickness, height: Math.max(thickness, height - thickness * 2) },
+    { x: left + width - thickness, y: top + thickness, width: thickness, height: Math.max(thickness, height - thickness * 2) }
+  ];
+
+  const frames = edgeBounds.map((bounds) => {
+    const frame = new BrowserWindow({
+      ...bounds,
+      frame: false,
+      transparent: false,
+      backgroundColor: "#547b92",
+      show: false,
+      resizable: false,
+      movable: false,
+      focusable: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      hasShadow: false,
+      webPreferences: { backgroundThrottling: false }
+    });
+    frame.setMenu(null);
+    frame.setMenuBarVisibility(false);
+    frame.setAlwaysOnTop(true, "screen-saver");
+    frame.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    frame.setIgnoreMouseEvents(true);
+    frame.showInactive();
+    frame.setContentProtection(true);
+    frame.moveTop();
+    return frame;
+  });
+  return frames;
 }
 
 async function runNativeRecordingOverlay(
@@ -3832,6 +3878,11 @@ async function recordSelectedRegionNative(
   if (!selection) return null;
 
   const { display, region, overlay } = selection;
+  const frameWindows = mode === "screen" ? createRecordingFrameWindows(display, region) : [];
+  if (frameWindows.length) {
+    activeRecordingFrames = frameWindows;
+    overlay.hide();
+  }
   overlay.setContentProtection(true);
   const barWidth = Math.min(display.bounds.width, mode === "screen" ? 260 : Math.max(196, region.width));
   const barX = display.bounds.x + (mode === "screen"
@@ -3901,7 +3952,11 @@ async function recordSelectedRegionNative(
       captureMicrophone: settings.recordingMic,
       showCursor: settings.recordingShowCursor,
       showClickHighlight: settings.recordingClickHighlight,
-      excludeWindowHandles: [nativeWindowHandle(overlay), nativeWindowHandle(control)]
+      excludeWindowHandles: [
+        nativeWindowHandle(overlay),
+        nativeWindowHandle(control),
+        ...frameWindows.map(nativeWindowHandle)
+      ]
     });
     if (result.canceled) {
       await fs.unlink(filePath).catch(() => undefined);
