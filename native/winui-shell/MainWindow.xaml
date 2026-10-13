@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Window
+    x:Class="Zhuageping_WinUI.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:Zhuageping_WinUI"
+    xmlns:tb="using:H.NotifyIcon"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Title="抓个屏"
+    mc:Ignorable="d">
+    <Grid Background="#FFFFFF" RequestedTheme="Light">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TitleBar x:Name="AppTitleBar" Title="抓个屏" Background="#263744" Foreground="White" Height="36">
+            <TitleBar.IconSource>
+                <ImageIconSource ImageSource="Assets/AppIcon.ico" />
+            </TitleBar.IconSource>
+        </TitleBar>
+
+        <!--
+            The Frame hosts pages for your application content. Add your UI to
+            MainPage.xaml rather than here so you can use Page features such as
+            navigation events and the Loaded lifecycle.
+        -->
+        <Frame x:Name="RootFrame" Grid.Row="1" />
+        <tb:TaskbarIcon x:Name="TrayIcon" Grid.Row="1" Width="0" Height="0"
+                        ToolTipText="抓个屏 · Windows App SDK 预览"
+                        IconSource="/Assets/AppIcon.ico"
+                        MenuActivation="LeftOrRightClick"
+                        PopupActivation="DoubleClick" />
+    </Grid>
+</Window>

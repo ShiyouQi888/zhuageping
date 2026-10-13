@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Zhuageping.WinUI (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "Zhuageping.WinUI (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

@@ -29,11 +29,14 @@ internal static class Program
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly ManualResetEventSlim ExitSignal = new(false);
+    private static readonly object CommandQueueLock = new();
     private static Recorder? recorder;
     private static RecorderHostConfig? config;
+    private static Task recorderCommandTail = Task.CompletedTask;
     private static int exitCode;
     private static int stopRequested;
     private static int paused;
+    private static int readyEmitted;
 
     public static int Main()
     {
@@ -55,6 +58,7 @@ internal static class Program
             Directory.CreateDirectory(Path.GetDirectoryName(config.OutputPath)!);
 
             recorder = Recorder.CreateRecorder(CreateOptions(config));
+            Emit("configuration", new { encoder = "software-h264", container = "mp4", lowLatency = false });
             recorder.OnRecordingComplete += OnRecordingComplete;
             recorder.OnRecordingFailed += OnRecordingFailed;
             recorder.OnStatusChanged += OnStatusChanged;
@@ -69,7 +73,6 @@ internal static class Program
                 }
             }
 
-            Emit("ready", new { processId = Environment.ProcessId });
             recorder.Record(config.OutputPath);
             _ = Task.Run(ReadCommands);
             ExitSignal.Wait();
@@ -93,17 +96,24 @@ internal static class Program
             ? DisplayRecordingSource.MainMonitor
             : new DisplayRecordingSource(value.DisplayName);
         source.IsVideoCaptureEnabled = true;
-        source.RecorderApi = RecorderApi.WindowsGraphicsCapture;
+        source.RecorderApi = RecorderApi.DesktopDuplication;
         source.IsBorderRequired = false;
         source.IsCursorCaptureEnabled = value.ShowCursor;
-        if (value.Width > 0 && value.Height > 0)
-        {
-            source.SourceRect = new ScreenRect(value.X, value.Y, value.Width, value.Height);
-        }
 
         var audioSources = new List<AudioSourceBase>();
         if (value.CaptureSystemAudio) audioSources.Add(LoopbackAudioSource.Default);
         if (value.CaptureMicrophone) audioSources.Add(CaptureAudioSource.Default);
+
+        var outputOptions = new OutputOptions
+        {
+            RecorderMode = RecorderMode.Video
+        };
+        if (value.Width > 0 && value.Height > 0)
+        {
+            // Leave OutputFrameSize unset: with one source the library resizes the
+            // capture canvas before cropping. SourceRect also determines encoder dimensions.
+            outputOptions.SourceRect = new ScreenRect(value.X, value.Y, value.Width, value.Height);
+        }
 
         return new RecorderOptions
         {
@@ -111,10 +121,7 @@ internal static class Program
             {
                 RecordingSources = new List<RecordingSourceBase> { source }
             },
-            OutputOptions = new OutputOptions
-            {
-                RecorderMode = RecorderMode.Video
-            },
+            OutputOptions = outputOptions,
             AudioOptions = new AudioOptions
             {
                 AudioSources = audioSources,
@@ -133,8 +140,11 @@ internal static class Program
                     BitrateMode = H264BitrateControlMode.Quality,
                     EncoderProfile = H264Profile.High
                 },
-                IsFragmentedMp4Enabled = true,
-                IsHardwareEncodingEnabled = true,
+                IsFragmentedMp4Enabled = false,
+                IsMp4FastStartEnabled = true,
+                // Prefer the compatible path while GPU/MFT startup frames are unreliable.
+                // Do not discard or hide the first seconds of the user's recording.
+                IsHardwareEncodingEnabled = false,
                 IsLowLatencyEnabled = false,
                 IsThrottlingDisabled = false
             },
@@ -178,12 +188,10 @@ internal static class Program
         switch (command)
         {
             case "pause" when Volatile.Read(ref stopRequested) == 0 && Interlocked.Exchange(ref paused, 1) == 0:
-                Emit("command", new { command });
-                _ = Task.Run(() => InvokeRecorder(command, static value => value.Pause()));
+                QueueRecorderCommand(command, static value => value.Pause());
                 break;
             case "resume" when Volatile.Read(ref stopRequested) == 0 && Interlocked.Exchange(ref paused, 0) == 1:
-                Emit("command", new { command });
-                _ = Task.Run(() => InvokeRecorder(command, static value => value.Resume()));
+                QueueRecorderCommand(command, static value => value.Resume());
                 break;
             case "stop":
                 RequestStop(cancel: false);
@@ -198,8 +206,24 @@ internal static class Program
     {
         if (cancel) exitCode = 3;
         if (Interlocked.Exchange(ref stopRequested, 1) != 0) return;
-        Emit("command", new { command = cancel ? "cancel" : "stop" });
-        _ = Task.Run(() => InvokeRecorder("stop", static value => value.Stop()));
+        if (cancel) Emit("command", new { command = "cancel" });
+        QueueRecorderCommand("stop", static value => value.Stop());
+    }
+
+    private static void QueueRecorderCommand(string command, Action<Recorder> action)
+    {
+        lock (CommandQueueLock)
+        {
+            recorderCommandTail = recorderCommandTail.ContinueWith(
+                _ =>
+                {
+                    InvokeRecorder(command, action);
+                    if (!ExitSignal.IsSet) Emit("command", new { command });
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.None,
+                TaskScheduler.Default);
+        }
     }
 
     private static void InvokeRecorder(string command, Action<Recorder> action)
@@ -242,6 +266,8 @@ internal static class Program
     private static void OnStatusChanged(object? sender, RecordingStatusEventArgs eventArgs)
     {
         Emit("status", new { status = eventArgs.Status.ToString() });
+        if (eventArgs.Status == RecorderStatus.Recording && Interlocked.Exchange(ref readyEmitted, 1) == 0)
+            Emit("ready", new { processId = Environment.ProcessId });
     }
 
     private static void ValidateConfig(RecorderHostConfig value)
@@ -252,6 +278,12 @@ internal static class Program
         if (value.Bitrate < 500_000) throw new ArgumentOutOfRangeException(nameof(value.Bitrate));
         if (value.Quality is < 1 or > 100) throw new ArgumentOutOfRangeException(nameof(value.Quality));
         if ((value.Width == 0) != (value.Height == 0)) throw new ArgumentException("Width and height must both be zero or positive.");
+        if (value.X < 0 || value.Y < 0 || value.Width < 0 || value.Height < 0)
+            throw new ArgumentException("Capture coordinates must be monitor-local, non-negative pixels.");
+        if (value.Width == 0 && (value.X != 0 || value.Y != 0))
+            throw new ArgumentException("Full-screen recording must start at the monitor origin.");
+        if (value.Width > 0 && (value.Width < 2 || value.Height < 2 || value.Width % 2 != 0 || value.Height % 2 != 0))
+            throw new ArgumentException("H.264 capture dimensions must be even and at least two pixels.");
     }
 
     private static void TryDelete(string? filePath)

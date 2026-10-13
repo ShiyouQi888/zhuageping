@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../winui-shell/RapidOcrService.cs" Link="RapidOcrService.cs" />
+    <Compile Include="../../winui-shell/RapidOcrResponseParser.cs" Link="RapidOcrResponseParser.cs" />
+    <Content Include="../../../.runtime/ocr-v0.1.0/RapidOCR-json/**/*">
+      <Link>ocr/RapidOCR-json/%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+</Project>
