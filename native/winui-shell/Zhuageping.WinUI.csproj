@@ -6,6 +6,17 @@
     <RootNamespace>Zhuageping_WinUI</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon Condition="Exists('Assets\AppIcon.ico')">Assets\AppIcon.ico</ApplicationIcon>
+    <Product>抓个屏</Product>
+    <Title>抓个屏 WinUI 预览版</Title>
+    <AssemblyTitle>抓个屏 WinUI 预览版</AssemblyTitle>
+    <Description>本地截图、标注、OCR、贴图与屏幕录制工具</Description>
+    <Company>齐世有</Company>
+    <Authors>齐世有</Authors>
+    <Copyright>Copyright © 2026 齐世有. All rights reserved.</Copyright>
+    <Version>0.1.27</Version>
+    <AssemblyVersion>0.1.27.0</AssemblyVersion>
+    <FileVersion>0.1.27.0</FileVersion>
+    <InformationalVersion>0.1.27-preview</InformationalVersion>
     <Platforms>x86;x64;ARM64</Platforms>
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-$([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString().ToLowerInvariant())</RuntimeIdentifier>
     <PublishProfile Condition="Exists('Properties\PublishProfiles\win-$(Platform).pubxml')">win-$(Platform).pubxml</PublishProfile>
@@ -25,6 +36,7 @@
     <Content Include="Assets\Square44x44Logo.targetsize-48_altform-lightunplated.png" />
     <Content Include="Assets\StoreLogo.png" />
     <Content Include="Assets\AppIcon.ico" />
+    <Content Include="Assets\AppLogo.png" />
     <Content Include="Assets\Wide310x150Logo.scale-200.png" />
   </ItemGroup>
 

@@ -38,7 +38,7 @@ foreach ($dir in (Get-ChildItem -LiteralPath $payload -Recurse -Directory | Sort
 [IO.File]::WriteAllLines($manifest, $lines, [Text.UTF8Encoding]::new($true))
 $output = Join-Path $repo "release\zhuageping-winui-Setup-$version-preview-$BuildLabel-x64.exe"
 $kib = [int][Math]::Ceiling(($files | Measure-Object Length -Sum).Sum / 1024)
-& $NsisPath '/INPUTCHARSET' 'UTF8' "/DPAYLOAD=$payload" "/DINSTALLER_OUTPUT=$output" "/DAPP_VERSION=$version" "/DAPP_ICON=$(Join-Path $payload 'Assets\AppIcon.ico')" "/DFILE_MANIFEST=$manifest" "/DINSTALLED_KIB=$kib" (Join-Path $repo 'build\winui-installer.nsi')
+& $NsisPath '/INPUTCHARSET' 'UTF8' "/DPAYLOAD=$payload" "/DINSTALLER_OUTPUT=$output" "/DAPP_VERSION=$version" "/DAPP_ICON=$(Join-Path $payload 'Assets\AppIcon.ico')" "/DINSTALLER_HEADER=$(Join-Path $repo 'build\winui-installer-header.bmp')" "/DINSTALLER_SIDEBAR=$(Join-Path $repo 'build\winui-installer-sidebar.bmp')" "/DFILE_MANIFEST=$manifest" "/DINSTALLED_KIB=$kib" (Join-Path $repo 'build\winui-installer.nsi')
 if ($LASTEXITCODE -ne 0) { throw "NSIS failed: $LASTEXITCODE" }
 $hash = Get-FileHash -LiteralPath $output -Algorithm SHA256
 [IO.File]::WriteAllText("$output.sha256", "$($hash.Hash)  $([IO.Path]::GetFileName($output))`n", [Text.UTF8Encoding]::new($false))

@@ -19,11 +19,18 @@ UninstallIcon "${APP_ICON}"
 VIProductVersion "${APP_VERSION}.0"
 VIAddVersionKey /LANG=1033 "ProductName" "Zhuageping WinUI Preview"
 VIAddVersionKey /LANG=1033 "FileDescription" "Zhuageping WinUI Setup"
-VIAddVersionKey /LANG=1033 "CompanyName" "Qi Shiyou"
-VIAddVersionKey /LANG=1033 "LegalCopyright" "Copyright 2026 Qi Shiyou"
+VIAddVersionKey /LANG=1033 "CompanyName" "齐世有 / Qi Shiyou"
+VIAddVersionKey /LANG=1033 "LegalCopyright" "Copyright © 2026 齐世有. All rights reserved."
 VIAddVersionKey /LANG=1033 "FileVersion" "${APP_VERSION}"
 
 !define MUI_ABORTWARNING
+!define MUI_ICON "${APP_ICON}"
+!define MUI_UNICON "${APP_ICON}"
+!define MUI_HEADERIMAGE
+!define MUI_HEADERIMAGE_RIGHT
+!define MUI_HEADERIMAGE_BITMAP "${INSTALLER_HEADER}"
+!define MUI_WELCOMEFINISHPAGE_BITMAP "${INSTALLER_SIDEBAR}"
+!define MUI_UNWELCOMEFINISHPAGE_BITMAP "${INSTALLER_SIDEBAR}"
 !define MUI_FINISHPAGE_RUN "$INSTDIR\Zhuageping.WinUI.exe"
 !define MUI_FINISHPAGE_RUN_NOTCHECKED
 !define MUI_LANGDLL_REGISTRY_ROOT HKCU
@@ -78,7 +85,7 @@ target_ready:
   CreateShortcut "$DESKTOP\${PRODUCT_NAME}.lnk" "$INSTDIR\Zhuageping.WinUI.exe" "" "$INSTDIR\Assets\AppIcon.ico"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "${PRODUCT_NAME}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "${APP_VERSION} preview"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "Qi Shiyou"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "齐世有 / Qi Shiyou"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\Zhuageping.WinUI.exe"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" '$\"$INSTDIR\Uninstall.exe$\"'

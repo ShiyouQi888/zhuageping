@@ -17,7 +17,7 @@
 
         <TitleBar x:Name="AppTitleBar" Title="抓个屏" Background="#263744" Foreground="White" Height="36">
             <TitleBar.IconSource>
-                <ImageIconSource ImageSource="Assets/AppIcon.ico" />
+                <ImageIconSource ImageSource="Assets/AppLogo.png" />
             </TitleBar.IconSource>
         </TitleBar>
 

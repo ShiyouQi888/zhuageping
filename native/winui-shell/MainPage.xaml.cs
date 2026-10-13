@@ -416,10 +416,10 @@ public sealed partial class MainPage : Page
 
         var about = PageStack();
         var aboutBrand = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
-        aboutBrand.Children.Add(OverlayChrome.Icon("\uE8A7", 34));
+        aboutBrand.Children.Add(new Image { Source = new BitmapImage(new Uri("ms-appx:///Assets/AppLogo.png")), Width = 48, Height = 48, Stretch = Stretch.Uniform });
         aboutBrand.Children.Add(new StackPanel { Spacing = 2, Children = { new TextBlock { Text = "抓个屏", FontSize = 16, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold }, new TextBlock { Text = "Windows local screenshot tool", Foreground = Brush("TextFillColorSecondaryBrush") } } });
         about.Children.Add(aboutBrand);
-        about.Children.Add(new TextBlock { Text = "作者：Qi Shiyou\n邮箱：blacklaw@foxmail.com\n本地截图、贴图、时间与位置水印工具。\n不使用云端，不需要账户，不上传文件。", TextWrapping = TextWrapping.Wrap, Foreground = Brush("TextFillColorSecondaryBrush") });
+        about.Children.Add(new TextBlock { Text = "版本：0.1.27 · WinUI 预览版\n作者：齐世有（Qi Shiyou）\n邮箱：blacklaw@foxmail.com\nCopyright © 2026 齐世有. All rights reserved.", TextWrapping = TextWrapping.Wrap, Foreground = Brush("TextFillColorSecondaryBrush") });
         var privacy = new Border { Padding = new Thickness(12), Background = Brush("UpdateBackground"), BorderBrush = Brush("CardStrokeColorDefaultBrush"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6) };
         var privacyStack = new StackPanel { Spacing = 8 };
         privacyStack.Children.Add(SectionTitle("隐私策略"));

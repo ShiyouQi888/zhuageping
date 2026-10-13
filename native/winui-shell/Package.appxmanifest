@@ -17,8 +17,8 @@
   <mp:PhoneIdentity PhoneProductId="83C9C4C0-77C4-44CA-BDB3-66090218D7F5" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
   <Properties>
-    <DisplayName>Zhuageping.WinUI</DisplayName>
-    <PublisherDisplayName>AppPublisher</PublisherDisplayName>
+    <DisplayName>抓个屏</DisplayName>
+    <PublisherDisplayName>齐世有</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
     <uap10:PackageIntegrity>
       <uap10:Content Enforcement="on"/>
@@ -39,8 +39,8 @@
       Executable="$targetnametoken$.exe"
       EntryPoint="$targetentrypoint$">
       <uap:VisualElements
-        DisplayName="Zhuageping.WinUI"
-        Description="Zhuageping.WinUI"
+        DisplayName="抓个屏"
+        Description="本地截图、标注、OCR 与屏幕录制工具"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png">
