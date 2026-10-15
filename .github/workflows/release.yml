@@ -23,23 +23,14 @@ jobs:
             8.0.x
             10.0.x
       - run: npm ci
-      - name: Require Windows signing credentials
-        shell: pwsh
-        env:
-          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:WIN_CSC_LINK) -or [string]::IsNullOrWhiteSpace($env:WIN_CSC_KEY_PASSWORD)) {
-            throw 'Configure WIN_CSC_LINK and WIN_CSC_KEY_PASSWORD repository secrets before publishing a Windows release.'
-          }
-      - name: Build signed Windows release
+      - name: Build unsigned Windows release
         run: npm run dist
-        env:
-          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
       - name: Publish installer and updater metadata
         uses: softprops/action-gh-release@v2
         with:
+          name: 抓个屏 ${{ github.ref_name }} (未签名)
+          body: |
+            Windows installer in this release is unsigned. Windows may show an unknown-publisher or SmartScreen warning.
           files: |
             release/zhuageping-Setup-*-x64.exe
             release/zhuageping-Setup-*-x64.exe.blockmap

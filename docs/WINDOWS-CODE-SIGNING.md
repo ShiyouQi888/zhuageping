@@ -1,18 +1,18 @@
 # Windows Code Signing
 
-Public Windows releases must use a trusted Authenticode code-signing certificate. Never commit the PFX or its password.
+This project can publish unsigned Windows builds when explicitly chosen. Such builds do not prove publisher identity or binary integrity, and Windows may display an unknown-publisher or SmartScreen warning. Never commit a PFX or its password.
 
 ## Electron Release Workflow
 
-Configure these GitHub Actions repository secrets:
+To enable signed Electron releases, configure these GitHub Actions repository secrets:
 
 - `WIN_CSC_LINK`: base64-encoded PFX contents, or a supported certificate URL.
 - `WIN_CSC_KEY_PASSWORD`: the PFX private-key password.
 
-The release workflow passes these to electron-builder. `forceCodeSigning` makes a missing or invalid certificate fail the release build.
+The current release workflow intentionally builds unsigned packages and does not require these secrets. To restore signature enforcement, pass the secrets to electron-builder and enable `forceCodeSigning`.
 
 ## WinUI Installer
 
 Install the trusted certificate with its private key in the current user's `Personal` certificate store. Set `WIN_SIGNING_CERT_THUMBPRINT` to its 40-character thumbprint and install Windows SDK `signtool.exe` plus NSIS 3.08 or later. Run `scripts/package-native-installer.ps1`; it signs and verifies unsigned EXE/DLL payload files, and signs the generated uninstaller and installer. Already-valid Microsoft signatures are retained. Invalid pre-existing signatures stop packaging.
 
-Without the certificate and required tools, do not distribute the installer. Unsigned local builds are not evidence of publisher identity or binary integrity.
+The native WinUI installer script remains signature-enforced. Without the certificate and required tools, it will refuse to package. Unsigned installers are not evidence of publisher identity or binary integrity.
