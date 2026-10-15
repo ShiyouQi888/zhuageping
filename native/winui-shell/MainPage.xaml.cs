@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Dispatching;
 using System.Diagnostics;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Windows.ApplicationModel.DataTransfer;
@@ -20,6 +21,7 @@ namespace Zhuageping_WinUI;
 
 public sealed partial class MainPage : Page
 {
+    private static readonly HttpClient PreviewUpdateClient = new() { Timeout = TimeSpan.FromSeconds(12) };
     private readonly List<MonitorDisplay> _displays = [];
     private readonly ComboBox _displayPicker = new() { MinWidth = 290 };
     private readonly TextBlock _boundsText = new();
@@ -42,7 +44,6 @@ public sealed partial class MainPage : Page
     private readonly TextBlock _startupTaskStatus = new() { TextWrapping = TextWrapping.Wrap };
     private readonly CheckBox _responsivePreference = new() { Content = "保持快速响应偏好", IsChecked = true };
     private readonly CheckBox _autoBackup = new() { Content = "自动备份" };
-    private readonly CheckBox _runAsAdmin = new() { Content = "以管理员身份运行" };
     private readonly CheckBox _trayMenu = new() { Content = "增强托盘菜单" };
     private readonly CheckBox _autoCopy = new() { Content = "截图后自动复制", IsChecked = true };
     private readonly CheckBox _autoPin = new() { Content = "截图后自动钉图" };
@@ -93,6 +94,10 @@ public sealed partial class MainPage : Page
     private readonly SemaphoreSlim _recordingCommandLock = new(1, 1);
     private bool _recordingStopRequested;
     private bool _shortcutCaptureRunning;
+    private bool _isShuttingDown;
+    private TaskCompletionSource? _captureFinished;
+    private Task? _recordingStartTask;
+    private readonly CancellationTokenSource _shutdownCancellation = new();
     private string? _lastCapturePath;
 
     private enum RecordingState
@@ -122,11 +127,43 @@ public sealed partial class MainPage : Page
         };
     }
 
+    public async Task ShutdownAsync()
+    {
+        if (_isShuttingDown) return;
+        _isShuttingDown = true;
+        _shutdownCancellation.Cancel();
+        _previewHotKey?.Dispose();
+        _previewHotKey = null;
+
+        RegionSelectionWindow.CloseAll();
+        PinnedImageWindow.CloseAll();
+
+        if (_recordingState == RecordingState.Starting)
+            _recordingStopRequested = true;
+        if (_recordingStartTask is not null)
+            await _recordingStartTask;
+
+        if (_recorderSession is not null)
+            await StopRecordingAsync();
+
+        if (_captureFinished is not null)
+            await _captureFinished.Task;
+
+        _recordingTimer?.Stop();
+        _recordingTimer = null;
+        _recordingControl?.Dispose();
+        _recordingControl = null;
+        _recordingFrame?.Dispose();
+        _recordingFrame = null;
+        HideFrame();
+        PinnedImageWindow.CloseAll();
+    }
+
     private UIElement BuildPage()
     {
         foreach (var checkBox in new[]
         {
-            _startPreference, _responsivePreference, _autoBackup, _runAsAdmin, _trayMenu,
+            _startPreference, _responsivePreference, _autoBackup, _trayMenu,
             _autoCopy, _autoPin, _watermarkEnabled, _recordingMic, _recordingCountdown,
             _recordingShowCursor, _recordingClickHighlight, _previewHotkeyEnabled
         }) StyleCheckBox(checkBox);
@@ -318,7 +355,7 @@ public sealed partial class MainPage : Page
         NavButton("about", "关于", "\uE946");
 
         var general = PageStack();
-        var runtimeLeft = new StackPanel { Spacing = 8, Children = { _startPreference, _autoBackup, _runAsAdmin } };
+        var runtimeLeft = new StackPanel { Spacing = 8, Children = { _startPreference, _autoBackup } };
         var runtimeRight = new StackPanel { Spacing = 8, Children = { _responsivePreference, _trayMenu } };
         general.Children.Add(Section("启动与响应", TwoColumns(runtimeLeft, runtimeRight)));
         general.Children.Add(_startupTaskStatus);
@@ -336,19 +373,52 @@ public sealed partial class MainPage : Page
         var updateMeta = new Grid { ColumnSpacing = 18 };
         updateMeta.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         updateMeta.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        updateMeta.Children.Add(new TextBlock { Text = "当前版本  0.1.27", Foreground = Brush("TextFillColorSecondaryBrush") });
-        var latest = new TextBlock { Text = "最新版本  -", Foreground = Brush("TextFillColorSecondaryBrush") };
+        var currentVersion = typeof(MainPage).Assembly.GetName().Version?.ToString(3) ?? "未知";
+        updateMeta.Children.Add(new TextBlock { Text = $"当前版本  {currentVersion} · WinUI 预览版", Foreground = Brush("TextFillColorSecondaryBrush") });
+        var latest = new TextBlock { Text = "最新预览发行  尚未检查", Foreground = Brush("TextFillColorSecondaryBrush") };
         Grid.SetColumn(latest, 1);
         updateMeta.Children.Add(latest);
         updateStack.Children.Add(updateMeta);
-        updateStack.Children.Add(new TextBlock { Text = "可手动检查新版本，正式安装版启动后也会自动静默检查。", FontSize = 12, Foreground = Brush("TextFillColorSecondaryBrush"), TextWrapping = TextWrapping.Wrap });
-        var updateButton = ActionButton("检查更新", "\uE72C");
-        updateButton.Click += (_, _) => _settingsStatus.Text = "当前预览版已是最新版本。";
+        updateStack.Children.Add(new TextBlock { Text = "仅在点击时连接 GitHub 查询 WinUI 预览发行；不会静默检查或自动下载。", FontSize = 12, Foreground = Brush("TextFillColorSecondaryBrush"), TextWrapping = TextWrapping.Wrap });
+        var updateButton = ActionButton("检查预览版更新", "\uE72C");
+        string? releaseUrl = null;
+        updateButton.Click += async (_, _) =>
+        {
+            if (releaseUrl is not null)
+            {
+                OpenPreviewRelease(releaseUrl);
+                return;
+            }
+            updateButton.IsEnabled = false;
+            try
+            {
+                latest.Text = "正在查询 GitHub 发行信息…";
+                var release = await FindLatestPreviewReleaseAsync();
+                if (release is null)
+                {
+                    latest.Text = "尚无已发布的 WinUI 预览版本。";
+                    return;
+                }
+                latest.Text = $"最新预览发行  {release.Value.Tag}";
+                updateButton.Content = "打开发行页";
+                releaseUrl = release.Value.Url;
+            }
+            catch (Exception exception)
+            {
+                latest.Text = $"检查失败：{exception.Message}";
+            }
+            finally
+            {
+                updateButton.IsEnabled = true;
+            }
+        };
         updateStack.Children.Add(updateButton);
         updatePanel.Child = updateStack;
         general.Children.Add(updatePanel);
         var dataPath = new TextBox { Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Zhuageping.WinUI"), IsReadOnly = true };
-        general.Children.Add(Section("高级设置", Field("日志级别", Combo("普通", "详细", "静默")), Field("路径", dataPath), ActionRow(ActionButton("打开配置文件夹", "\uE8B7"), ActionButton("打开日志文件夹", "\uE8B7"), ActionButton("复制诊断信息", "\uE8C8"), ActionButton("以管理员身份重启", "\uE7EF"))));
+        var restartAsAdminButton = ActionButton("以管理员身份重启", "\uE7EF");
+        restartAsAdminButton.Click += (_, _) => RestartAsAdmin();
+        general.Children.Add(Section("高级设置", Field("日志级别", Combo("普通", "详细", "静默")), Field("路径", dataPath), ActionRow(ActionButton("打开配置文件夹", "\uE8B7"), ActionButton("打开日志文件夹", "\uE8B7"), ActionButton("复制诊断信息", "\uE8C8"), restartAsAdminButton)));
         AddPage("general", general);
 
         var capture = PageStack();
@@ -426,7 +496,7 @@ public sealed partial class MainPage : Page
         privacyStack.Children.Add(new TextBlock { Text = "生效日期：2026年10月6日", Foreground = Brush("TextFillColorSecondaryBrush") });
         privacyStack.Children.Add(new TextBlock
         {
-            Text = "抓个屏以本地处理为主。除检查软件更新、截图、录屏、OCR 结果及设置外，应用不会将内容上传到我们的服务器。",
+            Text = "截图、录屏和 OCR 在本机处理。检查更新仅在你点击时连接 GitHub 查询公开发行信息；不会上传截图、录屏或识别文本。WinUI 预览版不会静默联网更新。",
             Foreground = Brush("TextFillColorPrimaryBrush"),
             TextWrapping = TextWrapping.Wrap
         });
@@ -456,6 +526,63 @@ public sealed partial class MainPage : Page
         };
         SelectPage("general");
         return root;
+    }
+
+    private static async Task<(string Tag, string Url)?> FindLatestPreviewReleaseAsync()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get,
+            "https://api.github.com/repos/ShiyouQi888/zhuageping/releases?per_page=100");
+        request.Headers.UserAgent.ParseAdd("Zhuageping-WinUI-Preview");
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+        using var response = await PreviewUpdateClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var prefix = $"v{typeof(MainPage).Assembly.GetName().Version?.ToString(3)}-winui-preview.";
+        var candidates = document.RootElement.EnumerateArray()
+            .Where(release => !release.GetProperty("draft").GetBoolean() &&
+                              release.GetProperty("prerelease").GetBoolean() &&
+                              release.GetProperty("tag_name").GetString()?.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) == true)
+            .Select(release => (
+                Tag: release.GetProperty("tag_name").GetString() ?? string.Empty,
+                Url: release.GetProperty("html_url").GetString() ?? string.Empty,
+                Published: release.TryGetProperty("published_at", out var published) &&
+                           DateTimeOffset.TryParse(published.GetString(), out var date) ? date : DateTimeOffset.MinValue))
+            .Where(release => !string.IsNullOrWhiteSpace(release.Tag) &&
+                              Uri.TryCreate(release.Url, UriKind.Absolute, out var uri) &&
+                              uri.Scheme == Uri.UriSchemeHttps && uri.Host == "github.com")
+            .OrderByDescending(release => release.Published)
+            .ToArray();
+        return candidates.Length == 0 ? null : (candidates[0].Tag, candidates[0].Url);
+    }
+
+    private static void OpenPreviewRelease(string url) =>
+        Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+
+    private void RestartAsAdmin()
+    {
+        try
+        {
+            var executable = Environment.ProcessPath ?? throw new InvalidOperationException("无法确定当前程序路径。");
+            var args = Environment.GetCommandLineArgs();
+            var isDotnetHost = string.Equals(Path.GetFileNameWithoutExtension(executable), "dotnet", StringComparison.OrdinalIgnoreCase);
+            var startInfo = new ProcessStartInfo(executable)
+            {
+                UseShellExecute = true,
+                Verb = "runas",
+                WorkingDirectory = AppContext.BaseDirectory
+            };
+            foreach (var argument in args.Skip(isDotnetHost ? 0 : 1)) startInfo.ArgumentList.Add(argument);
+            if (Process.Start(startInfo) is null) throw new InvalidOperationException("Windows 未能启动管理员进程。");
+            MainWindow.Instance?.ExitAfterRelaunch();
+        }
+        catch (System.ComponentModel.Win32Exception exception) when (exception.NativeErrorCode == 1223)
+        {
+            _settingsStatus.Text = "已取消管理员授权，当前程序保持运行。";
+        }
+        catch (Exception exception)
+        {
+            _settingsStatus.Text = $"管理员重启失败：{exception.Message}";
+        }
     }
 
     private UIElement BuildLegacyPage()
@@ -715,7 +842,6 @@ public sealed partial class MainPage : Page
         settings.Children.Add(Field("钉图", _shortcutPin));
         settings.Children.Add(Field("显示/隐藏贴图", _shortcutTogglePins));
         settings.Children.Add(_autoBackup);
-        settings.Children.Add(_runAsAdmin);
         settings.Children.Add(_trayMenu);
         settings.Children.Add(new TextBlock { Text = "截图与输出", FontSize = 16, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
         settings.Children.Add(Field("默认位置", _location));
@@ -842,7 +968,7 @@ public sealed partial class MainPage : Page
 
     private async Task CaptureSelectedDisplayAsync(bool copyToClipboard, bool selectRegion, Button? sourceButton, bool annotate = false)
     {
-        if (_shortcutCaptureRunning || _recordingState is RecordingState.Starting or RecordingState.Stopping) return;
+        if (_isShuttingDown || _shortcutCaptureRunning || _recordingState is RecordingState.Starting or RecordingState.Stopping) return;
         if (_displayPicker.SelectedIndex < 0 || _displayPicker.SelectedIndex >= _displays.Count)
         {
             _screenshotStatus.Text = "没有可用的显示器。";
@@ -850,6 +976,8 @@ public sealed partial class MainPage : Page
         }
 
         _shortcutCaptureRunning = true;
+        var captureFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _captureFinished = captureFinished;
         if (sourceButton is not null) sourceButton.IsEnabled = false;
         var mainWindow = MainWindow.Instance;
         var wasHidden = false;
@@ -861,6 +989,7 @@ public sealed partial class MainPage : Page
             mainWindow?.AppWindow.Hide();
             wasHidden = mainWindow is not null;
             await Task.Delay(180);
+            if (_isShuttingDown) return;
 
             var display = _displays[_displayPicker.SelectedIndex];
             var captureDirectory = string.IsNullOrWhiteSpace(_previewScreenshotDir.Text)
@@ -935,14 +1064,16 @@ public sealed partial class MainPage : Page
         }
         finally
         {
-            if (wasHidden && mainWindow is not null)
+            if (wasHidden && mainWindow is not null && !_isShuttingDown)
             {
                 mainWindow.AppWindow.Show();
                 mainWindow.Activate();
             }
-            if (restoreDock) _recordingControl?.ShowDock();
+            if (restoreDock && !_isShuttingDown) _recordingControl?.ShowDock();
             if (sourceButton is not null) sourceButton.IsEnabled = true;
             _shortcutCaptureRunning = false;
+            captureFinished.TrySetResult();
+            if (ReferenceEquals(_captureFinished, captureFinished)) _captureFinished = null;
         }
     }
 
@@ -1255,6 +1386,7 @@ public sealed partial class MainPage : Page
 
     private async Task StartRecordingAsync(int? requestedMode = null)
     {
+        if (_isShuttingDown) return;
         if (_recordingState != RecordingState.Idle || _recorderSession is not null) return;
         if (_displayPicker.SelectedIndex < 0 || _displayPicker.SelectedIndex >= _displays.Count)
         {
@@ -1291,6 +1423,7 @@ public sealed partial class MainPage : Page
                     _ => RegionSelectionIntent.Any
                 };
                 var target = await RegionSelectionWindow.SelectAcrossDisplaysAsync(_displays.ToArray(), display, forRecording: true, selectionIntent);
+                if (_isShuttingDown) return;
                 if (target is not null)
                 {
                     display = target.Frame.Display;
@@ -1368,7 +1501,8 @@ public sealed partial class MainPage : Page
                 ExcludeWindowHandles: [_recordingControl.Handle.ToInt64().ToString(),
                     .. _recordingFrame.Handles.Select(handle => handle.ToInt64().ToString())]);
             var hostPath = await Task.Run(FindRecorderHostPath);
-            _recorderSession = await RecorderHostSession.StartAsync(hostPath, config);
+            if (_isShuttingDown) return;
+            _recorderSession = await RecorderHostSession.StartAsync(hostPath, config, _shutdownCancellation.Token);
             if (_recordingStopRequested)
             {
                 await StopRecordingAsync();
@@ -1392,7 +1526,7 @@ public sealed partial class MainPage : Page
         }
         catch (Exception ex)
         {
-            _recordingStatus.Text = $"录制启动失败：{ex.Message}";
+            if (!_isShuttingDown) _recordingStatus.Text = $"录制启动失败：{ex.Message}";
             if (_recorderSession is not null)
             {
                 await _recorderSession.DisposeAsync();
@@ -1535,7 +1669,7 @@ public sealed partial class MainPage : Page
         _recordingControl = null;
         _recordingFrame?.Dispose();
         _recordingFrame = null;
-        if (mainWindow is not null)
+        if (mainWindow is not null && !_isShuttingDown)
         {
             mainWindow.AppWindow.Show();
             mainWindow.Activate();
@@ -1959,7 +2093,6 @@ public sealed partial class MainPage : Page
         _shortcutPin.Text = _previewSettings.ShortcutPin;
         _shortcutTogglePins.Text = _previewSettings.ShortcutTogglePins;
         _autoBackup.IsChecked = _previewSettings.AutoBackup;
-        _runAsAdmin.IsChecked = _previewSettings.RunAsAdmin;
         _trayMenu.IsChecked = _previewSettings.TrayMenu;
         _autoCopy.IsChecked = _previewSettings.AutoCopy;
         _autoPin.IsChecked = _previewSettings.AutoPinAfterCapture;
@@ -2013,7 +2146,7 @@ public sealed partial class MainPage : Page
 
     private void WireSettingsControls()
     {
-        foreach (var checkBox in new[] { _responsivePreference, _autoBackup, _runAsAdmin, _trayMenu, _autoCopy, _autoPin, _watermarkEnabled, _recordingMic, _recordingCountdown, _recordingShowCursor, _recordingClickHighlight })
+        foreach (var checkBox in new[] { _responsivePreference, _autoBackup, _trayMenu, _autoCopy, _autoPin, _watermarkEnabled, _recordingMic, _recordingCountdown, _recordingShowCursor, _recordingClickHighlight })
         {
             checkBox.Checked += SavePreviewSettings;
             checkBox.Unchecked += SavePreviewSettings;
@@ -2032,7 +2165,6 @@ public sealed partial class MainPage : Page
         _previewSettings.KeepResponsive = _responsivePreference.IsChecked == true;
         _previewSettings.PreviewHotkeyEnabled = _previewHotkeyEnabled.IsChecked == true;
         _previewSettings.AutoBackup = _autoBackup.IsChecked == true;
-        _previewSettings.RunAsAdmin = _runAsAdmin.IsChecked == true;
         _previewSettings.TrayMenu = _trayMenu.IsChecked == true;
         _previewSettings.AutoCopy = _autoCopy.IsChecked == true;
         _previewSettings.AutoPinAfterCapture = _autoPin.IsChecked == true;
@@ -2167,10 +2299,11 @@ public sealed partial class MainPage : Page
 
     private void RunShortcutRecording()
     {
+        if (_isShuttingDown) return;
         if (_recordingState != RecordingState.Idle || _shortcutCaptureRunning) return;
         if (!SelectDisplayAtCursor())
             _recordingStatus.Text = "未能识别鼠标所在显示器，已使用当前显示器。";
-        _ = StartRecordingAsync(requestedMode: 3);
+        _recordingStartTask = StartRecordingAsync(requestedMode: 3);
     }
 
     private bool SelectDisplayAtCursor()
@@ -2445,7 +2578,6 @@ public sealed partial class MainPage : Page
         public bool WatermarkEnabled { get; set; } = true;
         public string WatermarkPosition { get; set; } = "bottom-right";
         public bool LaunchAtStartup { get; set; }
-        public bool RunAsAdmin { get; set; }
         public bool AutoBackup { get; set; } = true;
         public bool KeepResponsive { get; set; } = true;
         public bool TrayMenu { get; set; } = true;
@@ -2479,7 +2611,7 @@ public sealed partial class MainPage : Page
         public static IReadOnlyList<string> KnownElectronFields { get; } =
         [
             "settingsSchemaVersion", "location", "project", "note", "watermarkEnabled", "watermarkPosition",
-            "launchAtStartup", "runAsAdmin", "autoBackup", "keepResponsive", "trayMenu", "autoCopy",
+            "launchAtStartup", "autoBackup", "keepResponsive", "trayMenu", "autoCopy",
             "autoPinAfterCapture", "outputFormat", "language", "theme", "logLevel", "screenshotDir",
             "shortcutCapture", "shortcutCaptureCopy", "shortcutArea", "shortcutScrollCapture", "shortcutRecord",
             "shortcutPin", "shortcutTogglePins", "recordingFps", "recordingFormat", "recordingQuality",

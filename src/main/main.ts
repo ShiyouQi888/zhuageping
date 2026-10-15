@@ -122,7 +122,6 @@ type RecordingFormat = "mp4";
 type AppSettings = CaptureOptions & {
   settingsSchemaVersion: number;
   launchAtStartup: boolean;
-  runAsAdmin: boolean;
   autoBackup: boolean;
   keepResponsive: boolean;
   trayMenu: boolean;
@@ -368,7 +367,6 @@ let appSettings: AppSettings = {
   watermarkEnabled: true,
   watermarkPosition: "bottom-right",
   launchAtStartup: false,
-  runAsAdmin: false,
   autoBackup: true,
   keepResponsive: true,
   trayMenu: true,
@@ -1151,6 +1149,7 @@ function normalizeThemeSetting(settings: AppSettings) {
 }
 
 function normalizeSettings(settings: AppSettings) {
+  delete (settings as AppSettings & { runAsAdmin?: boolean }).runAsAdmin;
   settings.settingsSchemaVersion = SETTINGS_SCHEMA_VERSION;
   normalizeLanguageSetting(settings);
   normalizeThemeSetting(settings);
@@ -1224,7 +1223,6 @@ async function restartAsAdmin() {
   }
 
   const args = app.isPackaged ? "" : `"${process.cwd()}"`;
-  isQuitting = true;
   await execFileAsync(
     "powershell.exe",
     [
@@ -1236,6 +1234,7 @@ async function restartAsAdmin() {
     ],
     { windowsHide: true }
   );
+  isQuitting = true;
   app.quit();
 }
 

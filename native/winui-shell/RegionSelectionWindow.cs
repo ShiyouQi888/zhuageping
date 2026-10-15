@@ -30,6 +30,7 @@ internal sealed record RecordingTargetSelection(RectInt32 Region, bool IsWindow)
 
 internal sealed class RegionSelectionWindow
 {
+    private static readonly List<RegionSelectionWindow> OpenWindows = [];
     private const int GwlStyle = -16;
     private const int GwlExStyle = -20;
     private const int WsOverlappedWindow = 0x00CF0000;
@@ -292,6 +293,7 @@ internal sealed class RegionSelectionWindow
         _window.Content = root;
         _window.Closed += (_, _) =>
         {
+            OpenWindows.Remove(this);
             _ocrLifetime.Cancel();
             _displayPreviews.Clear();
             _monitorFollowTimer?.Stop();
@@ -299,6 +301,12 @@ internal sealed class RegionSelectionWindow
             _completion.TrySetResult(null);
             _annotationCompletion.TrySetResult(null);
         };
+        OpenWindows.Add(this);
+    }
+
+    public static void CloseAll()
+    {
+        foreach (var selection in OpenWindows.ToArray()) selection._window.Close();
     }
 
     public static async Task<DesktopSelection?> SelectAcrossDisplaysAsync(

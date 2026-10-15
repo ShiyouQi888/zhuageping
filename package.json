@@ -129,7 +129,8 @@
       "target": "nsis",
       "icon": "build/icon.ico",
       "legalTrademarks": "抓个屏",
-      "requestedExecutionLevel": "asInvoker"
+      "requestedExecutionLevel": "asInvoker",
+      "forceCodeSigning": true
     },
     "nsis": {
       "oneClick": false,

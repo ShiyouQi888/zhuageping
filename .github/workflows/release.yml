@@ -23,7 +23,20 @@ jobs:
             8.0.x
             10.0.x
       - run: npm ci
-      - run: npm run dist
+      - name: Require Windows signing credentials
+        shell: pwsh
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WIN_CSC_LINK) -or [string]::IsNullOrWhiteSpace($env:WIN_CSC_KEY_PASSWORD)) {
+            throw 'Configure WIN_CSC_LINK and WIN_CSC_KEY_PASSWORD repository secrets before publishing a Windows release.'
+          }
+      - name: Build signed Windows release
+        run: npm run dist
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
       - name: Publish installer and updater metadata
         uses: softprops/action-gh-release@v2
         with:

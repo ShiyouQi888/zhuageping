@@ -17,7 +17,6 @@ export type RecordingFormat = "mp4";
 export type AppSettings = CaptureOptions & {
   settingsSchemaVersion: number;
   launchAtStartup: boolean;
-  runAsAdmin: boolean;
   autoBackup: boolean;
   keepResponsive: boolean;
   trayMenu: boolean;

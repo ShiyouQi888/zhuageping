@@ -239,6 +239,11 @@ internal sealed class PinnedImageWindow
         foreach (var pin in OpenWindows.ToArray()) pin.SetClickThrough(enabled);
     }
 
+    public static void CloseAll()
+    {
+        foreach (var pin in OpenWindows.ToArray()) pin._window.Close();
+    }
+
     private void Root_PointerPressed(object sender, PointerRoutedEventArgs e)
     {
         if (_locked) return;

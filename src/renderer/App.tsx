@@ -38,7 +38,6 @@ const defaultSettings: AppSettings = {
   watermarkEnabled: true,
   watermarkPosition: "bottom-right",
   launchAtStartup: false,
-  runAsAdmin: false,
   autoBackup: true,
   keepResponsive: true,
   trayMenu: true,
@@ -320,10 +319,6 @@ export function App() {
                 <label>
                   <input checked={settings.trayMenu} onChange={() => toggleSetting("trayMenu")} type="checkbox" />
                   {t.general.trayMenu}
-                </label>
-                <label>
-                  <input checked={settings.runAsAdmin} onChange={() => toggleSetting("runAsAdmin")} type="checkbox" />
-                  {t.general.runAsAdmin}
                 </label>
               </div>
             </section>

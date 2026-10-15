@@ -3,6 +3,16 @@ Unicode true
 !include "x64.nsh"
 !include "WinVer.nsh"
 
+!ifndef SIGNTOOL
+  !error "A code-signing certificate is required."
+!endif
+!ifndef SIGN_CERT_THUMBPRINT
+  !error "SIGN_CERT_THUMBPRINT is required."
+!endif
+
+!uninstfinalize '"${SIGNTOOL}" sign /sha1 ${SIGN_CERT_THUMBPRINT} /fd SHA256 /tr https://timestamp.digicert.com /td SHA256 "%1"' = 0
+!finalize '"${SIGNTOOL}" sign /sha1 ${SIGN_CERT_THUMBPRINT} /fd SHA256 /tr https://timestamp.digicert.com /td SHA256 "%1"' = 0
+
 !define PRODUCT_NAME "抓个屏 WinUI 预览版"
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\ZhuagepingWinUI"
 Name "${PRODUCT_NAME}"

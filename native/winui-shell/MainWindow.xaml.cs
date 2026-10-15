@@ -19,6 +19,7 @@ public sealed partial class MainWindow : Window
     public static MainWindow? Instance { get; private set; }
     public bool TrayIsCreated => TrayIcon.IsCreated;
     private bool _exitRequested;
+    private bool _exitInProgress;
 
     public MainWindow()
     {
@@ -38,7 +39,7 @@ public sealed partial class MainWindow : Window
         var menu = new MenuFlyout();
         var openItem = new MenuFlyoutItem { Text = "打开抓个屏预览" };
         openItem.Click += (_, _) => ShowFromTray();
-        var exitItem = new MenuFlyoutItem { Text = "退出预览" };
+        var exitItem = new MenuFlyoutItem { Text = "退出抓个屏" };
         exitItem.Click += (_, _) => ExitFromTray();
         menu.Items.Add(openItem);
         menu.Items.Add(exitItem);
@@ -51,7 +52,11 @@ public sealed partial class MainWindow : Window
             args.Cancel = true;
             AppWindow.Hide();
         };
-        Closed += (_, _) => TrayIcon.Dispose();
+        Closed += (_, _) =>
+        {
+            TrayIcon.Dispose();
+            if (ReferenceEquals(Instance, this)) Instance = null;
+        };
     }
 
     private void ShowFromTray()
@@ -62,8 +67,38 @@ public sealed partial class MainWindow : Window
 
     private void ExitFromTray()
     {
+        if (_exitInProgress) return;
+        _exitInProgress = true;
         _exitRequested = true;
-        Application.Current.Exit();
+        _ = ExitApplicationAsync();
+    }
+
+    public void ExitAfterRelaunch() => ExitFromTray();
+
+    private async Task ExitApplicationAsync()
+    {
+        try
+        {
+            TrayIcon.ContextFlyout = null;
+            TrayIcon.DoubleClickCommand = null;
+            if (RootFrame.Content is MainPage page)
+                await page.ShutdownAsync();
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Trace.TraceError($"Application shutdown cleanup failed: {exception}");
+        }
+        finally
+        {
+            try
+            {
+                Close();
+            }
+            finally
+            {
+                Application.Current.Exit();
+            }
+        }
     }
 
     private sealed class ActionCommand(Action action) : ICommand
